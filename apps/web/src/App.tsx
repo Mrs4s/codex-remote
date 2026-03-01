@@ -114,7 +114,6 @@ import { useWorktreeSetupScript } from "@app/hooks/useWorktreeSetupScript";
 import { useGitCommitController } from "@app/hooks/useGitCommitController";
 import { effectiveCommitMessageModelId } from "@/features/git/utils/commitMessageModelSelection";
 import { WorkspaceHome } from "@/features/workspaces/components/WorkspaceHome";
-import { MobileServerSetupWizard } from "@/features/mobile/components/MobileServerSetupWizard";
 import { useMobileServerSetup } from "@/features/mobile/hooks/useMobileServerSetup";
 import { useWorkspaceHome } from "@/features/workspaces/hooks/useWorkspaceHome";
 import { useWorkspaceAgentMd } from "@/features/workspaces/hooks/useWorkspaceAgentMd";
@@ -263,8 +262,6 @@ function MainApp() {
   });
   const {
     isMobileRuntime,
-    showMobileSetupWizard,
-    mobileSetupWizardProps,
     handleMobileConnectSuccess,
   } = useMobileServerSetup({
     appSettings,
@@ -2776,9 +2773,6 @@ function MainApp() {
           onRemoveDictationModel: dictationModel.remove,
         }}
       />
-      {showMobileSetupWizard && (
-        <MobileServerSetupWizard {...mobileSetupWizardProps} />
-      )}
     </div>
   );
 }
