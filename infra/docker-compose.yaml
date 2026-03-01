@@ -1,0 +1,13 @@
+services:
+  server:
+    image: node:20
+    working_dir: /workspace
+    volumes:
+      - ../:/workspace
+    command: sh -lc "corepack enable && pnpm install && pnpm --filter @codex-remote/server dev"
+    ports:
+      - "8787:8787"
+    environment:
+      CODEX_REMOTE_TOKEN: change-me
+      CODEX_REMOTE_HOST: 0.0.0.0
+      CODEX_REMOTE_PORT: 8787
