@@ -17,7 +17,7 @@ const tabs: { id: TabKey; label: string; icon: ReactNode }[] = [
   { id: "projects", label: "Projects", icon: <FolderKanban className="tabbar-icon" /> },
   { id: "codex", label: "Codex", icon: <MessagesSquare className="tabbar-icon" /> },
   { id: "git", label: "Git", icon: <GitBranch className="tabbar-icon" /> },
-  { id: "log", label: "Log", icon: <TerminalSquare className="tabbar-icon" /> },
+  { id: "log", label: "Terminal", icon: <TerminalSquare className="tabbar-icon" /> },
 ];
 
 export function TabBar({ activeTab, onSelect }: TabBarProps) {

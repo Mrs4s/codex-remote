@@ -1115,6 +1115,8 @@ function MainApp() {
       openRenameWorktreePrompt(activeWorkspace.id);
     }
   }, [activeWorkspace, openRenameWorktreePrompt]);
+  const isPhoneTerminalTabActive = isPhone && activeTab === "log";
+  const isTerminalVisible = terminalOpen || isPhoneTerminalTabActive;
 
   const {
     terminalTabs,
@@ -1129,7 +1131,7 @@ function MainApp() {
   } = useTerminalController({
     activeWorkspaceId,
     activeWorkspace,
-    terminalOpen,
+    terminalOpen: isTerminalVisible,
     onCloseTerminalPanel: closeTerminalPanel,
     onDebug: addDebugEntry,
   });
@@ -2468,7 +2470,7 @@ function MainApp() {
     plan: activePlan,
     debugEntries,
     debugOpen,
-    terminalOpen,
+    terminalOpen: isTerminalVisible,
     terminalTabs,
     activeTerminalId,
     onSelectTerminal,

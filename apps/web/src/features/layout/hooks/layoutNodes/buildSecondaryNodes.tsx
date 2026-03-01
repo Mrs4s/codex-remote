@@ -34,7 +34,7 @@ export function buildSecondaryNodes(options: LayoutNodesOptions): SecondaryLayou
       onSelectTerminal={options.onSelectTerminal}
       onNewTerminal={options.onNewTerminal}
       onCloseTerminal={options.onCloseTerminal}
-      onResizeStart={options.onResizeTerminal}
+      onResizeStart={options.isPhone ? undefined : options.onResizeTerminal}
       terminalNode={terminalPanelNode}
     />
   );

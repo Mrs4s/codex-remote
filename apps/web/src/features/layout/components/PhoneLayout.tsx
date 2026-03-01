@@ -20,7 +20,7 @@ type PhoneLayoutProps = {
   composerNode: ReactNode;
   gitDiffPanelNode: ReactNode;
   gitDiffViewerNode: ReactNode;
-  debugPanelNode: ReactNode;
+  terminalDockNode: ReactNode;
 };
 
 export function PhoneLayout({
@@ -42,7 +42,7 @@ export function PhoneLayout({
   composerNode,
   gitDiffPanelNode,
   gitDiffViewerNode,
-  debugPanelNode,
+  terminalDockNode,
 }: PhoneLayoutProps) {
   return (
     <div className="compact-shell">
@@ -91,7 +91,7 @@ export function PhoneLayout({
         </div>
       )}
       {activeTab === "log" && (
-        <div className="compact-panel">{debugPanelNode}</div>
+        <div className="compact-panel">{terminalDockNode}</div>
       )}
       {tabBarNode}
     </div>

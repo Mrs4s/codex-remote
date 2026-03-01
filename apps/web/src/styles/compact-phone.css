@@ -36,6 +36,17 @@
   padding-top: calc(10px + env(safe-area-inset-top));
 }
 
+.app.layout-phone .compact-panel > .terminal-panel {
+  flex: 1;
+  min-height: 0;
+  height: 100%;
+  border-top: none;
+}
+
+.app.layout-phone .compact-panel > .terminal-panel .terminal-header {
+  padding-top: calc(6px + env(safe-area-inset-top));
+}
+
 .app.layout-phone .messages-full {
   padding: 12px 16px 12px;
 }

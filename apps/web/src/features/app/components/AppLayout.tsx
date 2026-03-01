@@ -101,7 +101,7 @@ export const AppLayout = memo(function AppLayout({
         composerNode={composerNode}
         gitDiffPanelNode={gitDiffPanelNode}
         gitDiffViewerNode={gitDiffViewerNode}
-        debugPanelNode={debugPanelFullNode}
+        terminalDockNode={terminalDockNode}
       />
     );
   }
