@@ -706,7 +706,12 @@ export async function dispatchRpc(
     case "generate_commit_message": {
       const workspace = workspaceFromParams();
       const commitMessageModelId = optionalString(params, "commitMessageModelId");
-      return generateCommitMessage(workspace, commitMessageModelId);
+      return generateCommitMessage(
+        workspace,
+        deps.sessionManager,
+        deps.store,
+        commitMessageModelId,
+      );
     }
     case "generate_agent_description": {
       const workspace = workspaceFromParams();

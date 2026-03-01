@@ -68,6 +68,47 @@ function buildTurnInputItems(
   return input;
 }
 
+function extractThreadId(value: unknown): string | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const direct = record.threadId ?? record.thread_id;
+  if (typeof direct === "string" && direct.trim()) {
+    return direct;
+  }
+  const thread = record.thread as Record<string, unknown> | undefined;
+  if (thread && typeof thread.id === "string" && thread.id.trim()) {
+    return thread.id;
+  }
+  const params = record.params as Record<string, unknown> | undefined;
+  if (params) {
+    return extractThreadId(params);
+  }
+  return null;
+}
+
+function extractTurnErrorMessage(message: Record<string, unknown>): string {
+  const params =
+    message.params && typeof message.params === "object"
+      ? (message.params as Record<string, unknown>)
+      : null;
+  if (!params) {
+    return "Unknown error during background prompt";
+  }
+  const rawError = params.error;
+  if (typeof rawError === "string" && rawError.trim()) {
+    return rawError;
+  }
+  if (rawError && typeof rawError === "object") {
+    const nested = (rawError as Record<string, unknown>).message;
+    if (typeof nested === "string" && nested.trim()) {
+      return nested;
+    }
+  }
+  return "Unknown error during background prompt";
+}
+
 export class SessionManager {
   private sessions = new Map<string, CodexSession>();
   private loginIds = new Map<string, string>();
@@ -357,6 +398,94 @@ export class SessionManager {
   ): Promise<unknown> {
     const session = await this.ensureSession(workspace);
     return session.sendRequest(workspace.id, method, params);
+  }
+
+  async runBackgroundPrompt(
+    workspace: WorkspaceEntry,
+    prompt: string,
+    options?: { model?: string | null; timeoutMs?: number },
+  ): Promise<string> {
+    const session = await this.ensureSession(workspace);
+    const threadStart = await session.sendRequest(workspace.id, "thread/start", {
+      cwd: workspace.path,
+      approvalPolicy: "never",
+    });
+    const threadId = extractThreadId(threadStart);
+    if (!threadId) {
+      throw new Error("Failed to get threadId from thread/start response");
+    }
+
+    const responseChunks: string[] = [];
+    let resolveDone: (() => void) | null = null;
+    let rejectDone: ((error: Error) => void) | null = null;
+    const done = new Promise<void>((resolve, reject) => {
+      resolveDone = resolve;
+      rejectDone = reject;
+    });
+
+    const unlisten = session.subscribeThreadEvents(threadId, (message) => {
+      const method = typeof message.method === "string" ? message.method : "";
+      if (method === "item/agentMessage/delta") {
+        const params =
+          message.params && typeof message.params === "object"
+            ? (message.params as Record<string, unknown>)
+            : null;
+        const delta = params?.delta;
+        if (typeof delta === "string" && delta.length > 0) {
+          responseChunks.push(delta);
+        }
+        return;
+      }
+      if (method === "turn/error") {
+        rejectDone?.(new Error(extractTurnErrorMessage(message)));
+        return;
+      }
+      if (method === "turn/completed") {
+        resolveDone?.();
+      }
+    });
+
+    try {
+      const turnParams: Record<string, unknown> = {
+        threadId,
+        input: [{ type: "text", text: prompt }],
+        cwd: workspace.path,
+        approvalPolicy: "never",
+        sandboxPolicy: { type: "readOnly" },
+      };
+      const model = options?.model?.trim();
+      if (model) {
+        turnParams.model = model;
+      }
+      await session.sendRequest(workspace.id, "turn/start", turnParams);
+
+      const timeoutMs = Math.max(1_000, options?.timeoutMs ?? 60_000);
+      await new Promise<void>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error("Timeout waiting for commit message generation"));
+        }, timeoutMs);
+        done
+          .then(() => {
+            clearTimeout(timer);
+            resolve();
+          })
+          .catch((error) => {
+            clearTimeout(timer);
+            reject(error);
+          });
+      });
+    } finally {
+      unlisten();
+      await session
+        .sendRequest(workspace.id, "thread/archive", { threadId })
+        .catch(() => undefined);
+    }
+
+    const response = responseChunks.join("").trim();
+    if (!response) {
+      throw new Error("No response was generated");
+    }
+    return response;
   }
 
   async closeAll(): Promise<void> {

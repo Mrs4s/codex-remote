@@ -4,8 +4,16 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import type { WorkspaceEntry } from "../types/domain.js";
+import type { SessionManager } from "./sessionManager.js";
+import type { JsonStore } from "../storage/jsonStore.js";
 
 const execFileAsync = promisify(execFile);
+const DEFAULT_COMMIT_MESSAGE_PROMPT =
+  "Generate a concise git commit message for the following changes. " +
+  "Follow conventional commit format (e.g., feat:, fix:, refactor:, docs:, etc.). " +
+  "Keep the summary line under 72 characters. " +
+  "Only output the commit message, nothing else.\n\n" +
+  "Changes:\n{diff}";
 
 function codexHomeDir(): string {
   const envHome = process.env.CODEX_HOME?.trim();
@@ -110,46 +118,75 @@ async function runGit(workspace: WorkspaceEntry, args: string[]): Promise<string
   return stdout;
 }
 
-function chooseCommitType(paths: string[]): string {
-  if (paths.every((value) => value.endsWith(".md") || value.startsWith("docs/"))) {
-    return "docs";
+function pickCommitMessagePrompt(settings: Record<string, unknown>): string {
+  const value = settings.commitMessagePrompt;
+  if (typeof value === "string" && value.trim()) {
+    return value;
   }
-  if (paths.some((value) => /(^|\/)(test|tests|__tests__)\//.test(value) || value.includes(".test."))) {
-    return "test";
-  }
-  if (paths.some((value) => value.startsWith("src/"))) {
-    return "feat";
-  }
-  return "chore";
+  return DEFAULT_COMMIT_MESSAGE_PROMPT;
 }
 
-function buildCommitSummary(paths: string[]): string {
-  if (paths.length === 0) {
-    return "update project files";
+function pickCommitMessageModel(
+  settings: Record<string, unknown>,
+  commitMessageModelId?: string | null,
+): string | null {
+  const explicit = commitMessageModelId?.trim();
+  if (explicit) {
+    return explicit;
   }
-  if (paths.length === 1) {
-    return `update ${path.basename(paths[0])}`;
+  const fromSettings = settings.commitMessageModelId;
+  if (typeof fromSettings === "string" && fromSettings.trim()) {
+    return fromSettings.trim();
   }
-  if (paths.length === 2) {
-    return `update ${path.basename(paths[0])} and ${path.basename(paths[1])}`;
+  return null;
+}
+
+function buildCommitMessagePrompt(diff: string, template: string): string {
+  const base = template.trim() ? template : DEFAULT_COMMIT_MESSAGE_PROMPT;
+  if (base.includes("{diff}")) {
+    return base.replace("{diff}", diff);
   }
-  return `update ${paths.length} files`;
+  return `${base}\n\nChanges:\n${diff}`;
+}
+
+async function collectWorkspaceDiff(workspace: WorkspaceEntry): Promise<string> {
+  const staged = await runGit(workspace, [
+    "diff",
+    "--cached",
+    "--patch",
+    "--no-color",
+    "--find-renames",
+  ]).catch(() => "");
+  const unstaged = await runGit(workspace, [
+    "diff",
+    "--patch",
+    "--no-color",
+    "--find-renames",
+  ]).catch(() => "");
+
+  const parts = [staged.trim(), unstaged.trim()].filter((value) => value.length > 0);
+  if (parts.length === 0) {
+    throw new Error("No changes to generate commit message for");
+  }
+  return parts.join("\n\n");
 }
 
 export async function generateCommitMessage(
   workspace: WorkspaceEntry,
+  sessionManager: SessionManager,
+  store: JsonStore,
   commitMessageModelId?: string | null,
 ): Promise<string> {
-  void commitMessageModelId;
-  const stagedRaw = await runGit(workspace, ["diff", "--cached", "--name-only"]).catch(() => "");
-  const unstagedRaw = await runGit(workspace, ["diff", "--name-only"]).catch(() => "");
-  const paths = [...stagedRaw.split("\n"), ...unstagedRaw.split("\n")]
-    .map((value) => value.trim())
-    .filter(Boolean);
-  const uniquePaths = [...new Set(paths)];
-  const type = chooseCommitType(uniquePaths);
-  const summary = buildCommitSummary(uniquePaths);
-  return `${type}: ${summary}`;
+  const settings = (await store.readSettings()) as Record<string, unknown>;
+  const diff = await collectWorkspaceDiff(workspace);
+  const promptTemplate = pickCommitMessagePrompt(settings);
+  const prompt = buildCommitMessagePrompt(diff, promptTemplate);
+  const model = pickCommitMessageModel(settings, commitMessageModelId);
+  const response = await sessionManager.runBackgroundPrompt(workspace, prompt, {
+    model,
+    timeoutMs: 60_000,
+  });
+  return response.trim();
 }
 
 export type GeneratedAgentConfiguration = {

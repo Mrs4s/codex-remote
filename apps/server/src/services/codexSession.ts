@@ -39,6 +39,7 @@ export class CodexSession {
   private pending = new Map<number, PendingResolver>();
   private requestWorkspace = new Map<number, string>();
   private threadWorkspace = new Map<string, string>();
+  private threadListeners = new Map<string, Set<(message: Record<string, unknown>) => void>>();
 
   constructor(
     private readonly workspace: WorkspaceEntry,
@@ -100,12 +101,33 @@ export class CodexSession {
     this.writeLine({ id, result });
   }
 
+  subscribeThreadEvents(
+    threadId: string,
+    listener: (message: Record<string, unknown>) => void,
+  ): () => void {
+    const current = this.threadListeners.get(threadId) ?? new Set();
+    current.add(listener);
+    this.threadListeners.set(threadId, current);
+
+    return () => {
+      const existing = this.threadListeners.get(threadId);
+      if (!existing) {
+        return;
+      }
+      existing.delete(listener);
+      if (existing.size === 0) {
+        this.threadListeners.delete(threadId);
+      }
+    };
+  }
+
   close(): void {
     this.process.kill();
     for (const entry of this.pending.values()) {
       entry.reject(new Error("session closed"));
     }
     this.pending.clear();
+    this.threadListeners.clear();
   }
 
   private writeLine(payload: unknown): void {
@@ -208,6 +230,16 @@ export class CodexSession {
 
       if (threadId) {
         this.threadWorkspace.set(threadId, routedWorkspace);
+        const listeners = this.threadListeners.get(threadId);
+        if (listeners && listeners.size > 0) {
+          for (const listener of listeners) {
+            try {
+              listener(parsed);
+            } catch {
+              // Ignore listener failures to avoid breaking event routing.
+            }
+          }
+        }
       }
 
       this.eventBus.publish("app-server-event", {

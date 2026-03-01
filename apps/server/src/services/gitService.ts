@@ -278,12 +278,29 @@ export async function getGitStatus(workspace: WorkspaceEntry): Promise<Record<st
     (total, file) => total + Number((file as { deletions: number }).deletions || 0),
     0,
   );
+  const stagedFiles = files.filter((file) => {
+    const status = String((file as { status: string }).status ?? "");
+    if (status === "??" || status === "!!") {
+      return false;
+    }
+    return status[0] !== " ";
+  });
+  const unstagedFiles = files.filter((file) => {
+    const status = String((file as { status: string }).status ?? "");
+    if (status === "!!") {
+      return false;
+    }
+    if (status === "??") {
+      return true;
+    }
+    return status[1] !== " ";
+  });
 
   return {
     branchName: branchRaw.trim(),
     files,
-    stagedFiles: files.filter((f) => String((f as { status: string }).status)[0] !== " "),
-    unstagedFiles: files.filter((f) => String((f as { status: string }).status)[1] !== " "),
+    stagedFiles,
+    unstagedFiles,
     totalAdditions,
     totalDeletions,
   };
