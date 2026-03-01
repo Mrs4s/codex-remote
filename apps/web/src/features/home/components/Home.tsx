@@ -1,5 +1,8 @@
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw";
+import { ModalShell } from "../../design-system/components/modal/ModalShell";
 import type { LocalUsageSnapshot } from "../../../types";
+import { getRemoteToken, setRemoteToken } from "../../../tauri-shim/remote";
 import { formatRelativeTime } from "../../../utils/time";
 
 type LatestAgentRun = {
@@ -52,6 +55,43 @@ export function Home({
   onUsageWorkspaceChange,
   onSelectThread,
 }: HomeProps) {
+  const [isTokenDialogOpen, setIsTokenDialogOpen] = useState(false);
+  const [tokenDraft, setTokenDraft] = useState("");
+  const [tokenError, setTokenError] = useState<string | null>(null);
+  const tokenInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!isTokenDialogOpen) {
+      return;
+    }
+    tokenInputRef.current?.focus();
+    tokenInputRef.current?.select();
+  }, [isTokenDialogOpen]);
+
+  const openTokenDialog = () => {
+    const current = getRemoteToken();
+    setTokenDraft(current === "change-me" ? "" : current);
+    setTokenError(null);
+    setIsTokenDialogOpen(true);
+  };
+
+  const closeTokenDialog = () => {
+    setIsTokenDialogOpen(false);
+    setTokenError(null);
+  };
+
+  const handleTokenSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const nextToken = tokenDraft.trim();
+    if (!nextToken) {
+      setTokenError("Token is required.");
+      return;
+    }
+    setRemoteToken(nextToken);
+    closeTokenDialog();
+    onRefreshLocalUsage();
+  };
+
   const formatCompactNumber = (value: number | null | undefined) => {
     if (value === null || value === undefined) {
       return "--";
@@ -172,6 +212,7 @@ export function Home({
     : null;
   const showUsageSkeleton = isLoadingLocalUsage && !localUsageSnapshot;
   const showUsageEmpty = !isLoadingLocalUsage && !localUsageSnapshot;
+  const showTokenAction = Boolean(localUsageError && /unauthorized/i.test(localUsageError));
 
   return (
     <div className="home">
@@ -360,6 +401,15 @@ export function Home({
             {localUsageError && (
               <div className="home-usage-error">{localUsageError}</div>
             )}
+            {showTokenAction && (
+              <button
+                type="button"
+                className="ghost ds-modal-button home-usage-token-button"
+                onClick={openTokenDialog}
+              >
+                Set remote token
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -522,10 +572,58 @@ export function Home({
               {localUsageError && (
                 <div className="home-usage-error">{localUsageError}</div>
               )}
+              {showTokenAction && (
+                <button
+                  type="button"
+                  className="ghost ds-modal-button home-usage-token-button"
+                  onClick={openTokenDialog}
+                >
+                  Set remote token
+                </button>
+              )}
             </div>
           </>
         )}
       </div>
+      {isTokenDialogOpen && (
+        <ModalShell
+          ariaLabel="Set remote backend token"
+          onBackdropClick={closeTokenDialog}
+          className="home-token-modal"
+          cardClassName="home-token-modal-card"
+        >
+          <form className="home-token-modal-content" onSubmit={handleTokenSubmit}>
+            <div className="ds-modal-title">Set remote token</div>
+            <div className="ds-modal-subtitle">
+              Enter the token from your server `.env` (`CODEX_REMOTE_TOKEN`).
+            </div>
+            <label className="ds-modal-label" htmlFor="home-token-input">
+              Token
+            </label>
+            <input
+              id="home-token-input"
+              ref={tokenInputRef}
+              className="ds-modal-input"
+              value={tokenDraft}
+              onChange={(event) => setTokenDraft(event.target.value)}
+              placeholder="change-me"
+            />
+            {tokenError && <div className="ds-modal-error">{tokenError}</div>}
+            <div className="ds-modal-actions">
+              <button
+                type="button"
+                className="ghost ds-modal-button"
+                onClick={closeTokenDialog}
+              >
+                Cancel
+              </button>
+              <button type="submit" className="primary ds-modal-button">
+                Save token
+              </button>
+            </div>
+          </form>
+        </ModalShell>
+      )}
     </div>
   );
 }

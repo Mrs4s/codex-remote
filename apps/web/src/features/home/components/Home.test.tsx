@@ -3,6 +3,16 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { Home } from "./Home";
 
+const { getRemoteTokenMock, setRemoteTokenMock } = vi.hoisted(() => ({
+  getRemoteTokenMock: vi.fn(() => "stored-token"),
+  setRemoteTokenMock: vi.fn(),
+}));
+
+vi.mock("../../../tauri-shim/remote", () => ({
+  getRemoteToken: getRemoteTokenMock,
+  setRemoteToken: setRemoteTokenMock,
+}));
+
 const baseProps = {
   onOpenSettings: vi.fn(),
   onAddWorkspace: vi.fn(),
@@ -22,6 +32,27 @@ const baseProps = {
 };
 
 describe("Home", () => {
+  it("opens token dialog and saves token when unauthorized", () => {
+    const onRefreshLocalUsage = vi.fn();
+    render(
+      <Home
+        {...baseProps}
+        localUsageError="unauthorized"
+        onRefreshLocalUsage={onRefreshLocalUsage}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Set remote token"));
+    const input = screen.getByLabelText("Token") as HTMLInputElement;
+    expect(input.value).toBe("stored-token");
+
+    fireEvent.change(input, { target: { value: "next-token" } });
+    fireEvent.click(screen.getByText("Save token"));
+
+    expect(setRemoteTokenMock).toHaveBeenCalledWith("next-token");
+    expect(onRefreshLocalUsage).toHaveBeenCalled();
+  });
+
   it("renders latest agent runs and lets you open a thread", () => {
     const onSelectThread = vi.fn();
     render(

@@ -1,8 +1,26 @@
-node_modules
-.pnpm-store
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment files
 .env
 .env.*
-dist
-coverage
-.DS_Store
+**/.env
+**/.env.*
+
+# Build and cache outputs
+dist/
+coverage/
+*.tsbuildinfo
+.vite/
+.turbo/
+
+# Logs
 *.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# OS files
+.DS_Store

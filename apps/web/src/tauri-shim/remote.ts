@@ -1,9 +1,28 @@
 type RpcPayload = Record<string, unknown>;
 
+function getDefaultBaseUrl(): string {
+  if (typeof window !== "undefined") {
+    const host = window.location.hostname;
+    if (host && host !== "localhost" && host !== "127.0.0.1") {
+      return window.location.origin.replace(/\/$/, "");
+    }
+  }
+  return "http://127.0.0.1:8787";
+}
+
+function isLoopbackUrl(raw: string): boolean {
+  try {
+    const parsed = new URL(raw);
+    return parsed.hostname === "127.0.0.1" || parsed.hostname === "localhost";
+  } catch {
+    return false;
+  }
+}
+
 function normalizeBaseUrl(raw: string): string {
   const trimmed = raw.trim();
   if (!trimmed) {
-    return "http://127.0.0.1:8787";
+    return getDefaultBaseUrl();
   }
   if (trimmed.startsWith("http://") || trimmed.startsWith("https://")) {
     return trimmed.replace(/\/$/, "");
@@ -16,11 +35,22 @@ export function getRemoteBaseUrl(): string {
   if (envBase) {
     return normalizeBaseUrl(envBase);
   }
+
   const storageBase =
     typeof window !== "undefined"
       ? window.localStorage.getItem("codex-remote.baseUrl") ?? ""
       : "";
-  return normalizeBaseUrl(storageBase);
+
+  if (storageBase) {
+    const normalizedStorage = normalizeBaseUrl(storageBase);
+    const defaultBase = getDefaultBaseUrl();
+    if (defaultBase !== "http://127.0.0.1:8787" && isLoopbackUrl(normalizedStorage)) {
+      return defaultBase;
+    }
+    return normalizedStorage;
+  }
+
+  return getDefaultBaseUrl();
 }
 
 export function getRemoteToken(): string {
@@ -33,6 +63,18 @@ export function getRemoteToken(): string {
       ? window.localStorage.getItem("codex-remote.token") ?? ""
       : "";
   return (storageToken || "change-me").trim();
+}
+
+export function setRemoteToken(token: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  const trimmed = token.trim();
+  if (!trimmed) {
+    window.localStorage.removeItem("codex-remote.token");
+    return;
+  }
+  window.localStorage.setItem("codex-remote.token", trimmed);
 }
 
 export async function rpcInvoke<T>(method: string, payload: RpcPayload = {}): Promise<T> {

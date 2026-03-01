@@ -1,5 +1,8 @@
-import Fastify from "fastify";
+import Fastify, { type FastifyReply } from "fastify";
 import cors from "@fastify/cors";
+import fs from "node:fs";
+import { readFile, stat } from "node:fs/promises";
+import path from "node:path";
 import { env } from "./config/env.js";
 import { JsonStore } from "./storage/jsonStore.js";
 import { EventBus } from "./events/eventBus.js";
@@ -17,6 +20,9 @@ const sessionManager = new SessionManager(eventBus, env.codexBin);
 const terminalService = new TerminalService(eventBus);
 const promptService = new PromptService(env.dataDir);
 const dictationService = new DictationService(eventBus);
+const webDistDir = path.resolve(env.webDistDir);
+const webIndexPath = path.join(webDistDir, "index.html");
+const hasWebDist = fs.existsSync(webIndexPath);
 
 const app = Fastify({ logger: true });
 
@@ -29,7 +35,7 @@ await store.init();
 await workspaceService.load();
 
 app.addHook("onRequest", async (request, reply) => {
-  if (request.url === "/health") {
+  if (request.url === "/health" || !request.url.startsWith("/api/v1/")) {
     return;
   }
   const bearer = request.headers.authorization?.replace(/^Bearer\s+/i, "")?.trim();
@@ -71,6 +77,90 @@ app.post("/api/v1/rpc/:method", async (request, reply) => {
     return { error: { message } };
   }
 });
+
+const getContentType = (filePath: string): string => {
+  const ext = path.extname(filePath).toLowerCase();
+  switch (ext) {
+    case ".html":
+      return "text/html; charset=utf-8";
+    case ".js":
+      return "text/javascript; charset=utf-8";
+    case ".css":
+      return "text/css; charset=utf-8";
+    case ".json":
+      return "application/json; charset=utf-8";
+    case ".svg":
+      return "image/svg+xml";
+    case ".png":
+      return "image/png";
+    case ".jpg":
+    case ".jpeg":
+      return "image/jpeg";
+    case ".gif":
+      return "image/gif";
+    case ".webp":
+      return "image/webp";
+    case ".ico":
+      return "image/x-icon";
+    case ".woff":
+      return "font/woff";
+    case ".woff2":
+      return "font/woff2";
+    case ".ttf":
+      return "font/ttf";
+    case ".map":
+      return "application/json; charset=utf-8";
+    case ".wasm":
+      return "application/wasm";
+    case ".mp3":
+      return "audio/mpeg";
+    default:
+      return "application/octet-stream";
+  }
+};
+
+const sendFile = async (reply: FastifyReply, filePath: string) => {
+  const content = await readFile(filePath);
+  reply.type(getContentType(filePath)).send(content);
+};
+
+if (hasWebDist) {
+  app.log.info({ webDistDir }, "serving frontend from web dist");
+
+  app.get("/", async (_request, reply) => {
+    await sendFile(reply, webIndexPath);
+  });
+
+  app.get("/*", async (request, reply) => {
+    const rawPath = String((request.params as { "*": string })["*"] ?? "");
+    if (rawPath.startsWith("api/") || rawPath === "health") {
+      reply.code(404).send({ error: { message: "not found" } });
+      return;
+    }
+
+    const candidatePath = path.resolve(webDistDir, rawPath);
+    const withinDist =
+      candidatePath === webDistDir || candidatePath.startsWith(`${webDistDir}${path.sep}`);
+    if (!withinDist) {
+      await sendFile(reply, webIndexPath);
+      return;
+    }
+
+    try {
+      const fileStat = await stat(candidatePath);
+      if (fileStat.isFile()) {
+        await sendFile(reply, candidatePath);
+        return;
+      }
+    } catch {
+      // Fall through to SPA fallback.
+    }
+
+    await sendFile(reply, webIndexPath);
+  });
+} else {
+  app.log.info({ webDistDir }, "web dist not found, static hosting disabled");
+}
 
 const shutdown = async () => {
   terminalService.closeAll();

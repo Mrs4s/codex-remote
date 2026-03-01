@@ -18,4 +18,6 @@ export const env = {
   corsOrigin: process.env.CODEX_REMOTE_CORS_ORIGIN || "http://localhost:5173",
   dataDir: process.env.CODEX_REMOTE_DATA_DIR || path.join(rootDir, "data"),
   codexBin: process.env.CODEX_REMOTE_CODEX_BIN || "codex",
+  webDistDir:
+    process.env.CODEX_REMOTE_WEB_DIST_DIR || path.join(rootDir, "apps", "web", "dist"),
 };

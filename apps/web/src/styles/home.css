@@ -423,6 +423,21 @@
   color: var(--text-accent);
 }
 
+.home-usage-token-button {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.home-token-modal-card {
+  width: min(100%, 460px);
+}
+
+.home-token-modal-content {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
 .home-usage-skeleton {
   display: flex;
   flex-direction: column;
