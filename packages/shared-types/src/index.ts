@@ -462,7 +462,7 @@ export type RpcMethodMap = {
   };
   terminal_open: {
     params: { workspaceId: string; terminalId: string; cols: number; rows: number };
-    result: { id: string };
+    result: { id: string; mode: "pty" | "pipe" };
   };
   terminal_write: {
     params: { workspaceId: string; terminalId: string; data: string };

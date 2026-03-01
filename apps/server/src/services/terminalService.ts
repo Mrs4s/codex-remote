@@ -5,6 +5,7 @@ import type { EventBus } from "../events/eventBus.js";
 import type { WorkspaceEntry } from "../types/domain.js";
 
 type TerminalTransport = {
+  mode: "pty" | "pipe";
   write: (data: string) => void;
   resize: (cols: number, rows: number) => void;
   kill: () => void;
@@ -57,6 +58,58 @@ function shellEnv(): NodeJS.ProcessEnv {
   };
 }
 
+function toPipeEcho(data: string): string {
+  let echo = "";
+  for (let index = 0; index < data.length; index += 1) {
+    const char = data[index];
+    if (char === "\u001b") {
+      // Skip ANSI control sequences from key presses like arrows.
+      while (index + 1 < data.length) {
+        const next = data[index + 1];
+        const nextCode = next.charCodeAt(0);
+        index += 1;
+        if (nextCode >= 0x40 && nextCode <= 0x7e) {
+          break;
+        }
+      }
+      continue;
+    }
+    if (char === "\r" || char === "\n") {
+      echo += "\r\n";
+      continue;
+    }
+    if (char === "\u007f" || char === "\b") {
+      echo += "\b \b";
+      continue;
+    }
+    if (char === "\t") {
+      echo += "\t";
+      continue;
+    }
+    if (char >= " ") {
+      echo += char;
+    }
+  }
+  return echo;
+}
+
+function createPipeNewlineNormalizer(): (chunk: string) => string {
+  let previousWasCarriageReturn = false;
+  return (chunk: string) => {
+    let normalized = "";
+    for (const char of chunk) {
+      if (char === "\n" && !previousWasCarriageReturn) {
+        normalized += "\r\n";
+        previousWasCarriageReturn = false;
+        continue;
+      }
+      normalized += char;
+      previousWasCarriageReturn = char === "\r";
+    }
+    return normalized;
+  };
+}
+
 function createPtyTransport(
   shell: string,
   cwd: string,
@@ -72,6 +125,7 @@ function createPtyTransport(
   });
 
   return {
+    mode: "pty",
     write: (data) => term.write(data),
     resize: (nextCols, nextRows) => term.resize(Math.max(2, nextCols), Math.max(2, nextRows)),
     kill: () => term.kill(),
@@ -100,10 +154,57 @@ function createPipeTransport(
     throw new Error("spawn returned no pid");
   }
 
+  let pendingLine = "";
+  const normalizeStdout = createPipeNewlineNormalizer();
+  const normalizeStderr = createPipeNewlineNormalizer();
+
   return {
+    mode: "pipe",
     write: (data) => {
       const normalized = data.replaceAll("\r", "\n");
-      child.stdin.write(normalized);
+      for (let index = 0; index < normalized.length; index += 1) {
+        const char = normalized[index];
+
+        if (char === "\u001b") {
+          // Ignore escape sequences (e.g. arrow keys) in line-buffered pipe mode.
+          while (index + 1 < normalized.length) {
+            const next = normalized[index + 1];
+            const nextCode = next.charCodeAt(0);
+            index += 1;
+            if (nextCode >= 0x40 && nextCode <= 0x7e) {
+              break;
+            }
+          }
+          continue;
+        }
+
+        if (char === "\n") {
+          child.stdin.write(`${pendingLine}\n`);
+          pendingLine = "";
+          continue;
+        }
+
+        if (char === "\u007f" || char === "\b") {
+          if (pendingLine.length > 0) {
+            pendingLine = pendingLine.slice(0, -1);
+          }
+          continue;
+        }
+
+        if (char === "\u0015") {
+          // Ctrl+U: clear current line buffer.
+          pendingLine = "";
+          continue;
+        }
+
+        if (char === "\u0003" || char === "\u0004") {
+          // Forward common control chars directly.
+          child.stdin.write(char);
+          continue;
+        }
+
+        pendingLine += char;
+      }
     },
     resize: () => {
       // No-op: plain stdio mode has no PTY resize support.
@@ -121,10 +222,10 @@ function createPipeTransport(
     },
     onData: (handler) => {
       child.stdout.on("data", (chunk) => {
-        handler(String(chunk));
+        handler(normalizeStdout(String(chunk)));
       });
       child.stderr.on("data", (chunk) => {
-        handler(String(chunk));
+        handler(normalizeStderr(String(chunk)));
       });
     },
     onExit: (handler) => {
@@ -143,11 +244,19 @@ export class TerminalService {
 
   constructor(private readonly eventBus: EventBus) {}
 
-  open(workspace: WorkspaceEntry, terminalId: string, cols: number, rows: number): { id: string } {
+  open(
+    workspace: WorkspaceEntry,
+    terminalId: string,
+    cols: number,
+    rows: number,
+  ): { id: string; mode: "pty" | "pipe" } {
     const sessionKey = key(workspace.id, terminalId);
     const existing = this.sessions.get(sessionKey);
     if (existing) {
-      return { id: existing.terminalId };
+      return {
+        id: existing.terminalId,
+        mode: existing.transport.mode,
+      };
     }
 
     if (!fs.existsSync(workspace.path)) {
@@ -175,11 +284,24 @@ export class TerminalService {
     });
 
     this.sessions.set(sessionKey, record);
-    return { id: terminalId };
+    return {
+      id: terminalId,
+      mode: transport.mode,
+    };
   }
 
   write(workspaceId: string, terminalId: string, data: string): void {
     const session = this.mustGet(workspaceId, terminalId);
+    if (session.transport.mode === "pipe") {
+      const echo = toPipeEcho(data);
+      if (echo.length > 0) {
+        this.eventBus.publish("terminal-output", {
+          workspaceId,
+          terminalId,
+          data: echo,
+        });
+      }
+    }
     session.transport.write(data);
   }
 

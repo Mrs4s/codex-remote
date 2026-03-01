@@ -124,6 +124,7 @@ export function useTerminalSession({
   const fitAddonRef = useRef<FitAddon | null>(null);
   const inputDisposableRef = useRef<{ dispose: () => void } | null>(null);
   const openedSessionsRef = useRef<Set<string>>(new Set());
+  const sessionModesRef = useRef<Map<string, "pty" | "pipe">>(new Map());
   const outputBuffersRef = useRef<Map<string, string>>(new Map());
   const activeKeyRef = useRef<string | null>(null);
   const renderedKeyRef = useRef<string | null>(null);
@@ -139,6 +140,7 @@ export function useTerminalSession({
     const key = `${workspaceId}:${terminalId}`;
     outputBuffersRef.current.delete(key);
     openedSessionsRef.current.delete(key);
+    sessionModesRef.current.delete(key);
     if (readyKey === key) {
       setReadyKey(null);
     }
@@ -334,11 +336,13 @@ export function useTerminalSession({
       setStatus("connecting");
       setMessage("Starting terminal session...");
       if (!openedSessionsRef.current.has(key)) {
-        await openTerminalSession(activeWorkspace.id, activeTerminalId, cols, rows);
+        const opened = await openTerminalSession(activeWorkspace.id, activeTerminalId, cols, rows);
         openedSessionsRef.current.add(key);
+        sessionModesRef.current.set(key, opened.mode);
       }
+      const mode = sessionModesRef.current.get(key) ?? "pty";
       setStatus("ready");
-      setMessage("Terminal ready.");
+      setMessage(mode === "pipe" ? "Terminal ready (compatibility mode)." : "Terminal ready.");
       setHasSession(true);
       setReadyKey(key);
       if (renderedKeyRef.current !== key) {

@@ -1001,7 +1001,7 @@ export async function openTerminalSession(
   terminalId: string,
   cols: number,
   rows: number,
-): Promise<{ id: string }> {
+): Promise<{ id: string; mode: "pty" | "pipe" }> {
   return invoke("terminal_open", { workspaceId, terminalId, cols, rows });
 }
 
