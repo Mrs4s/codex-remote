@@ -186,7 +186,7 @@ export type RpcMethodMap = {
     result: WorkspaceInfo;
   };
   start_thread: {
-    params: { workspaceId: string };
+    params: { workspaceId: string; accessMode?: string | null };
     result: Record<string, unknown>;
   };
   list_threads: {

@@ -24,6 +24,7 @@ import {
   openWorkspaceIn,
   readAgentMd,
   stageGitAll,
+  startThread,
   respondToServerRequest,
   respondToUserInputRequest,
   sendUserMessage,
@@ -228,6 +229,18 @@ describe("tauri invoke wrappers", () => {
     expect(invokeMock).toHaveBeenCalledWith("fork_thread", {
       workspaceId: "ws-9",
       threadId: "thread-9",
+    });
+  });
+
+  it("maps workspaceId and accessMode for start_thread", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await startThread("ws-11", { accessMode: "full-access" });
+
+    expect(invokeMock).toHaveBeenCalledWith("start_thread", {
+      workspaceId: "ws-11",
+      accessMode: "full-access",
     });
   });
 

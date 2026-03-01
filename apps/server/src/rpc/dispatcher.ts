@@ -286,7 +286,9 @@ export async function dispatchRpc(
     }
     case "start_thread": {
       const workspace = workspaceFromParams();
-      return deps.sessionManager.startThread(workspace);
+      return deps.sessionManager.startThread(workspace, {
+        accessMode: (params.accessMode as string | null | undefined) ?? null,
+      });
     }
     case "list_threads": {
       const workspace = workspaceFromParams();

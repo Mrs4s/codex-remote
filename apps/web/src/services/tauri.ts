@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import type { Options as NotificationOptions } from "@tauri-apps/plugin-notification";
 import type {
+  AccessMode,
   AppSettings,
   CodexUpdateResult,
   CodexDoctorResult,
@@ -370,8 +371,14 @@ export async function setWorkspaceRuntimeCodexArgs(
   });
 }
 
-export async function startThread(workspaceId: string) {
-  return invoke<any>("start_thread", { workspaceId });
+export async function startThread(
+  workspaceId: string,
+  options?: { accessMode?: AccessMode | null },
+) {
+  return invoke<any>("start_thread", {
+    workspaceId,
+    accessMode: options?.accessMode ?? null,
+  });
 }
 
 export async function forkThread(workspaceId: string, threadId: string) {

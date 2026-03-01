@@ -164,7 +164,9 @@ describe("useThreads UX integration", () => {
     });
 
     expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", null);
-    expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1");
+    expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1", {
+      accessMode: "current",
+    });
     const startEnsureCallOrder = ensureWorkspaceRuntimeCodexArgs.mock.invocationCallOrder[0];
     const startThreadCallOrder = vi.mocked(startThread).mock.invocationCallOrder[0];
     expect(startEnsureCallOrder).toBeLessThan(startThreadCallOrder);
@@ -202,11 +204,38 @@ describe("useThreads UX integration", () => {
     });
 
     expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", null);
-    expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1");
+    expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1", {
+      accessMode: "current",
+    });
 
     const ensureCallOrder = ensureWorkspaceRuntimeCodexArgs.mock.invocationCallOrder[0];
     const startThreadCallOrder = vi.mocked(startThread).mock.invocationCallOrder[0];
     expect(ensureCallOrder).toBeLessThan(startThreadCallOrder);
+  });
+
+  it("passes explicit access mode override when starting a thread", async () => {
+    vi.mocked(startThread).mockResolvedValue({
+      result: { thread: { id: "thread-explicit-access" } },
+    } as Awaited<ReturnType<typeof startThread>>);
+
+    const { result } = renderHook(() =>
+      useThreads({
+        activeWorkspace: workspace,
+        onWorkspaceConnected: vi.fn(),
+        accessMode: "read-only",
+      }),
+    );
+
+    await act(async () => {
+      await result.current.startThreadForWorkspace("ws-1", {
+        activate: false,
+        accessMode: "full-access",
+      });
+    });
+
+    expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1", {
+      accessMode: "full-access",
+    });
   });
 
   it("still resumes selected thread when runtime codex args sync fails", async () => {
@@ -414,7 +443,9 @@ describe("useThreads UX integration", () => {
     });
 
     expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", null);
-    expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1");
+    expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1", {
+      accessMode: "current",
+    });
     expect(threadId).toBe("thread-new");
   });
 

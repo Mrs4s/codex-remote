@@ -1,6 +1,7 @@
 import { useCallback, useRef } from "react";
 import type { Dispatch, MutableRefObject } from "react";
 import type {
+  AccessMode,
   ConversationItem,
   DebugEntry,
   ThreadListSortKey,
@@ -174,7 +175,10 @@ export function useThreadActions({
   }, []);
 
   const startThreadForWorkspace = useCallback(
-    async (workspaceId: string, options?: { activate?: boolean }) => {
+    async (
+      workspaceId: string,
+      options?: { activate?: boolean; accessMode?: AccessMode | null },
+    ) => {
       const shouldActivate = options?.activate !== false;
       onDebug?.({
         id: `${Date.now()}-client-thread-start`,
@@ -184,7 +188,9 @@ export function useThreadActions({
         payload: { workspaceId },
       });
       try {
-        const response = await startThreadService(workspaceId);
+        const response = await startThreadService(workspaceId, {
+          accessMode: options?.accessMode ?? null,
+        });
         onDebug?.({
           id: `${Date.now()}-server-thread-start`,
           timestamp: Date.now(),

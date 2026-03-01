@@ -2,6 +2,43 @@ import type { EventBus } from "../events/eventBus.js";
 import type { WorkspaceEntry } from "../types/domain.js";
 import { CodexSession } from "./codexSession.js";
 
+type AccessMode = "read-only" | "current" | "full-access";
+type ApprovalPolicy = "untrusted" | "on-request" | "never";
+type SandboxMode = "read-only" | "workspace-write" | "danger-full-access";
+type SandboxPolicy =
+  | { type: "readOnly" }
+  | { type: "workspaceWrite" }
+  | { type: "dangerFullAccess" };
+
+function resolveAccessPolicies(accessMode: string | null | undefined): {
+  approvalPolicy: ApprovalPolicy;
+  sandbox: SandboxMode;
+  sandboxPolicy: SandboxPolicy;
+} {
+  const normalized = accessMode as AccessMode | null | undefined;
+  switch (normalized) {
+    case "read-only":
+      return {
+        approvalPolicy: "untrusted",
+        sandbox: "read-only",
+        sandboxPolicy: { type: "readOnly" },
+      };
+    case "full-access":
+      return {
+        approvalPolicy: "never",
+        sandbox: "danger-full-access",
+        sandboxPolicy: { type: "dangerFullAccess" },
+      };
+    case "current":
+    default:
+      return {
+        approvalPolicy: "on-request",
+        sandbox: "workspace-write",
+        sandboxPolicy: { type: "workspaceWrite" },
+      };
+  }
+}
+
 function buildTurnInputItems(
   text: string,
   images?: string[] | null,
@@ -59,11 +96,16 @@ export class SessionManager {
     this.loginIds.delete(workspaceId);
   }
 
-  async startThread(workspace: WorkspaceEntry): Promise<unknown> {
+  async startThread(
+    workspace: WorkspaceEntry,
+    options?: { accessMode?: string | null },
+  ): Promise<unknown> {
     const session = await this.ensureSession(workspace);
+    const policies = resolveAccessPolicies(options?.accessMode);
     return session.sendRequest(workspace.id, "thread/start", {
       cwd: workspace.path,
-      approvalPolicy: "on-request",
+      approvalPolicy: policies.approvalPolicy,
+      sandbox: policies.sandbox,
     });
   }
 
@@ -181,13 +223,15 @@ export class SessionManager {
   ): Promise<unknown> {
     const session = await this.ensureSession(workspace);
     const input = buildTurnInputItems(params.text, params.images, params.appMentions);
+    const policies = resolveAccessPolicies(params.accessMode);
 
     const request: Record<string, unknown> = {
       threadId: params.threadId,
       input,
       model: params.model ?? null,
       effort: params.effort ?? null,
-      accessMode: params.accessMode ?? null,
+      approvalPolicy: policies.approvalPolicy,
+      sandboxPolicy: policies.sandboxPolicy,
       includePlanTool: true,
       includeApplyPatchTool: true,
       includeViewImageTool: true,

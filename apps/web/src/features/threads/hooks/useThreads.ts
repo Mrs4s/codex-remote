@@ -632,11 +632,17 @@ export function useThreads({
   );
 
   const startThreadForWorkspace = useCallback(
-    async (workspaceId: string, options?: { activate?: boolean }) => {
+    async (
+      workspaceId: string,
+      options?: { activate?: boolean; accessMode?: "read-only" | "current" | "full-access" },
+    ) => {
       await ensureWorkspaceRuntimeCodexArgsBestEffort(workspaceId, null, "start");
-      return startThreadForWorkspaceInternal(workspaceId, options);
+      return startThreadForWorkspaceInternal(workspaceId, {
+        ...options,
+        accessMode: options?.accessMode ?? accessMode ?? "current",
+      });
     },
-    [ensureWorkspaceRuntimeCodexArgsBestEffort, startThreadForWorkspaceInternal],
+    [accessMode, ensureWorkspaceRuntimeCodexArgsBestEffort, startThreadForWorkspaceInternal],
   );
 
   const startThread = useCallback(async () => {
