@@ -52,7 +52,9 @@ export function buildPrimaryNodes(options: LayoutNodesOptions): PrimaryLayoutNod
       onSetThreadListOrganizeMode={options.onSetThreadListOrganizeMode}
       onRefreshAllThreads={options.onRefreshAllThreads}
       activeWorkspaceId={options.activeWorkspaceId}
+      activeWorkspace={options.activeWorkspace}
       activeThreadId={options.activeThreadId}
+      launchScriptsState={options.launchScriptsState}
       userInputRequests={options.userInputRequests}
       accountRateLimits={options.activeRateLimits}
       usageShowRemaining={options.usageShowRemaining}

@@ -125,6 +125,75 @@ describe("Sidebar", () => {
     expect(screen.queryByRole("menu")).toBeNull();
   });
 
+  it("renders command shortcuts and runs a shortcut from the sidebar", () => {
+    const onRunScript = vi.fn();
+    const onOpenNew = vi.fn();
+    const workspace = {
+      id: "ws-1",
+      name: "Workspace",
+      path: "/tmp/workspace",
+      connected: true,
+      settings: { sidebarCollapsed: false },
+    };
+    render(
+      <Sidebar
+        {...baseProps}
+        workspaces={[workspace]}
+        groupedWorkspaces={[
+          {
+            id: null,
+            name: "Workspaces",
+            workspaces: [workspace],
+          },
+        ]}
+        activeWorkspace={workspace}
+        launchScriptsState={{
+          launchScripts: [
+            {
+              id: "script-1",
+              script: "npm run build",
+              icon: "build",
+              label: "Build project",
+            },
+          ],
+          editorOpenId: null,
+          draftScript: "",
+          draftIcon: "play",
+          draftLabel: "",
+          newEditorOpen: false,
+          newDraftScript: "",
+          newDraftIcon: "play",
+          newDraftLabel: "",
+          newError: null,
+          isSaving: false,
+          error: null,
+          errorById: {},
+          onRunScript,
+          onOpenEditor: vi.fn(),
+          onCloseEditor: vi.fn(),
+          onDraftScriptChange: vi.fn(),
+          onDraftIconChange: vi.fn(),
+          onDraftLabelChange: vi.fn(),
+          onSaveScript: vi.fn(async () => undefined),
+          onDeleteScript: vi.fn(async () => undefined),
+          onOpenNew,
+          onCloseNew: vi.fn(),
+          onNewDraftScriptChange: vi.fn(),
+          onNewDraftIconChange: vi.fn(),
+          onNewDraftLabelChange: vi.fn(),
+          onCreateNew: vi.fn(async () => undefined),
+        }}
+      />,
+    );
+
+    expect(screen.getByText("Command shortcuts")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Run command shortcut: Build project" }));
+    expect(onRunScript).toHaveBeenCalledWith("script-1");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add command shortcut" }));
+    expect(onOpenNew).toHaveBeenCalledTimes(1);
+  });
+
   it("changes organize mode from the header filter menu", () => {
     const onSetThreadListOrganizeMode = vi.fn();
     render(

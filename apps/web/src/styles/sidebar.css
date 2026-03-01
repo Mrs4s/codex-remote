@@ -514,6 +514,165 @@
   -webkit-app-region: no-drag;
 }
 
+.sidebar-shortcuts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.sidebar-shortcuts-add {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  border: 1px solid var(--border-stronger);
+  background: var(--surface-card-muted);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.sidebar-shortcuts-add:hover,
+.sidebar-shortcuts-add:focus-visible,
+.sidebar-shortcuts-add.is-active {
+  color: var(--text-strong);
+  background: var(--surface-card-strong);
+  transform: none;
+  box-shadow: none;
+}
+
+.sidebar-shortcuts-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sidebar-shortcuts-entry {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.sidebar-shortcuts-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sidebar-shortcuts-run {
+  flex: 1;
+  min-width: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card-muted);
+  color: var(--text-strong);
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  text-align: left;
+}
+
+.sidebar-shortcuts-run:hover,
+.sidebar-shortcuts-run:focus-visible {
+  background: var(--surface-card);
+  border-color: var(--border-muted);
+  transform: none;
+  box-shadow: none;
+}
+
+.sidebar-shortcuts-run-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  border: 1px solid var(--border-quiet);
+  background: var(--surface-control);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sidebar-shortcuts-run-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.sidebar-shortcuts-run-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-strong);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-shortcuts-run-preview {
+  font-size: 11px;
+  color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-shortcuts-edit {
+  flex-shrink: 0;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 8px;
+  color: var(--text-muted);
+}
+
+.sidebar-shortcuts-edit:hover,
+.sidebar-shortcuts-edit:focus-visible {
+  color: var(--text-strong);
+  background: var(--surface-hover);
+  transform: none;
+  box-shadow: none;
+}
+
+.sidebar-shortcuts-editor {
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  background: var(--surface-card);
+  padding: 10px;
+}
+
+.sidebar-shortcuts-editor-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-stronger);
+  margin-bottom: 8px;
+}
+
+.sidebar-shortcuts-input {
+  margin-bottom: 8px;
+}
+
+.sidebar-shortcuts-textarea {
+  min-height: 88px;
+}
+
+.sidebar-shortcuts-actions {
+  margin-top: 10px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sidebar-shortcuts-empty {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 2px 4px 0;
+}
+
 .workspace-group {
   display: flex;
   flex-direction: column;

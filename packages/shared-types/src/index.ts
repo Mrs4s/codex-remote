@@ -69,6 +69,30 @@ export type RpcSuccess<T> = { result: T };
 export type RpcFailure = { error: RpcError };
 export type RpcResponse<T> = RpcSuccess<T> | RpcFailure;
 
+export type LaunchScriptIconId =
+  | "play"
+  | "build"
+  | "debug"
+  | "wrench"
+  | "terminal"
+  | "code"
+  | "server"
+  | "database"
+  | "package"
+  | "test"
+  | "lint"
+  | "dev"
+  | "git"
+  | "config"
+  | "logs";
+
+export type LaunchScriptEntry = {
+  id: string;
+  script: string;
+  icon: LaunchScriptIconId;
+  label?: string | null;
+};
+
 export type WorkspaceSettings = {
   sidebarCollapsed: boolean;
   sortOrder?: number | null;
@@ -76,6 +100,7 @@ export type WorkspaceSettings = {
   cloneSourceWorkspaceId?: string | null;
   gitRoot?: string | null;
   launchScript?: string | null;
+  launchScripts?: LaunchScriptEntry[] | null;
   worktreeSetupScript?: string | null;
 };
 

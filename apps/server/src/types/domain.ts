@@ -34,6 +34,7 @@ export const defaultWorkspaceSettings = (): WorkspaceSettings => ({
   cloneSourceWorkspaceId: null,
   gitRoot: null,
   launchScript: null,
+  launchScripts: null,
   worktreeSetupScript: null,
 });
 

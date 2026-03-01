@@ -20,6 +20,7 @@ import {
   PopoverSurface,
 } from "../../design-system/components/popover/PopoverPrimitives";
 import { SidebarCornerActions } from "./SidebarCornerActions";
+import { SidebarCommandShortcuts } from "./SidebarCommandShortcuts";
 import { SidebarFooter } from "./SidebarFooter";
 import { SidebarHeader } from "./SidebarHeader";
 import { ThreadList } from "./ThreadList";
@@ -37,6 +38,7 @@ import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { getUsageLabels } from "../utils/usageLabels";
 import { formatRelativeTimeShort } from "../../../utils/time";
 import type { ThreadStatusById } from "../../../utils/threadStatus";
+import type { WorkspaceLaunchScriptsState } from "../hooks/useWorkspaceLaunchScripts";
 
 const COLLAPSED_GROUPS_STORAGE_KEY = "codexmonitor.collapsedGroups";
 const UNGROUPED_COLLAPSE_ID = "__ungrouped__";
@@ -76,7 +78,9 @@ type SidebarProps = {
   onSetThreadListOrganizeMode: (organizeMode: ThreadListOrganizeMode) => void;
   onRefreshAllThreads: () => void;
   activeWorkspaceId: string | null;
+  activeWorkspace?: WorkspaceInfo | null;
   activeThreadId: string | null;
+  launchScriptsState?: WorkspaceLaunchScriptsState;
   userInputRequests?: RequestUserInputRequest[];
   accountRateLimits: RateLimitSnapshot | null;
   usageShowRemaining: boolean;
@@ -137,7 +141,9 @@ export const Sidebar = memo(function Sidebar({
   onSetThreadListOrganizeMode,
   onRefreshAllThreads,
   activeWorkspaceId,
+  activeWorkspace = null,
   activeThreadId,
+  launchScriptsState,
   userInputRequests = [],
   accountRateLimits,
   usageShowRemaining,
@@ -857,6 +863,9 @@ export const Sidebar = memo(function Sidebar({
         ref={sidebarBodyRef}
       >
         <div className="workspace-list">
+          {activeWorkspace && launchScriptsState && (
+            <SidebarCommandShortcuts launchScriptsState={launchScriptsState} />
+          )}
           {pinnedThreadRows.length > 0 && (
             <div className="pinned-section">
               <div className="workspace-group-header">

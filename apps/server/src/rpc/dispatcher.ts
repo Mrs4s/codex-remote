@@ -84,6 +84,48 @@ const NOT_IMPLEMENTED_METHODS = new Set([
   "write_agent_md",
 ]);
 
+type LaunchScriptIconId =
+  | "play"
+  | "build"
+  | "debug"
+  | "wrench"
+  | "terminal"
+  | "code"
+  | "server"
+  | "database"
+  | "package"
+  | "test"
+  | "lint"
+  | "dev"
+  | "git"
+  | "config"
+  | "logs";
+
+type LaunchScriptEntry = {
+  id: string;
+  script: string;
+  icon: LaunchScriptIconId;
+  label?: string | null;
+};
+
+const LAUNCH_SCRIPT_ICON_IDS = new Set<LaunchScriptIconId>([
+  "play",
+  "build",
+  "debug",
+  "wrench",
+  "terminal",
+  "code",
+  "server",
+  "database",
+  "package",
+  "test",
+  "lint",
+  "dev",
+  "git",
+  "config",
+  "logs",
+]);
+
 function requireString(params: Record<string, unknown>, key: string): string {
   const value = params[key];
   if (typeof value !== "string" || !value.trim()) {
@@ -122,6 +164,37 @@ function optionalBoolean(params: Record<string, unknown>, key: string): boolean 
     throw new Error(`${key} must be a boolean`);
   }
   return value;
+}
+
+function parseLaunchScripts(value: unknown): LaunchScriptEntry[] | null {
+  if (!Array.isArray(value)) {
+    return null;
+  }
+
+  const entries: LaunchScriptEntry[] = [];
+  for (const item of value) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const record = item as Record<string, unknown>;
+    const id = String(record.id ?? "").trim();
+    const script = String(record.script ?? "");
+    const iconRaw = String(record.icon ?? "").trim();
+    const labelRaw = String(record.label ?? "").trim();
+    const icon = LAUNCH_SCRIPT_ICON_IDS.has(iconRaw as LaunchScriptIconId)
+      ? (iconRaw as LaunchScriptIconId)
+      : "play";
+    if (!id || !script.trim()) {
+      continue;
+    }
+    entries.push({
+      id,
+      script,
+      icon,
+      label: labelRaw ? labelRaw : null,
+    });
+  }
+  return entries;
 }
 
 function parseFileScope(value: unknown): FileScope {
@@ -277,6 +350,7 @@ export async function dispatchRpc(
         cloneSourceWorkspaceId: (settings.cloneSourceWorkspaceId ?? null) as string | null,
         gitRoot: (settings.gitRoot ?? null) as string | null,
         launchScript: (settings.launchScript ?? null) as string | null,
+        launchScripts: parseLaunchScripts(settings.launchScripts),
         worktreeSetupScript: (settings.worktreeSetupScript ?? null) as string | null,
       });
       return {
