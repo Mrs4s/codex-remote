@@ -16,6 +16,99 @@ async function runGit(workspace: WorkspaceEntry, args: string[]): Promise<string
   return stdout;
 }
 
+function parseGitPathList(raw: string): string[] {
+  return raw
+    .split("\n")
+    .map((value) => value.trim())
+    .filter(Boolean);
+}
+
+type FileLineStats = {
+  additions: number;
+  deletions: number;
+};
+
+function parseNumStat(raw: string): Array<{ path: string; additions: number; deletions: number }> {
+  const rows: Array<{ path: string; additions: number; deletions: number }> = [];
+  for (const line of raw.split("\n")) {
+    if (!line.trim()) {
+      continue;
+    }
+    const [addRaw, delRaw, ...pathParts] = line.split("\t");
+    if (pathParts.length === 0) {
+      continue;
+    }
+    const rawPath = pathParts.join("\t").trim();
+    const path = rawPath.startsWith("/dev/null => ")
+      ? rawPath.slice("/dev/null => ".length).trim()
+      : rawPath;
+    if (!path) {
+      continue;
+    }
+    const additions = Number.parseInt(addRaw ?? "", 10);
+    const deletions = Number.parseInt(delRaw ?? "", 10);
+    rows.push({
+      path,
+      additions: Number.isFinite(additions) ? additions : 0,
+      deletions: Number.isFinite(deletions) ? deletions : 0,
+    });
+  }
+  return rows;
+}
+
+function addLineStats(
+  statsByPath: Map<string, FileLineStats>,
+  path: string,
+  additions: number,
+  deletions: number,
+): void {
+  const current = statsByPath.get(path) ?? { additions: 0, deletions: 0 };
+  statsByPath.set(path, {
+    additions: current.additions + additions,
+    deletions: current.deletions + deletions,
+  });
+}
+
+function resolveLineStats(statsByPath: Map<string, FileLineStats>, filePath: string): FileLineStats {
+  const direct = statsByPath.get(filePath);
+  if (direct) {
+    return direct;
+  }
+  const renamedTarget = filePath.includes(" -> ")
+    ? filePath.split(" -> ").at(-1)?.trim() ?? ""
+    : "";
+  if (renamedTarget) {
+    return statsByPath.get(renamedTarget) ?? { additions: 0, deletions: 0 };
+  }
+  return { additions: 0, deletions: 0 };
+}
+
+function uniquePaths(paths: string[]): string[] {
+  const seen = new Set<string>();
+  const results: string[] = [];
+  for (const filePath of paths) {
+    if (seen.has(filePath)) {
+      continue;
+    }
+    seen.add(filePath);
+    results.push(filePath);
+  }
+  return results;
+}
+
+async function runGitDiff(workspace: WorkspaceEntry, args: string[]): Promise<string> {
+  try {
+    return await runGit(workspace, args);
+  } catch (error) {
+    const code = (error as { code?: unknown }).code;
+    const stdout = (error as { stdout?: unknown }).stdout;
+    if ((code === 1 || code === "1") && typeof stdout === "string") {
+      return stdout;
+    }
+    throw error;
+  }
+}
+
 async function runGitUnit(workspace: WorkspaceEntry, args: string[]): Promise<void> {
   await execFileAsync("git", args, {
     cwd: workspace.path,
@@ -128,39 +221,123 @@ async function ensureGhInstalled(workspace: WorkspaceEntry): Promise<void> {
 export async function getGitStatus(workspace: WorkspaceEntry): Promise<Record<string, unknown>> {
   const branchRaw = await runGit(workspace, ["rev-parse", "--abbrev-ref", "HEAD"]).catch(() => "unknown");
   const statusRaw = await runGit(workspace, ["status", "--porcelain=v1"]).catch(() => "");
+  const hasHead = await runGitUnit(workspace, ["rev-parse", "--verify", "HEAD"])
+    .then(() => true)
+    .catch(() => false);
   const lines = statusRaw
     .split("\n")
     .map((line) => line.trimEnd())
     .filter(Boolean);
 
+  const trackedNumStatRaw = hasHead
+    ? await runGit(workspace, ["diff", "--numstat", "--find-renames", "HEAD"]).catch(() => "")
+    : [
+        await runGit(workspace, ["diff", "--numstat", "--cached", "--find-renames"]).catch(() => ""),
+        await runGit(workspace, ["diff", "--numstat", "--find-renames"]).catch(() => ""),
+      ]
+        .filter((value) => value.trim().length > 0)
+        .join("\n");
+
+  const statsByPath = new Map<string, FileLineStats>();
+  for (const row of parseNumStat(trackedNumStatRaw)) {
+    addLineStats(statsByPath, row.path, row.additions, row.deletions);
+  }
+
+  const untrackedPaths = parseGitPathList(
+    await runGit(workspace, ["ls-files", "--others", "--exclude-standard"]).catch(() => ""),
+  );
+  const untrackedNumStat = await Promise.all(
+    untrackedPaths.map((filePath) =>
+      runGitDiff(workspace, ["diff", "--numstat", "--no-index", "--", "/dev/null", filePath]).catch(
+        () => "",
+      ),
+    ),
+  );
+  for (const raw of untrackedNumStat) {
+    for (const row of parseNumStat(raw)) {
+      addLineStats(statsByPath, row.path, row.additions, row.deletions);
+    }
+  }
+
   const files = lines.map((line) => {
     const status = line.slice(0, 2);
     const filePath = line.slice(3);
+    const lineStats = resolveLineStats(statsByPath, filePath);
     return {
       path: filePath,
       status,
-      additions: 0,
-      deletions: 0,
+      additions: lineStats.additions,
+      deletions: lineStats.deletions,
     };
   });
+  const totalAdditions = files.reduce(
+    (total, file) => total + Number((file as { additions: number }).additions || 0),
+    0,
+  );
+  const totalDeletions = files.reduce(
+    (total, file) => total + Number((file as { deletions: number }).deletions || 0),
+    0,
+  );
 
   return {
     branchName: branchRaw.trim(),
     files,
     stagedFiles: files.filter((f) => String((f as { status: string }).status)[0] !== " "),
     unstagedFiles: files.filter((f) => String((f as { status: string }).status)[1] !== " "),
-    totalAdditions: 0,
-    totalDeletions: 0,
+    totalAdditions,
+    totalDeletions,
   };
 }
 
 export async function getGitDiffs(workspace: WorkspaceEntry): Promise<Record<string, unknown>[]> {
-  const namesRaw = await runGit(workspace, ["diff", "--name-only"]).catch(() => "");
-  const names = namesRaw.split("\n").map((value) => value.trim()).filter(Boolean);
+  const hasHead = await runGitUnit(workspace, ["rev-parse", "--verify", "HEAD"])
+    .then(() => true)
+    .catch(() => false);
+
+  const trackedNames = hasHead
+    ? parseGitPathList(await runGit(workspace, ["diff", "--name-only", "HEAD"]).catch(() => ""))
+    : uniquePaths([
+        ...parseGitPathList(
+          await runGit(workspace, ["diff", "--cached", "--name-only"]).catch(() => ""),
+        ),
+        ...parseGitPathList(await runGit(workspace, ["diff", "--name-only"]).catch(() => "")),
+      ]);
+  const untrackedNames = parseGitPathList(
+    await runGit(workspace, ["ls-files", "--others", "--exclude-standard"]).catch(() => ""),
+  );
+  const untrackedSet = new Set(untrackedNames);
+  const names = uniquePaths([...trackedNames, ...untrackedNames]);
 
   const diffs: Record<string, unknown>[] = [];
   for (const filePath of names) {
-    const diff = await runGit(workspace, ["diff", "--", filePath]).catch(() => "");
+    let diff = "";
+    if (untrackedSet.has(filePath)) {
+      diff = await runGitDiff(workspace, [
+        "diff",
+        "--no-index",
+        "--no-color",
+        "--",
+        "/dev/null",
+        filePath,
+      ]).catch(() => "");
+    } else if (hasHead) {
+      diff = await runGit(workspace, [
+        "diff",
+        "--no-color",
+        "--find-renames",
+        "HEAD",
+        "--",
+        filePath,
+      ]).catch(() => "");
+    } else {
+      const [stagedDiff, unstagedDiff] = await Promise.all([
+        runGit(workspace, ["diff", "--no-color", "--cached", "--", filePath]).catch(() => ""),
+        runGit(workspace, ["diff", "--no-color", "--", filePath]).catch(() => ""),
+      ]);
+      diff = [stagedDiff, unstagedDiff]
+        .filter((value) => value.trim().length > 0)
+        .join("\n");
+    }
     diffs.push({ path: filePath, diff, isBinary: false, isImage: false });
   }
   return diffs;
