@@ -102,7 +102,7 @@ export function useUpdaterController({
     }
     void sendNotification(
       "Test Notification",
-      "This is a test notification from CodexMonitor.",
+      "This is a test notification from codex-remote.",
     ).catch((error) => {
       onDebug({
         id: `${Date.now()}-client-notification-test-error`,
