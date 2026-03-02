@@ -13,6 +13,7 @@ const useFileLinkOpenerMock = vi.fn(
 );
 const openFileLinkMock = vi.fn();
 const showFileLinkMenuMock = vi.fn();
+const clipboardWriteTextMock = vi.fn();
 const { exportMarkdownFileMock } = vi.hoisted(() => ({
   exportMarkdownFileMock: vi.fn(),
 }));
@@ -50,6 +51,13 @@ describe("Messages", () => {
     useFileLinkOpenerMock.mockClear();
     openFileLinkMock.mockReset();
     showFileLinkMenuMock.mockReset();
+    clipboardWriteTextMock.mockReset();
+    Object.defineProperty(globalThis.navigator, "clipboard", {
+      configurable: true,
+      value: {
+        writeText: clipboardWriteTextMock,
+      },
+    });
     exportMarkdownFileMock.mockReset();
   });
 
@@ -196,6 +204,39 @@ describe("Messages", () => {
 
     fireEvent.click(screen.getByText("Open review thread"));
     expect(onOpenThreadLink).toHaveBeenCalledWith("thread-review-1");
+  });
+
+  it("copies regular markdown links instead of navigating", async () => {
+    const windowOpenSpy = vi.spyOn(window, "open").mockImplementation(() => null);
+    const filePath = "/Users/mrs4s/Documents/clone-projects/codex-remote/apps/web/src/App.tsx";
+    const items: ConversationItem[] = [
+      {
+        id: "msg-plain-link",
+        kind: "message",
+        role: "assistant",
+        text: `Open file: [apps/web/src/App.tsx](${filePath})`,
+      },
+    ];
+
+    render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    fireEvent.click(screen.getByText("apps/web/src/App.tsx"));
+
+    await waitFor(() => {
+      expect(clipboardWriteTextMock).toHaveBeenCalledWith(filePath);
+    });
+    expect(openFileLinkMock).not.toHaveBeenCalled();
+    expect(windowOpenSpy).not.toHaveBeenCalled();
+    windowOpenSpy.mockRestore();
   });
 
   it("renders file references as compact links and opens them", () => {

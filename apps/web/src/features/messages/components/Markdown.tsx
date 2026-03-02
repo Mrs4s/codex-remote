@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode, type MouseEvent } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { openUrl } from "@tauri-apps/plugin-opener";
 import {
   decodeFileLink,
   isFileLinkUrl,
@@ -195,6 +194,17 @@ function extractUrlLines(value: string) {
   return urls;
 }
 
+async function copyToClipboard(value: string) {
+  if (!value) {
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    // Clipboard failures are non-fatal here.
+  }
+}
+
 function normalizeListIndentation(value: string) {
   const lines = value.split(/\r?\n/);
   let inFence = false;
@@ -281,7 +291,7 @@ function LinkBlock({ urls }: LinkBlockProps) {
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            void openUrl(url);
+            void copyToClipboard(url);
           }}
         >
           {url}
@@ -509,14 +519,6 @@ export function Markdown({
           />
         );
       }
-      const isExternal =
-        url.startsWith("http://") ||
-        url.startsWith("https://") ||
-        url.startsWith("mailto:");
-
-      if (!isExternal) {
-        return <a href={href}>{children}</a>;
-      }
 
       return (
         <a
@@ -524,7 +526,7 @@ export function Markdown({
           onClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
-            void openUrl(url);
+            void copyToClipboard(url);
           }}
         >
           {children}
