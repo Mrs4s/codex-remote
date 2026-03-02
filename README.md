@@ -2,6 +2,8 @@
 
 Single-project web runtime for Codex Monitor style workflows.
 
+Web version of [CodexMonitor](https://github.com/Dimillian/CodexMonitor)
+
 ## Structure
 
 - `apps/web`: Browser UI (React + Vite)
