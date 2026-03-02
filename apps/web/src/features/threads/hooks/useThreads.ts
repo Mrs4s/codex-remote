@@ -518,6 +518,9 @@ export function useThreads({
   const handlers = useMemo(
     () => ({
       ...threadHandlers,
+      // Intentionally ignore SSE rate limit updates and rely on explicit
+      // account/rateLimits/read pulls for a stable sidebar usage panel.
+      onAccountRateLimitsUpdated: undefined,
       onThreadStarted: handleThreadStarted,
       onThreadArchived: handleThreadArchived,
       onThreadUnarchived: handleThreadUnarchived,

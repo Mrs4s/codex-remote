@@ -165,6 +165,46 @@ describe("normalizeRateLimits", () => {
     expect(normalized.primary?.resetsAt).toBe(1_700_000_123);
   });
 
+  it("does not treat bare remaining as percent without explicit percent keys", () => {
+    const previous = {
+      primary: {
+        usedPercent: 55,
+        windowDurationMins: 60,
+        resetsAt: 1_700_000_000,
+      },
+      secondary: null,
+      credits: null,
+      planType: null,
+    } as const;
+
+    const normalized = normalizeRateLimits(
+      {
+        primary: {
+          remaining: 20,
+        },
+      },
+      previous,
+    );
+
+    expect(normalized.primary?.usedPercent).toBe(55);
+  });
+
+  it("derives percent from used/limit counters when available", () => {
+    const normalized = normalizeRateLimits({
+      primary: {
+        used: 4,
+        limit: 10,
+      },
+      secondary: {
+        remaining: 25,
+        limit: 100,
+      },
+    });
+
+    expect(normalized.primary?.usedPercent).toBe(40);
+    expect(normalized.secondary?.usedPercent).toBe(75);
+  });
+
   it("ignores out-of-range used_percent values and preserves previous usage", () => {
     const previous = {
       primary: {

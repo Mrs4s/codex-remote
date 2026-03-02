@@ -49,6 +49,10 @@ function asPercentOrNull(value: number | null): number | null {
   return value;
 }
 
+function clampPercent(value: number): number {
+  return Math.min(Math.max(value, 0), 100);
+}
+
 function hasOwn(source: Record<string, unknown>, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(source, key);
 }
@@ -71,15 +75,30 @@ function normalizeRateLimitWindow(
   const explicitRemaining = asPercentOrNull(
     asFiniteNumber(source.remainingPercent ?? source.remaining_percent),
   );
-  const legacyRemaining = asPercentOrNull(asFiniteNumber(source.remaining));
-  const remaining =
-    explicitRemaining ?? legacyRemaining;
+  const counterUsed = asFiniteNumber(source.used ?? source.used_count ?? source.usedCount);
+  const counterRemaining = asFiniteNumber(
+    source.remaining ?? source.remaining_count ?? source.remainingCount,
+  );
+  const counterLimit = asFiniteNumber(
+    source.limit ?? source.window_limit ?? source.windowLimit ?? source.max ?? source.total,
+  );
+
+  const derivedUsed =
+    counterLimit !== null && counterLimit > 0
+      ? counterUsed !== null
+        ? clampPercent((counterUsed / counterLimit) * 100)
+        : counterRemaining !== null
+          ? clampPercent(((counterLimit - counterRemaining) / counterLimit) * 100)
+          : null
+      : null;
 
   let usedPercent: number | null = null;
   if (directUsed !== null) {
     usedPercent = directUsed;
-  } else if (remaining !== null) {
-    usedPercent = 100 - remaining;
+  } else if (explicitRemaining !== null) {
+    usedPercent = 100 - explicitRemaining;
+  } else if (derivedUsed !== null) {
+    usedPercent = derivedUsed;
   } else if (previousWindow) {
     usedPercent = previousWindow.usedPercent;
   }
