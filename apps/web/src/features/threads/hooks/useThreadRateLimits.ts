@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useRef } from "react";
-import type { DebugEntry, RateLimitSnapshot } from "@/types";
+import { useCallback, useEffect } from "react";
+import type { DebugEntry } from "@/types";
 import { getAccountRateLimits } from "@services/tauri";
 import { normalizeRateLimits } from "@threads/utils/threadNormalize";
 import type { ThreadAction } from "./useThreadsReducer";
@@ -7,7 +7,6 @@ import type { ThreadAction } from "./useThreadsReducer";
 type UseThreadRateLimitsOptions = {
   activeWorkspaceId: string | null;
   activeWorkspaceConnected?: boolean;
-  getCurrentRateLimits?: (workspaceId: string) => RateLimitSnapshot | null;
   dispatch: React.Dispatch<ThreadAction>;
   onDebug?: (entry: DebugEntry) => void;
 };
@@ -15,20 +14,24 @@ type UseThreadRateLimitsOptions = {
 export function useThreadRateLimits({
   activeWorkspaceId,
   activeWorkspaceConnected,
-  getCurrentRateLimits,
   dispatch,
   onDebug,
 }: UseThreadRateLimitsOptions) {
-  const getCurrentRateLimitsRef = useRef(getCurrentRateLimits);
-  useEffect(() => {
-    getCurrentRateLimitsRef.current = getCurrentRateLimits;
-  }, [getCurrentRateLimits]);
-
   const refreshAccountRateLimits = useCallback(
-    async (workspaceId?: string) => {
+    async (
+      workspaceId?: string,
+      options?: { clearBeforeFetch?: boolean },
+    ) => {
       const targetId = workspaceId ?? activeWorkspaceId;
       if (!targetId) {
         return;
+      }
+      if (options?.clearBeforeFetch) {
+        dispatch({
+          type: "setRateLimits",
+          workspaceId: targetId,
+          rateLimits: null,
+        });
       }
       onDebug?.({
         id: `${Date.now()}-client-account-rate-limits`,
@@ -52,12 +55,10 @@ export function useThreadRateLimits({
           (response?.rateLimits as Record<string, unknown> | undefined) ??
           (response?.rate_limits as Record<string, unknown> | undefined);
         if (rateLimits) {
-          const previousRateLimits =
-            getCurrentRateLimitsRef.current?.(targetId) ?? null;
           dispatch({
             type: "setRateLimits",
             workspaceId: targetId,
-            rateLimits: normalizeRateLimits(rateLimits, previousRateLimits),
+            rateLimits: normalizeRateLimits(rateLimits),
           });
         }
       } catch (error) {
@@ -75,7 +76,9 @@ export function useThreadRateLimits({
 
   useEffect(() => {
     if (activeWorkspaceConnected && activeWorkspaceId) {
-      void refreshAccountRateLimits(activeWorkspaceId);
+      void refreshAccountRateLimits(activeWorkspaceId, {
+        clearBeforeFetch: true,
+      });
     }
   }, [activeWorkspaceConnected, activeWorkspaceId, refreshAccountRateLimits]);
 

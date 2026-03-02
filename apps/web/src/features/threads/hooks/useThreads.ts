@@ -151,7 +151,6 @@ export function useThreads({
   const { refreshAccountRateLimits } = useThreadRateLimits({
     activeWorkspaceId,
     activeWorkspaceConnected: activeWorkspace?.connected,
-    getCurrentRateLimits,
     dispatch,
     onDebug,
   });

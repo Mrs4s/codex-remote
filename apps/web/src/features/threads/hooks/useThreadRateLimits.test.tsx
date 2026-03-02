@@ -42,6 +42,12 @@ describe("useThreadRateLimits", () => {
       expect(getAccountRateLimits).toHaveBeenCalledWith("ws-1");
     });
 
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "setRateLimits",
+      workspaceId: "ws-1",
+      rateLimits: null,
+    });
+
     await waitFor(() => {
       expect(dispatch).toHaveBeenCalledWith({
         type: "setRateLimits",
@@ -96,47 +102,6 @@ describe("useThreadRateLimits", () => {
     });
   });
 
-  it("does not auto-refresh again when accessor callback identity changes", async () => {
-    const dispatch = vi.fn();
-
-    vi.mocked(getAccountRateLimits).mockResolvedValue({
-      result: { rate_limits: {} },
-    });
-
-    const { rerender } = renderHook(
-      ({
-        getCurrentRateLimits,
-      }: {
-        getCurrentRateLimits: (workspaceId: string) => null;
-      }) =>
-        useThreadRateLimits({
-          activeWorkspaceId: "ws-1",
-          activeWorkspaceConnected: true,
-          dispatch,
-          getCurrentRateLimits,
-        }),
-      {
-        initialProps: {
-          getCurrentRateLimits: () => null,
-        },
-      },
-    );
-
-    await waitFor(() => {
-      expect(getAccountRateLimits).toHaveBeenCalledTimes(1);
-    });
-
-    rerender({
-      getCurrentRateLimits: () => null,
-    });
-
-    await act(async () => {
-      await Promise.resolve();
-    });
-
-    expect(getAccountRateLimits).toHaveBeenCalledTimes(1);
-  });
-
   it("reports errors via debug callback without dispatching", async () => {
     const dispatch = vi.fn();
     const onDebug = vi.fn();
@@ -165,26 +130,8 @@ describe("useThreadRateLimits", () => {
     );
   });
 
-  it("merges partial payloads with previous workspace rate limits", async () => {
+  it("does not merge stale workspace values on explicit rate limit reads", async () => {
     const dispatch = vi.fn();
-    const previousRateLimits = {
-      primary: {
-        usedPercent: 42,
-        windowDurationMins: 60,
-        resetsAt: 12345,
-      },
-      secondary: {
-        usedPercent: 70,
-        windowDurationMins: 10080,
-        resetsAt: 99999,
-      },
-      credits: {
-        hasCredits: true,
-        unlimited: false,
-        balance: "5",
-      },
-      planType: "pro",
-    } as const;
 
     vi.mocked(getAccountRateLimits).mockResolvedValue({
       result: {
@@ -199,7 +146,6 @@ describe("useThreadRateLimits", () => {
       useThreadRateLimits({
         activeWorkspaceId: "ws-1",
         dispatch,
-        getCurrentRateLimits: () => previousRateLimits,
       }),
     );
 
@@ -211,22 +157,10 @@ describe("useThreadRateLimits", () => {
       type: "setRateLimits",
       workspaceId: "ws-1",
       rateLimits: {
-        primary: {
-          usedPercent: 42,
-          windowDurationMins: 60,
-          resetsAt: 88888,
-        },
-        secondary: {
-          usedPercent: 70,
-          windowDurationMins: 10080,
-          resetsAt: 99999,
-        },
-        credits: {
-          hasCredits: true,
-          unlimited: false,
-          balance: "5",
-        },
-        planType: "pro",
+        primary: null,
+        secondary: null,
+        credits: null,
+        planType: null,
       },
     });
   });
