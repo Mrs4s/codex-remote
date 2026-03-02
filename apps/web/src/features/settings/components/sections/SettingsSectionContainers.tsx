@@ -1,6 +1,5 @@
 import { SettingsCodexSection } from "./SettingsCodexSection";
 import { SettingsComposerSection } from "./SettingsComposerSection";
-import { SettingsDictationSection } from "./SettingsDictationSection";
 import { SettingsDisplaySection } from "./SettingsDisplaySection";
 import { SettingsEnvironmentsSection } from "./SettingsEnvironmentsSection";
 import { SettingsFeaturesSection } from "./SettingsFeaturesSection";
@@ -36,9 +35,6 @@ export function SettingsSectionContainers({
   }
   if (activeSection === "composer") {
     return <SettingsComposerSection {...orchestration.composerSectionProps} />;
-  }
-  if (activeSection === "dictation") {
-    return <SettingsDictationSection {...orchestration.dictationSectionProps} />;
   }
   if (activeSection === "shortcuts") {
     return <SettingsShortcutsSection {...orchestration.shortcutsSectionProps} />;

@@ -1,19 +1,6 @@
 import type { AppSettings } from "@/types";
 import type { CodexSection, ShortcutDraftKey, ShortcutSettingKey } from "./settingsTypes";
 
-export const DICTATION_MODELS = [
-  { id: "tiny", label: "Tiny", size: "75 MB", note: "Fastest, least accurate." },
-  { id: "base", label: "Base", size: "142 MB", note: "Balanced default." },
-  { id: "small", label: "Small", size: "466 MB", note: "Better accuracy." },
-  { id: "medium", label: "Medium", size: "1.5 GB", note: "High accuracy." },
-  {
-    id: "large-v3",
-    label: "Large V3",
-    size: "3.0 GB",
-    note: "Best accuracy, heavy download.",
-  },
-];
-
 type ComposerPreset = AppSettings["composerEditorPreset"];
 
 type ComposerPresetSettings = Pick<
@@ -79,7 +66,6 @@ export const SETTINGS_SECTION_LABELS: Record<CodexSection, string> = {
   display: "Display & Sound",
   about: "About",
   composer: "Composer",
-  dictation: "Dictation",
   shortcuts: "Shortcuts",
   git: "Git",
   server: "Server",

@@ -89,10 +89,6 @@ export function SettingsView({
   onTestNotificationSound,
   onTestSystemNotification,
   onMobileConnectSuccess,
-  dictationModelStatus,
-  onDownloadDictationModel,
-  onCancelDictationDownload,
-  onRemoveDictationModel,
   initialSection,
 }: SettingsViewProps) {
   const {
@@ -126,10 +122,6 @@ export function SettingsView({
     onDeleteWorkspaceGroup,
     onAssignWorkspaceGroup,
     onMobileConnectSuccess,
-    dictationModelStatus,
-    onDownloadDictationModel,
-    onCancelDictationDownload,
-    onRemoveDictationModel,
   });
 
   useSettingsViewCloseShortcuts(onClose);

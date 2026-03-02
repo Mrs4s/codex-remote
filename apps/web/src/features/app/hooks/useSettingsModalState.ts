@@ -4,7 +4,6 @@ export type SettingsSection =
   | "projects"
   | "display"
   | "about"
-  | "dictation"
   | "shortcuts"
   | "git"
   | "codex"

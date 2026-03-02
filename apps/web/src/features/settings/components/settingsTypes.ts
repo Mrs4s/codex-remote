@@ -6,7 +6,6 @@ type SettingsSection =
   | "display"
   | "about"
   | "composer"
-  | "dictation"
   | "shortcuts"
   | "git"
   | "server"

@@ -3,11 +3,10 @@ import type {
   AppSettings,
   CodexDoctorResult,
   CodexUpdateResult,
-  DictationModelStatus,
   WorkspaceGroup,
   WorkspaceSettings,
 } from "@/types";
-import { isMacPlatform, isWindowsPlatform } from "@utils/platformPaths";
+import { isMacPlatform } from "@utils/platformPaths";
 import { useSettingsShortcutDrafts } from "./useSettingsShortcutDrafts";
 import { useSettingsCodexSection } from "./useSettingsCodexSection";
 import { useSettingsDisplaySection } from "./useSettingsDisplaySection";
@@ -21,7 +20,6 @@ import type { GroupedWorkspaces } from "./settingsSectionTypes";
 import {
   COMPOSER_PRESET_CONFIGS,
   COMPOSER_PRESET_LABELS,
-  DICTATION_MODELS,
 } from "@settings/components/settingsViewConstants";
 
 type UseSettingsViewOrchestrationArgs = {
@@ -59,10 +57,6 @@ type UseSettingsViewOrchestrationArgs = {
     workspaceId: string,
     groupId: string | null,
   ) => Promise<boolean | null>;
-  dictationModelStatus?: DictationModelStatus | null;
-  onDownloadDictationModel?: () => void;
-  onCancelDictationDownload?: () => void;
-  onRemoveDictationModel?: () => void;
 };
 
 export function useSettingsViewOrchestration({
@@ -88,10 +82,6 @@ export function useSettingsViewOrchestration({
   onMoveWorkspaceGroup,
   onDeleteWorkspaceGroup,
   onAssignWorkspaceGroup,
-  dictationModelStatus,
-  onDownloadDictationModel,
-  onCancelDictationDownload,
-  onRemoveDictationModel,
 }: UseSettingsViewOrchestrationArgs) {
   const projects = useMemo(
     () => groupedWorkspaces.flatMap((group) => group.workspaces),
@@ -107,24 +97,9 @@ export function useSettingsViewOrchestration({
   );
 
   const optionKeyLabel = isMacPlatform() ? "Option" : "Alt";
-  const metaKeyLabel = isMacPlatform()
-    ? "Command"
-    : isWindowsPlatform()
-      ? "Windows"
-      : "Meta";
   const followUpShortcutLabel = isMacPlatform()
     ? "Shift+Cmd+Enter"
     : "Shift+Ctrl+Enter";
-
-  const selectedDictationModel = useMemo(() => {
-    return (
-      DICTATION_MODELS.find(
-        (model) => model.id === appSettings.dictationModelId,
-      ) ?? DICTATION_MODELS[1]
-    );
-  }, [appSettings.dictationModelId]);
-
-  const dictationReady = dictationModelStatus?.state === "ready";
 
   const { shortcutDrafts, handleShortcutKeyDown, clearShortcut } =
     useSettingsShortcutDrafts({
@@ -212,19 +187,6 @@ export function useSettingsViewOrchestration({
         });
       },
       onUpdateAppSettings,
-    },
-    dictationSectionProps: {
-      appSettings,
-      optionKeyLabel,
-      metaKeyLabel,
-      dictationModels: DICTATION_MODELS,
-      selectedDictationModel,
-      dictationModelStatus,
-      dictationReady,
-      onUpdateAppSettings,
-      onDownloadDictationModel,
-      onCancelDictationDownload,
-      onRemoveDictationModel,
     },
     shortcutsSectionProps: {
       shortcutDrafts,

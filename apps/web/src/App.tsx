@@ -187,18 +187,6 @@ function MainApp() {
     scaleShortcutTitle,
     scaleShortcutText,
     queueSaveSettings,
-    dictationModel,
-    dictationState,
-    dictationLevel,
-    dictationTranscript,
-    dictationError,
-    dictationHint,
-    dictationReady,
-    handleToggleDictation,
-    cancelDictation,
-    clearDictationTranscript,
-    clearDictationError,
-    clearDictationHint,
     debugOpen,
     setDebugOpen,
     debugEntries,
@@ -2123,7 +2111,6 @@ function MainApp() {
     onPlanAccept: handlePlanAccept,
     onPlanSubmitChanges: handlePlanSubmitChanges,
     onOpenSettings: handleSidebarOpenSettings,
-    onOpenDictationSettings: () => openSettings("dictation"),
     onOpenDebug: handleDebugClick,
     showDebugButton,
     onAddWorkspace: handleAddWorkspace,
@@ -2451,19 +2438,6 @@ function MainApp() {
     composerEditorSettings,
     composerEditorExpanded,
     onToggleComposerEditorExpanded: toggleComposerEditorExpanded,
-    dictationEnabled: appSettings.dictationEnabled && dictationReady,
-    dictationState,
-    dictationLevel,
-    onToggleDictation: handleToggleDictation,
-    onCancelDictation: cancelDictation,
-    dictationTranscript,
-    onDictationTranscriptHandled: (id) => {
-      clearDictationTranscript(id);
-    },
-    dictationError,
-    onDismissDictationError: clearDictationError,
-    dictationHint,
-    onDismissDictationHint: clearDictationHint,
     composerContextActions,
     composerSendLabel,
     showComposer,
@@ -2557,18 +2531,6 @@ function MainApp() {
       prompts={prompts}
       files={files}
       onFileAutocompleteActiveChange={setFileAutocompleteActive}
-      dictationEnabled={appSettings.dictationEnabled && dictationReady}
-      dictationState={dictationState}
-      dictationLevel={dictationLevel}
-      onToggleDictation={handleToggleDictation}
-      onCancelDictation={cancelDictation}
-      onOpenDictationSettings={() => openSettings("dictation")}
-      dictationError={dictationError}
-      onDismissDictationError={clearDictationError}
-      dictationHint={dictationHint}
-      onDismissDictationHint={clearDictationHint}
-      dictationTranscript={dictationTranscript}
-      onDictationTranscriptHandled={clearDictationTranscript}
       textareaRef={workspaceHomeTextareaRef}
       agentMdContent={agentMdContent}
       agentMdExists={agentMdExists}
@@ -2768,10 +2730,6 @@ function MainApp() {
           onTestNotificationSound: handleTestNotificationSound,
           onTestSystemNotification: handleTestSystemNotification,
           onMobileConnectSuccess: handleMobileConnectSuccess,
-          dictationModelStatus: dictationModel.status,
-          onDownloadDictationModel: dictationModel.download,
-          onCancelDictationDownload: dictationModel.cancel,
-          onRemoveDictationModel: dictationModel.remove,
         }}
       />
     </div>

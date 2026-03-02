@@ -10,9 +10,6 @@ import type { AutocompleteItem } from "../hooks/useComposerAutocomplete";
 import ImagePlus from "lucide-react/dist/esm/icons/image-plus";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import ChevronUp from "lucide-react/dist/esm/icons/chevron-up";
-import Mic from "lucide-react/dist/esm/icons/mic";
-import Square from "lucide-react/dist/esm/icons/square";
-import X from "lucide-react/dist/esm/icons/x";
 import Brain from "lucide-react/dist/esm/icons/brain";
 import GitFork from "lucide-react/dist/esm/icons/git-fork";
 import PlusCircle from "lucide-react/dist/esm/icons/plus-circle";
@@ -29,7 +26,6 @@ import {
   PopoverSurface,
 } from "../../design-system/components/popover/PopoverPrimitives";
 import { ComposerAttachments } from "./ComposerAttachments";
-import { DictationWaveform } from "../../dictation/components/DictationWaveform";
 import { ReviewInlinePrompt } from "./ReviewInlinePrompt";
 import type { ReviewPromptState, ReviewPromptStep } from "../../threads/hooks/useReviewPrompt";
 import { getFileTypeIconUrl } from "../../../utils/fileTypeIcons";
@@ -146,16 +142,6 @@ export function ComposerInput({
   isProcessing,
   onStop,
   onSend,
-  dictationState = "idle",
-  dictationLevel = 0,
-  dictationEnabled = false,
-  onToggleDictation,
-  onCancelDictation,
-  onOpenDictationSettings,
-  dictationError = null,
-  onDismissDictationError,
-  dictationHint = null,
-  onDismissDictationHint,
   attachments = [],
   onAddAttachment,
   onAttachImages,
@@ -333,57 +319,6 @@ export function ComposerInput({
       onSend();
     }
   }, [canStop, onSend, onStop]);
-  const isDictating = dictationState === "listening";
-  const isDictationProcessing = dictationState === "processing";
-  const isDictationBusy = dictationState !== "idle";
-  const allowOpenDictationSettings = Boolean(
-    onOpenDictationSettings && !dictationEnabled && !disabled && !isDictationProcessing,
-  );
-  const micDisabled =
-    disabled ||
-    (!allowOpenDictationSettings &&
-      (isDictationProcessing
-        ? !onCancelDictation
-        : !dictationEnabled || !onToggleDictation));
-  const micAriaLabel = allowOpenDictationSettings
-    ? "Open dictation settings"
-    : isDictationProcessing
-      ? "Cancel transcription"
-      : isDictating
-        ? "Stop dictation"
-        : "Start dictation";
-  const micTitle = allowOpenDictationSettings
-    ? "Dictation disabled. Open settings"
-    : isDictationProcessing
-      ? "Cancel transcription"
-      : isDictating
-        ? "Stop dictation"
-        : "Start dictation";
-  const handleMicClick = useCallback(() => {
-    if (isDictationProcessing) {
-      if (disabled || !onCancelDictation) {
-        return;
-      }
-      onCancelDictation();
-      return;
-    }
-    if (allowOpenDictationSettings) {
-      onOpenDictationSettings?.();
-      return;
-    }
-    if (!onToggleDictation || micDisabled) {
-      return;
-    }
-    onToggleDictation();
-  }, [
-    disabled,
-    isDictationProcessing,
-    allowOpenDictationSettings,
-    onCancelDictation,
-    micDisabled,
-    onOpenDictationSettings,
-    onToggleDictation,
-  ]);
 
   const handleTextareaChange = useCallback(
     (event: ChangeEvent<HTMLTextAreaElement>) => {
@@ -424,11 +359,6 @@ export function ComposerInput({
     setMobileActionsOpen(false);
     onToggleExpand();
   }, [disabled, onToggleExpand]);
-
-  const handleMobileDictationClick = useCallback(() => {
-    setMobileActionsOpen(false);
-    handleMicClick();
-  }, [handleMicClick]);
 
   return (
     <div className={`composer-input${isPhoneLayout && isPhoneTallInput ? " is-phone-tall" : ""}`}>
@@ -496,23 +426,6 @@ export function ComposerInput({
                     {isExpanded ? "Collapse input" : "Expand input"}
                   </PopoverMenuItem>
                 )}
-                {(onToggleDictation || onOpenDictationSettings || onCancelDictation) && (
-                  <PopoverMenuItem
-                    onClick={handleMobileDictationClick}
-                    disabled={micDisabled}
-                    icon={
-                      isDictationProcessing ? (
-                        <X size={14} />
-                      ) : isDictating ? (
-                        <Square size={14} />
-                      ) : (
-                        <Mic size={14} />
-                      )
-                    }
-                  >
-                    {micAriaLabel}
-                  </PopoverMenuItem>
-                )}
               </PopoverSurface>
             )}
           </div>
@@ -535,39 +448,6 @@ export function ComposerInput({
             onPaste={handleTextareaPaste}
           />
         </div>
-        {isDictationBusy && (
-          <DictationWaveform
-            active={isDictating}
-            processing={dictationState === "processing"}
-            level={dictationLevel}
-          />
-        )}
-        {dictationError && (
-          <div className="composer-dictation-error" role="status">
-            <span>{dictationError}</span>
-            <button
-              type="button"
-              className="ghost composer-dictation-error-dismiss"
-              onClick={onDismissDictationError}
-            >
-              Dismiss
-            </button>
-          </div>
-        )}
-        {dictationHint && (
-          <div className="composer-dictation-hint" role="status">
-            <span>{dictationHint}</span>
-            {onDismissDictationHint && (
-              <button
-                type="button"
-                className="ghost composer-dictation-error-dismiss"
-                onClick={onDismissDictationHint}
-              >
-                Dismiss
-              </button>
-            )}
-          </div>
-        )}
         {suggestionsOpen && (
           <PopoverSurface
             className={`composer-suggestions${
@@ -705,30 +585,11 @@ export function ComposerInput({
         </button>
       )}
       <button
-        className={`composer-action composer-action--mic${
-          isDictationBusy ? " is-active" : ""
-        }${isDictationProcessing ? " is-processing is-stop" : ""}${
-          micDisabled ? " is-disabled" : ""
-        }`}
-        onClick={handleMicClick}
-        disabled={micDisabled}
-        aria-label={micAriaLabel}
-        title={micTitle}
-      >
-        {isDictationProcessing ? (
-          <X aria-hidden />
-        ) : isDictating ? (
-          <Square aria-hidden />
-        ) : (
-          <Mic aria-hidden />
-        )}
-      </button>
-      <button
         className={`composer-action${canStop ? " is-stop" : " is-send"}${
           canStop && isProcessing ? " is-loading" : ""
         }`}
         onClick={handleActionClick}
-        disabled={(disabled && !canStop) || isDictationBusy || (!canStop && !canSend)}
+        disabled={(disabled && !canStop) || (!canStop && !canSend)}
         aria-label={canStop ? "Stop" : sendLabel}
         title={canStop ? "Stop" : sendLabel}
       >

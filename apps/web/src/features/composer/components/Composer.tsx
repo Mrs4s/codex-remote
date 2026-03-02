@@ -23,7 +23,6 @@ import type {
   ReviewPromptState,
   ReviewPromptStep,
 } from "../../threads/hooks/useReviewPrompt";
-import { computeDictationInsertion } from "../../../utils/dictation";
 import { isComposingEvent } from "../../../utils/keys";
 import {
   connectorMentionSlug,
@@ -211,18 +210,6 @@ export const Composer = memo(function Composer({
   editorSettings: editorSettingsProp,
   editorExpanded = false,
   onToggleEditorExpanded,
-  dictationEnabled = false,
-  dictationState = "idle",
-  dictationLevel = 0,
-  onToggleDictation,
-  onCancelDictation,
-  onOpenDictationSettings,
-  dictationTranscript = null,
-  onDictationTranscriptHandled,
-  dictationError = null,
-  onDismissDictationError,
-  dictationHint = null,
-  onDismissDictationHint,
   reviewPrompt,
   onReviewPromptClose,
   onReviewPromptShowPreset,
@@ -254,7 +241,6 @@ export const Composer = memo(function Composer({
   const internalRef = useRef<HTMLTextAreaElement | null>(null);
   const textareaRef = externalTextareaRef ?? internalRef;
   const editorSettings = editorSettingsProp ?? DEFAULT_EDITOR_SETTINGS;
-  const isDictationBusy = dictationState !== "idle";
   const canSend = text.trim().length > 0 || attachedImages.length > 0;
   const isMac = isMacPlatform();
   const followUpShortcutLabel = isMac ? "Shift+Cmd+Enter" : "Shift+Ctrl+Enter";
@@ -485,46 +471,6 @@ export const Composer = memo(function Composer({
     setComposerText,
   ]);
 
-  useEffect(() => {
-    if (!dictationTranscript) {
-      return;
-    }
-    const textToInsert = dictationTranscript.text.trim();
-    if (!textToInsert) {
-      onDictationTranscriptHandled?.(dictationTranscript.id);
-      return;
-    }
-    const textarea = textareaRef.current;
-    const start = textarea?.selectionStart ?? selectionStart ?? text.length;
-    const end = textarea?.selectionEnd ?? start;
-    const { nextText, nextCursor } = computeDictationInsertion(
-      text,
-      textToInsert,
-      start,
-      end,
-    );
-    setComposerText(nextText);
-    resetHistoryNavigation();
-    requestAnimationFrame(() => {
-      if (!textareaRef.current) {
-        return;
-      }
-      textareaRef.current.focus();
-      textareaRef.current.setSelectionRange(nextCursor, nextCursor);
-      handleSelectionChange(nextCursor);
-    });
-    onDictationTranscriptHandled?.(dictationTranscript.id);
-  }, [
-    dictationTranscript,
-    handleSelectionChange,
-    onDictationTranscriptHandled,
-    resetHistoryNavigation,
-    selectionStart,
-    setComposerText,
-    text,
-    textareaRef,
-  ]);
-
   const applyTextInsertion = useCallback(
     (nextText: string, nextCursor: number) => {
       setComposerText(nextText);
@@ -693,16 +639,6 @@ export const Composer = memo(function Composer({
         isProcessing={isProcessing}
         onStop={onStop}
         onSend={() => handleSend(defaultSubmitIntent)}
-        dictationEnabled={dictationEnabled}
-        dictationState={dictationState}
-        dictationLevel={dictationLevel}
-        onToggleDictation={onToggleDictation}
-        onCancelDictation={onCancelDictation}
-        onOpenDictationSettings={onOpenDictationSettings}
-        dictationError={dictationError}
-        onDismissDictationError={onDismissDictationError}
-        dictationHint={dictationHint}
-        onDismissDictationHint={onDismissDictationHint}
         attachments={attachedImages}
         onAddAttachment={onPickImages}
         onAttachImages={onAttachImages}
@@ -725,10 +661,6 @@ export const Composer = memo(function Composer({
             event.shiftKey &&
             (isMac ? event.metaKey : event.ctrlKey);
           if (isOppositeFollowUpShortcut && !suggestionsOpen) {
-            if (isDictationBusy) {
-              event.preventDefault();
-              return;
-            }
             event.preventDefault();
             const dismissKeyboardAfterSend = canSend && isMobilePlatform();
             handleSend(oppositeSubmitIntent);
@@ -815,10 +747,6 @@ export const Composer = memo(function Composer({
                   return;
                 }
               }
-            }
-            if (isDictationBusy) {
-              event.preventDefault();
-              return;
             }
             event.preventDefault();
             const dismissKeyboardAfterSend = canSend && isMobilePlatform();

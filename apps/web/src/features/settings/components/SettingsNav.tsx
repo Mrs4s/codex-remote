@@ -1,6 +1,5 @@
 import LayoutGrid from "lucide-react/dist/esm/icons/layout-grid";
 import SlidersHorizontal from "lucide-react/dist/esm/icons/sliders-horizontal";
-import Mic from "lucide-react/dist/esm/icons/mic";
 import Keyboard from "lucide-react/dist/esm/icons/keyboard";
 import GitBranch from "lucide-react/dist/esm/icons/git-branch";
 import TerminalSquare from "lucide-react/dist/esm/icons/terminal-square";
@@ -62,15 +61,6 @@ export function SettingsNav({
           onClick={() => onSelectSection("composer")}
         >
           Composer
-        </PanelNavItem>
-        <PanelNavItem
-          className="settings-nav"
-          icon={<Mic aria-hidden />}
-          active={activeSection === "dictation"}
-          showDisclosure={showDisclosure}
-          onClick={() => onSelectSection("dictation")}
-        >
-          Dictation
         </PanelNavItem>
         <PanelNavItem
           className="settings-nav"

@@ -14,8 +14,6 @@ import type {
   AppMention,
   AppOption,
   DebugEntry,
-  DictationSessionState,
-  DictationTranscript,
   GitFileStatus,
   GitHubIssue,
   GitHubPullRequestComment,
@@ -156,7 +154,6 @@ export type LayoutNodesOptions = {
   onPlanAccept?: () => void;
   onPlanSubmitChanges?: (changes: string) => void;
   onOpenSettings: () => void;
-  onOpenDictationSettings?: () => void;
   onOpenDebug: () => void;
   showDebugButton: boolean;
   onAddWorkspace: () => void;
@@ -463,17 +460,6 @@ export type LayoutNodesOptions = {
   composerEditorSettings: ComposerEditorSettings;
   composerEditorExpanded: boolean;
   onToggleComposerEditorExpanded: () => void;
-  dictationEnabled: boolean;
-  dictationState: DictationSessionState;
-  dictationLevel: number;
-  onToggleDictation: () => void;
-  onCancelDictation?: () => void;
-  dictationTranscript: DictationTranscript | null;
-  onDictationTranscriptHandled: (id: string) => void;
-  dictationError: string | null;
-  onDismissDictationError: () => void;
-  dictationHint: string | null;
-  onDismissDictationHint: () => void;
   composerContextActions: ComposerContextAction[];
   showComposer: boolean;
   composerSendLabel?: string;
