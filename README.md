@@ -36,6 +36,10 @@ Default ports:
 - Current version is single-user token auth.
 - Web runtime intentionally avoids any Tauri dependency.
 
+## Deployment
+
+- PM2 deployment guide: [docs/pm2-deploy.md](docs/pm2-deploy.md)
+
 ## Web Runtime Config
 
 `apps/web` now hosts the migrated CodexMonitor UI and talks to the Node backend over HTTP/SSE.
