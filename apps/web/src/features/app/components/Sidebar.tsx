@@ -1,4 +1,5 @@
 import type {
+  AccessMode,
   AccountSnapshot,
   RequestUserInputRequest,
   RateLimitSnapshot,
@@ -95,7 +96,10 @@ type SidebarProps = {
   onSelectHome: () => void;
   onSelectWorkspace: (id: string) => void;
   onConnectWorkspace: (workspace: WorkspaceInfo) => void;
-  onAddAgent: (workspace: WorkspaceInfo) => void;
+  onAddAgent: (
+    workspace: WorkspaceInfo,
+    options?: { accessMode?: AccessMode | null },
+  ) => void;
   onAddWorktreeAgent: (workspace: WorkspaceInfo) => void;
   onAddCloneAgent: (workspace: WorkspaceInfo) => void;
   onToggleWorkspaceCollapse: (workspaceId: string, collapsed: boolean) => void;
@@ -199,6 +203,7 @@ export const Sidebar = memo(function Sidebar({
     left: number;
     width: number;
   } | null>(null);
+  const [newSessionAccessMode, setNewSessionAccessMode] = useState<AccessMode>("current");
   const allThreadsAddMenuOpen = Boolean(allThreadsAddMenuAnchor);
   const addMenuController = useMenuController({
     open: Boolean(addMenuAnchor),
@@ -651,6 +656,11 @@ export const Sidebar = memo(function Sidebar({
         setAllThreadsAddMenuAnchor(null);
         return;
       }
+      if (activeWorkspace && (activeWorkspace.kind ?? "main") === "main") {
+        setNewSessionAccessMode(activeWorkspace.settings.defaultAccessMode ?? "current");
+      } else {
+        setNewSessionAccessMode("current");
+      }
       setAddMenuAnchor(null);
       const rect = event.currentTarget.getBoundingClientRect();
       const left = Math.min(
@@ -664,15 +674,15 @@ export const Sidebar = memo(function Sidebar({
         width: ALL_THREADS_ADD_MENU_WIDTH,
       });
     },
-    [allThreadsAddMenuOpen],
+    [activeWorkspace, allThreadsAddMenuOpen],
   );
 
   const handleCreateThreadInProject = useCallback(
     (workspace: WorkspaceInfo) => {
       setAllThreadsAddMenuAnchor(null);
-      onAddAgent(workspace);
+      onAddAgent(workspace, { accessMode: newSessionAccessMode });
     },
-    [onAddAgent],
+    [newSessionAccessMode, onAddAgent],
   );
   const isSearchActive = Boolean(normalizedQuery);
 
@@ -928,6 +938,23 @@ export const Sidebar = memo(function Sidebar({
                           width: allThreadsAddMenuAnchor.width,
                         }}
                       >
+                        <div
+                          className="workspace-add-session-access"
+                          onClick={(event) => event.stopPropagation()}
+                        >
+                          <label htmlFor="all-threads-session-access">Access</label>
+                          <select
+                            id="all-threads-session-access"
+                            value={newSessionAccessMode}
+                            onChange={(event) =>
+                              setNewSessionAccessMode(event.target.value as AccessMode)
+                            }
+                          >
+                            <option value="read-only">Read only</option>
+                            <option value="current">On-Request</option>
+                            <option value="full-access">Full access</option>
+                          </select>
+                        </div>
                         {projectOptionsForNewThread.map((workspace) => (
                           <PopoverMenuItem
                             key={workspace.id}
@@ -1018,7 +1045,14 @@ export const Sidebar = memo(function Sidebar({
                           onShowWorkspaceMenu={showWorkspaceMenu}
                           onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
                           onConnectWorkspace={onConnectWorkspace}
-                          onToggleAddMenu={setAddMenuAnchor}
+                          onToggleAddMenu={(anchor) => {
+                            if (anchor) {
+                              setNewSessionAccessMode(
+                                entry.settings.defaultAccessMode ?? "current",
+                              );
+                            }
+                            setAddMenuAnchor(anchor);
+                          }}
                         >
                           {addMenuOpen && addMenuAnchor &&
                             createPortal(
@@ -1031,12 +1065,35 @@ export const Sidebar = memo(function Sidebar({
                                   width: addMenuAnchor.width,
                                 }}
                               >
+                                <div
+                                  className="workspace-add-session-access"
+                                  onClick={(event) => event.stopPropagation()}
+                                >
+                                  <label htmlFor={`workspace-session-access-${entry.id}`}>
+                                    Access
+                                  </label>
+                                  <select
+                                    id={`workspace-session-access-${entry.id}`}
+                                    value={newSessionAccessMode}
+                                    onChange={(event) =>
+                                      setNewSessionAccessMode(
+                                        event.target.value as AccessMode,
+                                      )
+                                    }
+                                  >
+                                    <option value="read-only">Read only</option>
+                                    <option value="current">On-Request</option>
+                                    <option value="full-access">Full access</option>
+                                  </select>
+                                </div>
                                 <PopoverMenuItem
                                   className="workspace-add-option"
                                   onClick={(event) => {
                                     event.stopPropagation();
                                     setAddMenuAnchor(null);
-                                    onAddAgent(entry);
+                                    onAddAgent(entry, {
+                                      accessMode: newSessionAccessMode,
+                                    });
                                   }}
                                   icon={<Plus aria-hidden />}
                                 >

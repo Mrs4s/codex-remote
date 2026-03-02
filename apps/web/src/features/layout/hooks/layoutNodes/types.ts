@@ -161,7 +161,10 @@ export type LayoutNodesOptions = {
   onSelectHome: () => void;
   onSelectWorkspace: (workspaceId: string) => void;
   onConnectWorkspace: (workspace: WorkspaceInfo) => Promise<void>;
-  onAddAgent: (workspace: WorkspaceInfo) => Promise<void>;
+  onAddAgent: (
+    workspace: WorkspaceInfo,
+    options?: { accessMode?: AccessMode | null },
+  ) => Promise<void>;
   onAddWorktreeAgent: (workspace: WorkspaceInfo) => Promise<void>;
   onAddCloneAgent: (workspace: WorkspaceInfo) => Promise<void>;
   onToggleWorkspaceCollapse: (workspaceId: string, collapsed: boolean) => void;

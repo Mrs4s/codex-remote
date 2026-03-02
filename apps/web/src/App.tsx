@@ -152,6 +152,7 @@ import { useAppShellOrchestration } from "@app/orchestration/useLayoutOrchestrat
 import { buildCodexArgsOptions } from "@threads/utils/codexArgsProfiles";
 import { normalizeCodexArgsInput } from "@/utils/codexArgsInput";
 import {
+  NO_THREAD_SCOPE_SUFFIX,
   resolveWorkspaceRuntimeCodexArgsBadgeLabel,
   resolveWorkspaceRuntimeCodexArgsOverride,
 } from "@threads/utils/threadCodexParamsSeed";
@@ -1495,6 +1496,7 @@ function MainApp() {
     activeWorkspace,
     models,
     selectedModelId,
+    accessMode,
     effort: resolvedEffort,
     collaborationMode: collaborationModePayload,
     addWorktreeAgent,
@@ -1785,6 +1787,14 @@ function MainApp() {
     exitDiffView,
     selectWorkspace,
     onStartNewAgentDraft: startNewAgentDraft,
+    onSetNewAgentDraftAccessMode: (workspaceId, mode) => {
+      patchThreadCodexParams(workspaceId, NO_THREAD_SCOPE_SUFFIX, {
+        accessMode: mode,
+      });
+      if (workspaceId === activeWorkspaceId && !activeThreadId) {
+        setAccessMode(mode);
+      }
+    },
     openWorktreePrompt,
     openClonePrompt,
     composerInputRef,
@@ -2527,6 +2537,8 @@ function MainApp() {
       reasoningOptions={reasoningOptions}
       selectedEffort={selectedEffort}
       onSelectEffort={setSelectedEffort}
+      accessMode={accessMode}
+      onSelectAccessMode={handleSelectAccessMode}
       reasoningSupported={reasoningSupported}
       error={workspaceRunError}
       isSubmitting={workspaceRunSubmitting}

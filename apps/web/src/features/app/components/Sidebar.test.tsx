@@ -323,7 +323,10 @@ describe("Sidebar", () => {
     fireEvent.click(screen.getByRole("button", { name: "Alpha Project" }));
 
     expect(onAddAgent).toHaveBeenCalledTimes(1);
-    expect(onAddAgent).toHaveBeenCalledWith(expect.objectContaining({ id: "ws-1" }));
+    expect(onAddAgent).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "ws-1" }),
+      { accessMode: "current" },
+    );
   });
 
   it("refreshes all workspace threads from the header button", () => {

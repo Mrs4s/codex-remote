@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { ModelOption, SendMessageResult, WorkspaceInfo } from "../../../types";
+import type {
+  AccessMode,
+  ModelOption,
+  SendMessageResult,
+  WorkspaceInfo,
+} from "../../../types";
 import { generateRunMetadata } from "../../../services/tauri";
 
 export type WorkspaceRunMode = "local" | "worktree";
@@ -30,6 +35,7 @@ type UseWorkspaceHomeOptions = {
   activeWorkspace: WorkspaceInfo | null;
   models: ModelOption[];
   selectedModelId: string | null;
+  accessMode?: AccessMode;
   effort?: string | null;
   collaborationMode?: Record<string, unknown> | null;
   addWorktreeAgent: (
@@ -40,7 +46,7 @@ type UseWorkspaceHomeOptions = {
   connectWorkspace: (workspace: WorkspaceInfo) => Promise<void>;
   startThreadForWorkspace: (
     workspaceId: string,
-    options?: { activate?: boolean },
+    options?: { activate?: boolean; accessMode?: AccessMode },
   ) => Promise<string | null>;
   sendUserMessageToThread: (
     workspace: WorkspaceInfo,
@@ -172,6 +178,7 @@ export function useWorkspaceHome({
   activeWorkspace,
   models,
   selectedModelId,
+  accessMode = "current",
   effort = null,
   collaborationMode = null,
   addWorktreeAgent,
@@ -468,6 +475,7 @@ export function useWorkspaceHome({
           }
           const threadId = await startThreadForWorkspace(activeWorkspace.id, {
             activate: false,
+            accessMode,
           });
           if (!threadId) {
             throw new Error("Failed to start a local thread.");
@@ -529,6 +537,7 @@ export function useWorkspaceHome({
               }
               const threadId = await startThreadForWorkspace(worktreeWorkspace.id, {
                 activate: false,
+                accessMode,
               });
               if (!threadId) {
                 throw new Error("Failed to start a worktree thread.");
@@ -591,6 +600,7 @@ export function useWorkspaceHome({
     activeWorkspace,
     activeWorkspaceId,
     addWorktreeAgent,
+    accessMode,
     collaborationMode,
     connectWorkspace,
     onWorktreeCreated,

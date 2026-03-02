@@ -19,6 +19,7 @@ type Params = {
   exitDiffView: () => void;
   selectWorkspace: (workspaceId: string) => void;
   onStartNewAgentDraft: (workspaceId: string) => void;
+  onSetNewAgentDraftAccessMode?: (workspaceId: string, accessMode: AccessMode) => void;
   openWorktreePrompt: (workspace: WorkspaceInfo) => void;
   openClonePrompt: (workspace: WorkspaceInfo) => void;
   composerInputRef: RefObject<HTMLTextAreaElement | null>;
@@ -36,6 +37,7 @@ export function useWorkspaceActions({
   exitDiffView,
   selectWorkspace,
   onStartNewAgentDraft,
+  onSetNewAgentDraftAccessMode,
   openWorktreePrompt,
   openClonePrompt,
   composerInputRef,
@@ -151,7 +153,13 @@ ${message}`);
   );
 
   const handleAddAgent = useCallback(
-    async (workspace: WorkspaceInfo) => {
+    async (
+      workspace: WorkspaceInfo,
+      options?: { accessMode?: AccessMode | null },
+    ) => {
+      if (options?.accessMode) {
+        onSetNewAgentDraftAccessMode?.(workspace.id, options.accessMode);
+      }
       exitDiffView();
       selectWorkspace(workspace.id);
       setActiveThreadId(null, workspace.id);
@@ -172,6 +180,7 @@ ${message}`);
       exitDiffView,
       isCompact,
       onStartNewAgentDraft,
+      onSetNewAgentDraftAccessMode,
       selectWorkspace,
       setActiveThreadId,
       setActiveTab,

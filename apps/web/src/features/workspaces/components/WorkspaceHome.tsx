@@ -8,6 +8,7 @@ import {
 } from "react";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type {
+  AccessMode,
   AppOption,
   CustomPromptOption,
   ModelOption,
@@ -57,6 +58,8 @@ type WorkspaceHomeProps = {
   reasoningOptions: string[];
   selectedEffort: string | null;
   onSelectEffort: (effort: string) => void;
+  accessMode: AccessMode;
+  onSelectAccessMode: (mode: AccessMode) => void;
   reasoningSupported: boolean;
   error: string | null;
   isSubmitting: boolean;
@@ -108,6 +111,8 @@ export function WorkspaceHome({
   reasoningOptions,
   selectedEffort,
   onSelectEffort,
+  accessMode,
+  onSelectAccessMode,
   reasoningSupported,
   error,
   isSubmitting,
@@ -344,6 +349,8 @@ export function WorkspaceHome({
         reasoningOptions={reasoningOptions}
         selectedEffort={selectedEffort}
         onSelectEffort={onSelectEffort}
+        accessMode={accessMode}
+        onSelectAccessMode={onSelectAccessMode}
         reasoningSupported={reasoningSupported}
         isSubmitting={isSubmitting}
       />

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import type { ModelOption, WorkspaceInfo } from "../../../types";
+import type { AccessMode, ModelOption, WorkspaceInfo } from "../../../types";
 import type { WorkspaceRunMode } from "../hooks/useWorkspaceHome";
 import Laptop from "lucide-react/dist/esm/icons/laptop";
 import GitBranch from "lucide-react/dist/esm/icons/git-branch";
@@ -33,6 +33,8 @@ type WorkspaceHomeRunControlsProps = {
   reasoningOptions: string[];
   selectedEffort: string | null;
   onSelectEffort: (effort: string) => void;
+  accessMode: AccessMode;
+  onSelectAccessMode: (mode: AccessMode) => void;
   reasoningSupported: boolean;
   isSubmitting: boolean;
 };
@@ -53,6 +55,8 @@ export function WorkspaceHomeRunControls({
   reasoningOptions,
   selectedEffort,
   onSelectEffort,
+  accessMode,
+  onSelectAccessMode,
   reasoningSupported,
   isSubmitting,
 }: WorkspaceHomeRunControlsProps) {
@@ -258,6 +262,40 @@ export function WorkspaceHomeRunControls({
           </div>
         </div>
       )}
+      <div className="composer-select-wrap workspace-home-control">
+        <div className="open-app-button">
+          <span className="composer-icon" aria-hidden>
+            <svg viewBox="0 0 24 24" fill="none">
+              <path
+                d="M8 11V8a4 4 0 1 1 8 0v3"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinecap="round"
+              />
+              <rect
+                x="6"
+                y="11"
+                width="12"
+                height="9"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.4"
+              />
+            </svg>
+          </span>
+          <select
+            className="composer-select composer-select--effort"
+            aria-label="Access mode"
+            value={accessMode}
+            onChange={(event) => onSelectAccessMode(event.target.value as AccessMode)}
+            disabled={isSubmitting}
+          >
+            <option value="read-only">Read only</option>
+            <option value="current">On-Request</option>
+            <option value="full-access">Full access</option>
+          </select>
+        </div>
+      </div>
       <div className="composer-select-wrap workspace-home-control">
         <div className="open-app-button">
           <span className="composer-icon" aria-hidden>
