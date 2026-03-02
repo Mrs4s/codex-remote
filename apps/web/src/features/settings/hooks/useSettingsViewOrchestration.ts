@@ -16,6 +16,7 @@ import { useSettingsGitSection } from "./useSettingsGitSection";
 import { useSettingsAgentsSection } from "./useSettingsAgentsSection";
 import { useSettingsProjectsSection } from "./useSettingsProjectsSection";
 import { useSettingsServerSection } from "./useSettingsServerSection";
+import { useSettingsSkillsSection } from "./useSettingsSkillsSection";
 import type { GroupedWorkspaces } from "./settingsSectionTypes";
 import {
   COMPOSER_PRESET_CONFIGS,
@@ -91,7 +92,7 @@ export function useSettingsViewOrchestration({
     () => projects.filter((workspace) => (workspace.kind ?? "main") !== "worktree"),
     [projects],
   );
-  const featureWorkspaceId = useMemo(
+  const connectedWorkspaceId = useMemo(
     () => projects.find((workspace) => workspace.connected)?.id ?? null,
     [projects],
   );
@@ -161,8 +162,12 @@ export function useSettingsViewOrchestration({
 
   const featuresSectionProps = useSettingsFeaturesSection({
     appSettings,
-    featureWorkspaceId,
+    featureWorkspaceId: connectedWorkspaceId,
     onUpdateAppSettings,
+  });
+
+  const skillsSectionProps = useSettingsSkillsSection({
+    skillsWorkspaceId: connectedWorkspaceId,
   });
 
   const agentsSectionProps = useSettingsAgentsSection({ projects });
@@ -198,6 +203,7 @@ export function useSettingsViewOrchestration({
     agentsSectionProps,
     codexSectionProps,
     featuresSectionProps,
+    skillsSectionProps,
   };
 }
 

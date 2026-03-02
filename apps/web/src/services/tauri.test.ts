@@ -13,6 +13,7 @@ import {
   getAppsList,
   getAgentsSettings,
   getExperimentalFeatureList,
+  getSkillsRemoteList,
   getGitHubIssues,
   getGitLog,
   getGitStatus,
@@ -32,9 +33,11 @@ import {
   steerTurn,
   sendNotification,
   setCodexFeatureFlag,
+  setSkillEnabled,
   setAgentsCoreSettings,
   startReview,
   setThreadName,
+  exportRemoteSkill,
   tailscaleDaemonStart,
   tailscaleDaemonCommandPreview,
   tailscaleDaemonStatus,
@@ -328,6 +331,44 @@ describe("tauri invoke wrappers", () => {
       cursor: "cursor-1",
       limit: 25,
       threadId: "thread-11",
+    });
+  });
+
+  it("maps workspaceId/cursor/limit for skills_remote_list", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await getSkillsRemoteList("ws-11", "cursor-3", 30);
+
+    expect(invokeMock).toHaveBeenCalledWith("skills_remote_list", {
+      workspaceId: "ws-11",
+      cursor: "cursor-3",
+      limit: 30,
+    });
+  });
+
+  it("maps workspaceId/hazelnutId for skills_remote_export", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await exportRemoteSkill("ws-11", "hz-123");
+
+    expect(invokeMock).toHaveBeenCalledWith("skills_remote_export", {
+      workspaceId: "ws-11",
+      hazelnutId: "hz-123",
+    });
+  });
+
+  it("maps workspaceId/path/enabled for skills_set_enabled", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await setSkillEnabled("ws-11", "playwright", true);
+
+    expect(invokeMock).toHaveBeenCalledWith("skills_set_enabled", {
+      workspaceId: "ws-11",
+      path: "playwright",
+      enabled: true,
     });
   });
 

@@ -369,6 +369,18 @@ export type RpcMethodMap = {
     params: { workspaceId: string };
     result: Record<string, unknown>;
   };
+  skills_remote_list: {
+    params: { workspaceId: string; cursor?: string | null; limit?: number | null };
+    result: Record<string, unknown>;
+  };
+  skills_remote_export: {
+    params: { workspaceId: string; hazelnutId: string };
+    result: Record<string, unknown>;
+  };
+  skills_set_enabled: {
+    params: { workspaceId: string; path: string; enabled: boolean };
+    result: Record<string, unknown>;
+  };
   apps_list: {
     params: {
       workspaceId: string;

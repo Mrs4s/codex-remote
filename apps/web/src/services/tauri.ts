@@ -809,6 +809,29 @@ export async function getSkillsList(workspaceId: string) {
   return invoke<any>("skills_list", { workspaceId });
 }
 
+export async function getSkillsRemoteList(
+  workspaceId: string,
+  cursor?: string | null,
+  limit?: number | null,
+) {
+  return invoke<any>("skills_remote_list", { workspaceId, cursor, limit });
+}
+
+export async function exportRemoteSkill(
+  workspaceId: string,
+  hazelnutId: string,
+) {
+  return invoke<any>("skills_remote_export", { workspaceId, hazelnutId });
+}
+
+export async function setSkillEnabled(
+  workspaceId: string,
+  path: string,
+  enabled: boolean,
+) {
+  return invoke<any>("skills_set_enabled", { workspaceId, path, enabled });
+}
+
 export async function getAppsList(
   workspaceId: string,
   cursor?: string | null,

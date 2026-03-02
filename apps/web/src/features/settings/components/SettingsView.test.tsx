@@ -13,11 +13,15 @@ import { describe, expect, it, vi } from "vitest";
 import type { AppSettings, WorkspaceInfo } from "@/types";
 import {
   connectWorkspace,
+  exportRemoteSkill,
   getAgentsSettings,
   getConfigModel,
   getExperimentalFeatureList,
+  getSkillsList,
+  getSkillsRemoteList,
   getModelList,
   listWorkspaces,
+  setSkillEnabled,
 } from "@services/tauri";
 import { DEFAULT_COMMIT_MESSAGE_PROMPT } from "@utils/commitMessagePrompt";
 import { SettingsView } from "./SettingsView";
@@ -37,6 +41,10 @@ vi.mock("@services/tauri", async () => {
     getModelList: vi.fn(),
     getConfigModel: vi.fn(),
     getExperimentalFeatureList: vi.fn(),
+    getSkillsList: vi.fn(),
+    getSkillsRemoteList: vi.fn(),
+    exportRemoteSkill: vi.fn(),
+    setSkillEnabled: vi.fn(),
     getAgentsSettings: vi.fn(),
     listWorkspaces: vi.fn(),
   };
@@ -46,11 +54,30 @@ const connectWorkspaceMock = vi.mocked(connectWorkspace);
 const getConfigModelMock = vi.mocked(getConfigModel);
 const getModelListMock = vi.mocked(getModelList);
 const getExperimentalFeatureListMock = vi.mocked(getExperimentalFeatureList);
+const getSkillsListMock = vi.mocked(getSkillsList);
+const getSkillsRemoteListMock = vi.mocked(getSkillsRemoteList);
+const exportRemoteSkillMock = vi.mocked(exportRemoteSkill);
+const setSkillEnabledMock = vi.mocked(setSkillEnabled);
 const getAgentsSettingsMock = vi.mocked(getAgentsSettings);
 const listWorkspacesMock = vi.mocked(listWorkspaces);
 connectWorkspaceMock.mockResolvedValue(undefined);
 getConfigModelMock.mockResolvedValue(null);
 listWorkspacesMock.mockResolvedValue([]);
+getSkillsListMock.mockResolvedValue({
+  data: [
+    {
+      cwd: "/tmp/project",
+      skills: [],
+      errors: [],
+    },
+  ],
+});
+getSkillsRemoteListMock.mockResolvedValue({
+  data: [],
+  nextCursor: null,
+});
+exportRemoteSkillMock.mockResolvedValue({});
+setSkillEnabledMock.mockResolvedValue({ effectiveEnabled: true });
 getAgentsSettingsMock.mockResolvedValue({
   configPath: "/Users/me/.codex/config.toml",
   multiAgentEnabled: false,
@@ -336,6 +363,91 @@ const renderFeaturesSection = (
     onCancelDictationDownload: vi.fn(),
     onRemoveDictationModel: vi.fn(),
     initialSection: "features",
+  };
+
+  render(<SettingsView {...props} />);
+  return { onUpdateAppSettings };
+};
+
+const renderSkillsSection = (
+  options: {
+    appSettings?: Partial<AppSettings>;
+    onUpdateAppSettings?: ComponentProps<typeof SettingsView>["onUpdateAppSettings"];
+    skillsResponse?: unknown;
+    remoteSkillsResponse?: unknown;
+  } = {},
+) => {
+  cleanup();
+  const onUpdateAppSettings =
+    options.onUpdateAppSettings ?? vi.fn().mockResolvedValue(undefined);
+  getSkillsListMock.mockResolvedValue(
+    (options.skillsResponse as Record<string, unknown>) ?? {
+      data: [
+        {
+          cwd: "/tmp/project",
+          skills: [
+            {
+              name: "playwright",
+              description: "Browser automation.",
+              path: "/Users/me/.codex/skills/playwright/SKILL.md",
+              scope: "user",
+              enabled: true,
+            },
+          ],
+          errors: [],
+        },
+      ],
+    },
+  );
+  getSkillsRemoteListMock.mockResolvedValue(
+    (options.remoteSkillsResponse as Record<string, unknown>) ?? {
+      data: [
+        {
+          hazelnutId: "hz-123",
+          name: "Playwright Remote",
+          description: "Remote skill catalog entry.",
+        },
+      ],
+      nextCursor: null,
+    },
+  );
+  setSkillEnabledMock.mockResolvedValue({ effectiveEnabled: false });
+  exportRemoteSkillMock.mockResolvedValue({});
+
+  const props: ComponentProps<typeof SettingsView> = {
+    reduceTransparency: false,
+    onToggleTransparency: vi.fn(),
+    appSettings: { ...baseSettings, ...options.appSettings },
+    openAppIconById: {},
+    onUpdateAppSettings,
+    workspaceGroups: [],
+    groupedWorkspaces: [
+      {
+        id: null,
+        name: "Ungrouped",
+        workspaces: [workspace({ id: "w-skills", name: "Skills Workspace", connected: true })],
+      },
+    ],
+    ungroupedLabel: "Ungrouped",
+    onClose: vi.fn(),
+    onMoveWorkspace: vi.fn(),
+    onDeleteWorkspace: vi.fn(),
+    onCreateWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onRenameWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onMoveWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onDeleteWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onAssignWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onRunDoctor: vi.fn().mockResolvedValue(createDoctorResult()),
+    onUpdateWorkspaceSettings: vi.fn().mockResolvedValue(undefined),
+    scaleShortcutTitle: "Scale shortcut",
+    scaleShortcutText: "Use Command +/-",
+    onTestNotificationSound: vi.fn(),
+    onTestSystemNotification: vi.fn(),
+    dictationModelStatus: null,
+    onDownloadDictationModel: vi.fn(),
+    onCancelDictationDownload: vi.fn(),
+    onRemoveDictationModel: vi.fn(),
+    initialSection: "skills",
   };
 
   render(<SettingsView {...props} />);
@@ -1448,6 +1560,59 @@ describe("SettingsView Features", () => {
     await screen.findByText(
       "Use Responses API WebSocket transport for OpenAI by default.",
     );
+  });
+});
+
+describe("SettingsView Skills", () => {
+  it("toggles installed skill enabled state", async () => {
+    renderSkillsSection();
+
+    const skillTitle = await screen.findByText("playwright");
+    const skillRow = skillTitle.closest(".settings-toggle-row");
+    expect(skillRow).not.toBeNull();
+
+    fireEvent.click(within(skillRow as HTMLElement).getByRole("button"));
+
+    await waitFor(() => {
+      expect(setSkillEnabledMock).toHaveBeenCalledWith(
+        "w-skills",
+        "/Users/me/.codex/skills/playwright/SKILL.md",
+        false,
+      );
+    });
+  });
+
+  it("loads remote catalog and imports a remote skill", async () => {
+    renderSkillsSection();
+
+    fireEvent.click(screen.getByRole("button", { name: "Load catalog" }));
+
+    await waitFor(() => {
+      expect(getSkillsRemoteListMock).toHaveBeenCalledWith("w-skills", null, 50);
+    });
+    const remoteTitle = await screen.findByText("Playwright Remote");
+    const remoteRow = remoteTitle.closest(".settings-toggle-row");
+    expect(remoteRow).not.toBeNull();
+
+    fireEvent.click(within(remoteRow as HTMLElement).getByRole("button", { name: "Import" }));
+
+    await waitFor(() => {
+      expect(exportRemoteSkillMock).toHaveBeenCalledWith("w-skills", "hz-123");
+    });
+  });
+
+  it("imports a skill by hazelnut id", async () => {
+    renderSkillsSection({
+      remoteSkillsResponse: { data: [], nextCursor: null },
+    });
+
+    const input = screen.getByLabelText("Import by Hazelnut ID");
+    fireEvent.change(input, { target: { value: "hz-manual-1" } });
+    fireEvent.click(screen.getByRole("button", { name: "Import" }));
+
+    await waitFor(() => {
+      expect(exportRemoteSkillMock).toHaveBeenCalledWith("w-skills", "hz-manual-1");
+    });
   });
 });
 

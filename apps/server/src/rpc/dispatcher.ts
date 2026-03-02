@@ -565,6 +565,32 @@ export async function dispatchRpc(
         cwd: workspace.path,
       });
     }
+    case "skills_remote_list": {
+      const workspace = workspaceFromParams();
+      return deps.sessionManager.callSessionMethod(workspace, "skills/remote/list", {
+        cursor: optionalString(params, "cursor"),
+        limit: optionalNumber(params, "limit"),
+      });
+    }
+    case "skills_remote_export": {
+      const workspace = workspaceFromParams();
+      const hazelnutId = requireString(params, "hazelnutId");
+      return deps.sessionManager.callSessionMethod(workspace, "skills/remote/export", {
+        hazelnutId,
+      });
+    }
+    case "skills_set_enabled": {
+      const workspace = workspaceFromParams();
+      const skillPath = requireString(params, "path");
+      const enabled = optionalBoolean(params, "enabled");
+      if (enabled === null) {
+        throw new Error("enabled must be a boolean");
+      }
+      return deps.sessionManager.callSessionMethod(workspace, "skills/config/write", {
+        path: skillPath,
+        enabled,
+      });
+    }
     case "apps_list": {
       const workspace = workspaceFromParams();
       return deps.sessionManager.callSessionMethod(workspace, "app/list", {

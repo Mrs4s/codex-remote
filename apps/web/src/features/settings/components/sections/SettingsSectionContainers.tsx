@@ -9,6 +9,7 @@ import { SettingsServerSection } from "./SettingsServerSection";
 import { SettingsShortcutsSection } from "./SettingsShortcutsSection";
 import { SettingsAgentsSection } from "./SettingsAgentsSection";
 import { SettingsAboutSection } from "./SettingsAboutSection";
+import { SettingsSkillsSection } from "./SettingsSkillsSection";
 import type { CodexSection } from "@settings/components/settingsTypes";
 import type { SettingsViewOrchestration } from "@settings/hooks/useSettingsViewOrchestration";
 
@@ -47,6 +48,9 @@ export function SettingsSectionContainers({
   }
   if (activeSection === "agents") {
     return <SettingsAgentsSection {...orchestration.agentsSectionProps} />;
+  }
+  if (activeSection === "skills") {
+    return <SettingsSkillsSection {...orchestration.skillsSectionProps} />;
   }
   if (activeSection === "codex") {
     return <SettingsCodexSection {...orchestration.codexSectionProps} />;

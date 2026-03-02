@@ -7,7 +7,8 @@ export type SettingsSection =
   | "shortcuts"
   | "git"
   | "codex"
-  | "features";
+  | "features"
+  | "skills";
 
 export function useSettingsModalState() {
   const [settingsOpen, setSettingsOpen] = useState(false);
