@@ -11,7 +11,10 @@ import { SessionManager } from "./services/sessionManager.js";
 import { TerminalService } from "./services/terminalService.js";
 import { PromptService } from "./services/promptService.js";
 import { DictationService } from "./services/dictationService.js";
+import { LiteLLMPricingService } from "./services/litellmPricingService.js";
 import { dispatchRpc } from "./rpc/dispatcher.js";
+
+const app = Fastify({ logger: true });
 
 const store = new JsonStore(env.dataDir);
 const eventBus = new EventBus();
@@ -20,11 +23,22 @@ const sessionManager = new SessionManager(eventBus, env.codexBin);
 const terminalService = new TerminalService(eventBus);
 const promptService = new PromptService(env.dataDir);
 const dictationService = new DictationService(eventBus);
+const litellmPricingService = new LiteLLMPricingService({
+  dataDir: env.dataDir,
+  url: env.litellmPricingUrl,
+  ttlMs: env.litellmPricingTtlMs,
+  refreshIntervalMs: env.litellmPricingRefreshIntervalMs,
+  requestTimeoutMs: env.litellmPricingRequestTimeoutMs,
+  logger: {
+    debug: (message, details) => app.log.debug({ details }, message),
+    info: (message, details) => app.log.info({ details }, message),
+    warn: (message, details) => app.log.warn({ details }, message),
+    error: (message, details) => app.log.error({ details }, message),
+  },
+});
 const webDistDir = path.resolve(env.webDistDir);
 const webIndexPath = path.join(webDistDir, "index.html");
 const hasWebDist = fs.existsSync(webIndexPath);
-
-const app = Fastify({ logger: true });
 
 await app.register(cors, {
   origin: env.corsOrigin.split(",").map((value) => value.trim()),
@@ -33,6 +47,7 @@ await app.register(cors, {
 
 await store.init();
 await workspaceService.load();
+await litellmPricingService.init();
 
 app.addHook("onRequest", async (request, reply) => {
   if (request.url === "/health" || !request.url.startsWith("/api/v1/")) {
@@ -46,7 +61,11 @@ app.addHook("onRequest", async (request, reply) => {
   }
 });
 
-app.get("/health", async () => ({ ok: true, now: Date.now() }));
+app.get("/health", async () => ({
+  ok: true,
+  now: Date.now(),
+  litellmPricing: litellmPricingService.getState(),
+}));
 
 app.get("/api/v1/events", async (request, reply) => {
   eventBus.attach(request, reply);
@@ -65,6 +84,7 @@ app.post("/api/v1/rpc/:method", async (request, reply) => {
         terminalService,
         promptService,
         dictationService,
+        litellmPricingService,
         store,
       },
       method,
@@ -163,6 +183,7 @@ if (hasWebDist) {
 }
 
 const shutdown = async () => {
+  litellmPricingService.dispose();
   terminalService.closeAll();
   await sessionManager.closeAll();
   await app.close();

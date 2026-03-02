@@ -3,6 +3,7 @@ import type { PromptScope, PromptService } from "../services/promptService.js";
 import type { WorkspaceService } from "../services/workspaceService.js";
 import type { SessionManager } from "../services/sessionManager.js";
 import type { TerminalService } from "../services/terminalService.js";
+import type { LiteLLMPricingService } from "../services/litellmPricingService.js";
 import { listWorkspaceFiles, readWorkspaceFile } from "../services/fileService.js";
 import {
   checkoutGitHubPullRequest,
@@ -50,6 +51,7 @@ export type DispatcherDeps = {
   terminalService: TerminalService;
   promptService: PromptService;
   dictationService: DictationService;
+  litellmPricingService: LiteLLMPricingService;
   store: JsonStore;
 };
 
