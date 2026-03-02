@@ -138,4 +138,66 @@ describe("normalizeRateLimits", () => {
     expect(normalized.secondary?.usedPercent).toBe(60);
     expect(normalized.secondary?.windowDurationMins).toBe(10_080);
   });
+
+  it("ignores non-percent remaining counters from legacy remaining field", () => {
+    const previous = {
+      primary: {
+        usedPercent: 33,
+        windowDurationMins: 60,
+        resetsAt: 1_700_000_000,
+      },
+      secondary: null,
+      credits: null,
+      planType: null,
+    } as const;
+
+    const normalized = normalizeRateLimits(
+      {
+        primary: {
+          remaining: 278,
+          resets_at: 1_700_000_123,
+        },
+      },
+      previous,
+    );
+
+    expect(normalized.primary?.usedPercent).toBe(33);
+    expect(normalized.primary?.resetsAt).toBe(1_700_000_123);
+  });
+
+  it("ignores out-of-range used_percent values and preserves previous usage", () => {
+    const previous = {
+      primary: {
+        usedPercent: 41,
+        windowDurationMins: 60,
+        resetsAt: 1_700_000_000,
+      },
+      secondary: null,
+      credits: null,
+      planType: null,
+    } as const;
+
+    const normalized = normalizeRateLimits(
+      {
+        primary: {
+          used_percent: 278,
+          resets_at: 1_700_000_999,
+        },
+      },
+      previous,
+    );
+
+    expect(normalized.primary?.usedPercent).toBe(41);
+    expect(normalized.primary?.resetsAt).toBe(1_700_000_999);
+  });
+
+  it("drops out-of-range used_percent values when no previous window exists", () => {
+    const normalized = normalizeRateLimits({
+      primary: {
+        used_percent: 278,
+      },
+    });
+
+    expect(normalized.primary).toBeNull();
+  });
 });
