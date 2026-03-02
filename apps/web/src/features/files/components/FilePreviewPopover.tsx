@@ -2,7 +2,6 @@ import { useMemo } from "react";
 import type { CSSProperties, MouseEvent } from "react";
 import X from "lucide-react/dist/esm/icons/x";
 import { highlightLine, languageFromPath } from "../../../utils/syntax";
-import { OpenAppMenu } from "../../app/components/OpenAppMenu";
 import { PopoverSurface } from "../../design-system/components/popover/PopoverPrimitives";
 import type { OpenAppTarget } from "../../../types";
 
@@ -34,15 +33,10 @@ type FilePreviewPopoverProps = {
 
 export function FilePreviewPopover({
   path,
-  absolutePath,
   content,
   truncated,
   previewKind = "text",
   imageSrc = null,
-  openTargets,
-  openAppIconById,
-  selectedOpenAppId,
-  onSelectOpenAppId,
   selection,
   onSelectLine,
   onLineMouseDown,
@@ -106,15 +100,6 @@ export function FilePreviewPopover({
         <div className="file-preview-body file-preview-body--image">
           <div className="file-preview-toolbar">
             <span className="file-preview-selection">{selectionLabel}</span>
-            <div className="file-preview-actions">
-              <OpenAppMenu
-                path={absolutePath}
-                openTargets={openTargets}
-                selectedOpenAppId={selectedOpenAppId}
-                onSelectOpenAppId={onSelectOpenAppId}
-                iconById={openAppIconById}
-              />
-            </div>
           </div>
           {imageSrc ? (
             <div className="file-preview-image">
@@ -142,13 +127,6 @@ export function FilePreviewPopover({
               ) : null}
             </div>
             <div className="file-preview-actions">
-              <OpenAppMenu
-                path={absolutePath}
-                openTargets={openTargets}
-                selectedOpenAppId={selectedOpenAppId}
-                onSelectOpenAppId={onSelectOpenAppId}
-                iconById={openAppIconById}
-              />
               <button
                 type="button"
                 className="ghost file-preview-action"

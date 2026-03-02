@@ -8,7 +8,6 @@ import type {
   WorkspaceSettings,
 } from "@/types";
 import { isMacPlatform, isWindowsPlatform } from "@utils/platformPaths";
-import { useSettingsOpenAppDrafts } from "./useSettingsOpenAppDrafts";
 import { useSettingsShortcutDrafts } from "./useSettingsShortcutDrafts";
 import { useSettingsCodexSection } from "./useSettingsCodexSection";
 import { useSettingsDisplaySection } from "./useSettingsDisplaySection";
@@ -32,7 +31,6 @@ type UseSettingsViewOrchestrationArgs = {
   reduceTransparency: boolean;
   onToggleTransparency: (value: boolean) => void;
   appSettings: AppSettings;
-  openAppIconById: Record<string, string>;
   onUpdateAppSettings: (next: AppSettings) => Promise<void>;
   onRunDoctor: (
     codexBin: string | null,
@@ -74,7 +72,6 @@ export function useSettingsViewOrchestration({
   reduceTransparency,
   onToggleTransparency,
   appSettings,
-  openAppIconById,
   onUpdateAppSettings,
   onRunDoctor,
   onRunCodexUpdate,
@@ -128,21 +125,6 @@ export function useSettingsViewOrchestration({
   }, [appSettings.dictationModelId]);
 
   const dictationReady = dictationModelStatus?.state === "ready";
-
-  const {
-    openAppDrafts,
-    openAppSelectedId,
-    handleOpenAppDraftChange,
-    handleOpenAppKindChange,
-    handleCommitOpenAppsDrafts,
-    handleMoveOpenApp,
-    handleDeleteOpenApp,
-    handleAddOpenApp,
-    handleSelectOpenAppDefault,
-  } = useSettingsOpenAppDrafts({
-    appSettings,
-    onUpdateAppSettings,
-  });
 
   const { shortcutDrafts, handleShortcutKeyDown, clearShortcut } =
     useSettingsShortcutDrafts({
@@ -248,18 +230,6 @@ export function useSettingsViewOrchestration({
       shortcutDrafts,
       onShortcutKeyDown: handleShortcutKeyDown,
       onClearShortcut: clearShortcut,
-    },
-    openAppsSectionProps: {
-      openAppDrafts,
-      openAppSelectedId,
-      openAppIconById,
-      onOpenAppDraftChange: handleOpenAppDraftChange,
-      onOpenAppKindChange: handleOpenAppKindChange,
-      onCommitOpenApps: handleCommitOpenAppsDrafts,
-      onMoveOpenApp: handleMoveOpenApp,
-      onDeleteOpenApp: handleDeleteOpenApp,
-      onAddOpenApp: handleAddOpenApp,
-      onSelectOpenAppDefault: handleSelectOpenAppDefault,
     },
     gitSectionProps,
     serverSectionProps,

@@ -6,7 +6,6 @@ import GitBranch from "lucide-react/dist/esm/icons/git-branch";
 import TerminalSquare from "lucide-react/dist/esm/icons/terminal-square";
 import FileText from "lucide-react/dist/esm/icons/file-text";
 import FlaskConical from "lucide-react/dist/esm/icons/flask-conical";
-import ExternalLink from "lucide-react/dist/esm/icons/external-link";
 import Layers from "lucide-react/dist/esm/icons/layers";
 import ServerCog from "lucide-react/dist/esm/icons/server-cog";
 import Bot from "lucide-react/dist/esm/icons/bot";
@@ -81,15 +80,6 @@ export function SettingsNav({
           onClick={() => onSelectSection("shortcuts")}
         >
           Shortcuts
-        </PanelNavItem>
-        <PanelNavItem
-          className="settings-nav"
-          icon={<ExternalLink aria-hidden />}
-          active={activeSection === "open-apps"}
-          showDisclosure={showDisclosure}
-          onClick={() => onSelectSection("open-apps")}
-        >
-          Open in
         </PanelNavItem>
         <PanelNavItem
           className="settings-nav"

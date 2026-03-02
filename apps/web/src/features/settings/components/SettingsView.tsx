@@ -40,7 +40,6 @@ export type SettingsViewProps = {
   reduceTransparency: boolean;
   onToggleTransparency: (value: boolean) => void;
   appSettings: AppSettings;
-  openAppIconById: Record<string, string>;
   onUpdateAppSettings: (next: AppSettings) => Promise<void>;
   onRunDoctor: (
     codexBin: string | null,
@@ -81,7 +80,6 @@ export function SettingsView({
   reduceTransparency,
   onToggleTransparency,
   appSettings,
-  openAppIconById,
   onUpdateAppSettings,
   onRunDoctor,
   onRunCodexUpdate,
@@ -112,7 +110,6 @@ export function SettingsView({
     reduceTransparency,
     onToggleTransparency,
     appSettings,
-    openAppIconById,
     onUpdateAppSettings,
     onRunDoctor,
     onRunCodexUpdate,

@@ -8,7 +8,6 @@ type SettingsSection =
   | "composer"
   | "dictation"
   | "shortcuts"
-  | "open-apps"
   | "git"
   | "server"
   | "agents";

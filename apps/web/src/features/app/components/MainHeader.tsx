@@ -2,10 +2,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Check from "lucide-react/dist/esm/icons/check";
 import Copy from "lucide-react/dist/esm/icons/copy";
 import Terminal from "lucide-react/dist/esm/icons/terminal";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import type { BranchInfo, OpenAppTarget, WorkspaceInfo } from "../../../types";
 import type { ReactNode } from "react";
-import { revealInFileManagerLabel } from "../../../utils/platformPaths";
 import { BranchList } from "../../git/components/BranchList";
 import { filterBranches, findExactBranch } from "../../git/utils/branchSearch";
 import { validateBranchName } from "../../git/utils/branchValidation";
@@ -13,7 +11,6 @@ import {
   MenuTrigger,
   PopoverSurface,
 } from "../../design-system/components/popover/PopoverPrimitives";
-import { OpenAppMenu } from "./OpenAppMenu";
 import { LaunchScriptButton } from "./LaunchScriptButton";
 import { LaunchScriptEntryButton } from "./LaunchScriptEntryButton";
 import type { WorkspaceLaunchScriptsState } from "../hooks/useWorkspaceLaunchScripts";
@@ -79,10 +76,6 @@ export function MainHeader({
   disableBranchMenu = false,
   parentPath = null,
   worktreePath = null,
-  openTargets,
-  openAppIconById,
-  selectedOpenAppId,
-  onSelectOpenAppId,
   branchName,
   branches,
   onCheckoutBranch,
@@ -320,19 +313,6 @@ export function MainHeader({
                       Open this worktree in your terminal.
                     </span>
                   </div>
-                  <div className="worktree-info-row">
-                    <span className="worktree-info-label">Reveal</span>
-                    <button
-                      type="button"
-                      className="worktree-info-reveal"
-                      onClick={async () => {
-                        await revealItemInDir(resolvedWorktreePath);
-                      }}
-                      data-tauri-drag-region="false"
-                    >
-                      {revealInFileManagerLabel()}
-                    </button>
-                  </div>
                 </PopoverSurface>
               )}
             </div>
@@ -530,15 +510,6 @@ export function MainHeader({
               ))}
             </div>
           )}
-        {showWorkspaceTools ? (
-          <OpenAppMenu
-            path={resolvedWorktreePath}
-            openTargets={openTargets}
-            selectedOpenAppId={selectedOpenAppId}
-            onSelectOpenAppId={onSelectOpenAppId}
-            iconById={openAppIconById}
-          />
-        ) : null}
         {showTerminalButton && (
           <button
             type="button"

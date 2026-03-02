@@ -2755,7 +2755,6 @@ function MainApp() {
           reduceTransparency,
           onToggleTransparency: setReduceTransparency,
           appSettings,
-          openAppIconById,
           onUpdateAppSettings: async (next) => {
             await queueSaveSettings(next);
           },

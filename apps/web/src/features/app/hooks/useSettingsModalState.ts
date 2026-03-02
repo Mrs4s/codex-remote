@@ -6,7 +6,6 @@ export type SettingsSection =
   | "about"
   | "dictation"
   | "shortcuts"
-  | "open-apps"
   | "git"
   | "codex"
   | "features";

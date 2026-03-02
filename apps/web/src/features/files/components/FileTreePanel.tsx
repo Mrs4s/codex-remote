@@ -6,7 +6,6 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 import { Menu, MenuItem } from "@tauri-apps/api/menu";
 import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { revealItemInDir } from "@tauri-apps/plugin-opener";
 import Plus from "lucide-react/dist/esm/icons/plus";
 import ChevronsUpDown from "lucide-react/dist/esm/icons/chevrons-up-down";
 import File from "lucide-react/dist/esm/icons/file";
@@ -23,7 +22,7 @@ import { readWorkspaceFile } from "../../../services/tauri";
 import type { OpenAppTarget } from "../../../types";
 import { useDebouncedValue } from "../../../hooks/useDebouncedValue";
 import { languageFromPath } from "../../../utils/syntax";
-import { joinWorkspacePath, revealInFileManagerLabel } from "../../../utils/platformPaths";
+import { joinWorkspacePath } from "../../../utils/platformPaths";
 import { getFileTypeIconUrl } from "../../../utils/fileTypeIcons";
 import { FilePreviewPopover } from "./FilePreviewPopover";
 
@@ -563,12 +562,6 @@ export function FileTreePanel({
                 return;
               }
               onInsertText?.(relativePath);
-            },
-          }),
-          await MenuItem.new({
-            text: revealInFileManagerLabel(),
-            action: async () => {
-              await revealItemInDir(resolvePath(relativePath));
             },
           }),
         ],
