@@ -16,7 +16,7 @@ module.exports = {
         CODEX_REMOTE_PORT: process.env.CODEX_REMOTE_PORT || "8787",
         CODEX_REMOTE_TOKEN: process.env.CODEX_REMOTE_TOKEN || "rBgmMuQfa9c3",
         CODEX_REMOTE_CORS_ORIGIN:
-          process.env.CODEX_REMOTE_CORS_ORIGIN || "https://localhost",
+          process.env.CODEX_REMOTE_CORS_ORIGIN || "http://localhost:5173",
         CODEX_REMOTE_DATA_DIR: process.env.CODEX_REMOTE_DATA_DIR || "./data",
         CODEX_REMOTE_CODEX_BIN: process.env.CODEX_REMOTE_CODEX_BIN || "codex",
         CODEX_REMOTE_WEB_DIST_DIR:
