@@ -173,6 +173,18 @@ export type LocalUsageSnapshot = {
   topModels: LocalUsageModel[];
 };
 
+export type LiteLLMPricingLookup = {
+  model: string;
+  matchedModel: string | null;
+  pricingFound: boolean;
+  inputCostPerToken: number;
+  cachedInputCostPerToken: number;
+  outputCostPerToken: number;
+  cacheCreationInputCostPerToken: number;
+  fetchedAt: number | null;
+  source: "empty" | "disk" | "remote" | "free";
+};
+
 export type RpcMethodMap = {
   list_workspaces: {
     params: Record<string, never>;
@@ -417,6 +429,10 @@ export type RpcMethodMap = {
   local_usage_snapshot: {
     params: { days?: number | null; workspacePath?: string | null };
     result: LocalUsageSnapshot;
+  };
+  litellm_pricing_lookup: {
+    params: { model: string };
+    result: LiteLLMPricingLookup;
   };
   list_workspace_files: {
     params: { workspaceId: string };

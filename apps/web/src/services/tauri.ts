@@ -716,6 +716,24 @@ export async function localUsageSnapshot(
   return invoke("local_usage_snapshot", payload);
 }
 
+export type LiteLLMPricingLookup = {
+  model: string;
+  matchedModel: string | null;
+  pricingFound: boolean;
+  inputCostPerToken: number;
+  cachedInputCostPerToken: number;
+  outputCostPerToken: number;
+  cacheCreationInputCostPerToken: number;
+  fetchedAt: number | null;
+  source: "empty" | "disk" | "remote" | "free";
+};
+
+export async function litellmPricingLookup(
+  model: string,
+): Promise<LiteLLMPricingLookup> {
+  return invoke<LiteLLMPricingLookup>("litellm_pricing_lookup", { model });
+}
+
 export async function getModelList(workspaceId: string) {
   return invoke<any>("model_list", { workspaceId });
 }

@@ -1,6 +1,10 @@
-import type { CSSProperties } from "react";
+import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { BrainCog, SlidersHorizontal } from "lucide-react";
 import type { AccessMode, ThreadTokenUsage } from "../../../types";
+import {
+  litellmPricingLookup,
+  type LiteLLMPricingLookup,
+} from "../../../services/tauri";
 import type { CodexArgsOption } from "../../threads/utils/codexArgsProfiles";
 
 type ComposerMetaBarProps = {
@@ -23,6 +27,110 @@ type ComposerMetaBarProps = {
   contextUsage?: ThreadTokenUsage | null;
 };
 
+function formatCompactTokens(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0";
+  }
+  if (value >= 1_000_000) {
+    const millions = value / 1_000_000;
+    return `${millions >= 10 ? Math.round(millions) : millions.toFixed(1)}M`;
+  }
+  if (value >= 1_000) {
+    const thousands = value / 1_000;
+    return `${thousands >= 10 ? Math.round(thousands) : thousands.toFixed(1)}k`;
+  }
+  return `${Math.round(value)}`;
+}
+
+function formatTokenCount(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "0";
+  }
+  return Math.max(0, Math.round(value)).toLocaleString();
+}
+
+function formatUsd(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "$0";
+  }
+  if (value < 0.000001) {
+    return "<$0.000001";
+  }
+  if (value < 0.01) {
+    return `$${value.toFixed(6).replace(/0+$/, "").replace(/\.$/, "")}`;
+  }
+  if (value < 1) {
+    return `$${value.toFixed(4).replace(/0+$/, "").replace(/\.$/, "")}`;
+  }
+  return `$${value.toFixed(2).replace(/0+$/, "").replace(/\.$/, "")}`;
+}
+
+function formatCompactUsd(value: number): string {
+  if (!Number.isFinite(value) || value <= 0) {
+    return "$0";
+  }
+  if (value >= 1_000) {
+    const thousands = value / 1_000;
+    return `$${thousands >= 10 ? Math.round(thousands) : thousands.toFixed(1)}k`;
+  }
+  if (value >= 1) {
+    return `$${value >= 10 ? value.toFixed(1) : value.toFixed(2)}`.replace(
+      /\.0$/,
+      "",
+    );
+  }
+  if (value >= 0.01) {
+    return `$${value.toFixed(3).replace(/0+$/, "").replace(/\.$/, "")}`;
+  }
+  return formatUsd(value);
+}
+
+type SessionCostBreakdown = {
+  totalCostUsd: number;
+  inputCostUsd: number;
+  cachedCostUsd: number;
+  outputCostUsd: number;
+  nonCachedInputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+};
+
+function clampTokens(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.max(0, Math.round(value));
+}
+
+function calculateSessionCost(
+  usage: ThreadTokenUsage["total"] | null,
+  pricing: LiteLLMPricingLookup | null,
+): SessionCostBreakdown | null {
+  if (!usage || !pricing || !pricing.pricingFound) {
+    return null;
+  }
+
+  const inputTokens = clampTokens(usage.inputTokens);
+  const cachedInputTokens = Math.min(clampTokens(usage.cachedInputTokens), inputTokens);
+  const nonCachedInputTokens = Math.max(inputTokens - cachedInputTokens, 0);
+  const outputTokens = clampTokens(usage.outputTokens);
+
+  const inputCostUsd = nonCachedInputTokens * pricing.inputCostPerToken;
+  const cachedCostUsd = cachedInputTokens * pricing.cachedInputCostPerToken;
+  const outputCostUsd = outputTokens * pricing.outputCostPerToken;
+  const totalCostUsd = inputCostUsd + cachedCostUsd + outputCostUsd;
+
+  return {
+    totalCostUsd,
+    inputCostUsd,
+    cachedCostUsd,
+    outputCostUsd,
+    nonCachedInputTokens,
+    cachedInputTokens,
+    outputTokens,
+  };
+}
+
 export function ComposerMetaBar({
   disabled,
   collaborationModes,
@@ -42,10 +150,80 @@ export function ComposerMetaBar({
   onSelectCodexArgsOverride,
   contextUsage = null,
 }: ComposerMetaBarProps) {
+  const [sessionPricing, setSessionPricing] = useState<LiteLLMPricingLookup | null>(
+    null,
+  );
+  const selectedModel = useMemo(
+    () => models.find((model) => model.id === selectedModelId) ?? null,
+    [models, selectedModelId],
+  );
+  const selectedModelName = selectedModel?.model ?? null;
+
+  useEffect(() => {
+    let canceled = false;
+    if (!selectedModelName) {
+      setSessionPricing(null);
+      return () => {
+        canceled = true;
+      };
+    }
+
+    litellmPricingLookup(selectedModelName)
+      .then((pricing) => {
+        if (!canceled) {
+          setSessionPricing(pricing);
+        }
+      })
+      .catch(() => {
+        if (!canceled) {
+          setSessionPricing(null);
+        }
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [selectedModelName]);
+
   const contextWindow = contextUsage?.modelContextWindow ?? null;
   const lastTokens = contextUsage?.last.totalTokens ?? 0;
   const totalTokens = contextUsage?.total.totalTokens ?? 0;
   const usedTokens = lastTokens > 0 ? lastTokens : totalTokens;
+  const sessionCostBreakdown = useMemo(
+    () => calculateSessionCost(contextUsage?.total ?? null, sessionPricing),
+    [contextUsage, sessionPricing],
+  );
+  const sessionCostText =
+    sessionCostBreakdown !== null
+      ? formatCompactUsd(sessionCostBreakdown.totalCostUsd)
+      : null;
+  const sessionUsageText = contextUsage
+    ? sessionCostText
+      ? `${formatCompactTokens(totalTokens)} · ${sessionCostText}`
+      : formatCompactTokens(totalTokens)
+    : "--";
+  const sessionUsageTooltip = contextUsage
+    ? [
+        "Session token usage",
+        `Total: ${formatTokenCount(contextUsage.total.totalTokens)}`,
+        `Input: ${formatTokenCount(contextUsage.total.inputTokens)}`,
+        `Cached input: ${formatTokenCount(contextUsage.total.cachedInputTokens)}`,
+        `Output: ${formatTokenCount(contextUsage.total.outputTokens)}`,
+        `Reasoning output: ${formatTokenCount(contextUsage.total.reasoningOutputTokens)}`,
+        ...(sessionCostBreakdown
+          ? [
+              `Estimated cost: ${formatUsd(sessionCostBreakdown.totalCostUsd)}`,
+              `Model: ${sessionPricing?.matchedModel ?? selectedModelName ?? "unknown"}`,
+              `Input cost: ${formatUsd(sessionCostBreakdown.inputCostUsd)}`,
+              `Cached input cost: ${formatUsd(sessionCostBreakdown.cachedCostUsd)}`,
+              `Output cost: ${formatUsd(sessionCostBreakdown.outputCostUsd)}`,
+              "Pricing uses current model rates (multi-model sessions may differ).",
+            ]
+          : selectedModelName && sessionPricing?.pricingFound === false
+            ? [`Estimated cost: unavailable for ${selectedModelName}`]
+            : []),
+      ].join("\n")
+    : "Session token usage\nNo usage data yet";
   const contextFreePercent =
     contextWindow && contextWindow > 0 && usedTokens > 0
       ? Math.max(
@@ -253,6 +431,16 @@ export function ComposerMetaBar({
         </div>
       </div>
       <div className="composer-context">
+        <div
+          className="composer-session-usage"
+          data-tooltip={sessionUsageTooltip}
+          aria-label={sessionUsageTooltip}
+        >
+          <span className="composer-session-usage-label">Session</span>
+          <span className="composer-session-usage-value">
+            {sessionUsageText}
+          </span>
+        </div>
         <div
           className="composer-context-ring"
           data-tooltip={

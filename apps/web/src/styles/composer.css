@@ -662,12 +662,58 @@
 
 .composer-context {
   margin-left: auto;
-  display: grid;
-  grid-template-columns: auto;
+  display: flex;
   align-items: center;
   gap: 8px;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.composer-session-usage {
+  position: relative;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  padding: 1px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+
+.composer-session-usage::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 6px);
+  transform: translateY(4px);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--surface-command);
+  color: var(--text-emphasis);
+  font-size: 10px;
+  line-height: 1.4;
+  white-space: pre-line;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  border: 1px solid var(--border-subtle);
+  min-width: 170px;
+}
+
+.composer-session-usage:hover::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.composer-session-usage-label {
+  font-size: 10px;
+  color: var(--text-muted);
+}
+
+.composer-session-usage-value {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-strong);
 }
 
 .composer-context-ring {

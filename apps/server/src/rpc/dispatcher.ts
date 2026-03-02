@@ -3,7 +3,10 @@ import type { PromptScope, PromptService } from "../services/promptService.js";
 import type { WorkspaceService } from "../services/workspaceService.js";
 import type { SessionManager } from "../services/sessionManager.js";
 import type { TerminalService } from "../services/terminalService.js";
-import type { LiteLLMPricingService } from "../services/litellmPricingService.js";
+import type {
+  LiteLLMModelPricing,
+  LiteLLMPricingService,
+} from "../services/litellmPricingService.js";
 import { listWorkspaceFiles, readWorkspaceFile } from "../services/fileService.js";
 import {
   checkoutGitHubPullRequest,
@@ -218,6 +221,30 @@ function parsePromptScope(value: unknown): PromptScope {
     return value;
   }
   throw new Error("scope must be 'workspace' or 'global'");
+}
+
+const CODEX_MODEL_ALIASES_MAP = new Map<string, string>([
+  ["gpt-5-codex", "gpt-5"],
+  ["gpt-5.3-codex", "gpt-5.2-codex"],
+]);
+
+function isOpenRouterFreeModel(rawModel: string): boolean {
+  const model = rawModel.trim().toLowerCase();
+  if (model === "openrouter/free") {
+    return true;
+  }
+  return model.startsWith("openrouter/") && model.endsWith(":free");
+}
+
+function hasNonZeroTokenPricing(pricing: LiteLLMModelPricing | null): boolean {
+  if (!pricing) {
+    return false;
+  }
+  return (
+    (pricing.input_cost_per_token ?? 0) > 0 ||
+    (pricing.output_cost_per_token ?? 0) > 0 ||
+    (pricing.cache_read_input_token_cost ?? 0) > 0
+  );
 }
 
 export async function dispatchRpc(
@@ -673,6 +700,56 @@ export async function dispatchRpc(
     }
     case "local_usage_snapshot": {
       return localUsageSnapshot(optionalNumber(params, "days"), optionalString(params, "workspacePath"));
+    }
+    case "litellm_pricing_lookup": {
+      const model = requireString(params, "model");
+      const state = deps.litellmPricingService.getState();
+      if (isOpenRouterFreeModel(model)) {
+        return {
+          model,
+          matchedModel: model,
+          pricingFound: true,
+          inputCostPerToken: 0,
+          cachedInputCostPerToken: 0,
+          outputCostPerToken: 0,
+          cacheCreationInputCostPerToken: 0,
+          fetchedAt: state.fetchedAt,
+          source: "free",
+        };
+      }
+
+      let matchedModel = model;
+      let pricing: LiteLLMModelPricing | null = null;
+      try {
+        pricing = await deps.litellmPricingService.getModelPricing(model, {
+          allowStale: true,
+        });
+        const alias = CODEX_MODEL_ALIASES_MAP.get(model);
+        if (alias && !hasNonZeroTokenPricing(pricing)) {
+          const aliasPricing = await deps.litellmPricingService.getModelPricing(alias, {
+            allowStale: true,
+          });
+          if (hasNonZeroTokenPricing(aliasPricing)) {
+            pricing = aliasPricing;
+            matchedModel = alias;
+          }
+        }
+      } catch {
+        pricing = null;
+      }
+
+      const inputCostPerToken = pricing?.input_cost_per_token ?? 0;
+      return {
+        model,
+        matchedModel: pricing ? matchedModel : null,
+        pricingFound: pricing !== null,
+        inputCostPerToken,
+        cachedInputCostPerToken: pricing?.cache_read_input_token_cost ?? inputCostPerToken,
+        outputCostPerToken: pricing?.output_cost_per_token ?? 0,
+        cacheCreationInputCostPerToken: pricing?.cache_creation_input_token_cost ?? 0,
+        fetchedAt: state.fetchedAt,
+        source: state.source,
+      };
     }
     case "write_agent_config_toml": {
       const agentName = requireString(params, "agentName");
