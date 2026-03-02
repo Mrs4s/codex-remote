@@ -239,6 +239,31 @@ describe("Messages", () => {
     windowOpenSpy.mockRestore();
   });
 
+  it("does not auto-linkify slash-separated chinese phrases", () => {
+    const items: ConversationItem[] = [
+      {
+        id: "msg-non-path-slash",
+        kind: "message",
+        role: "assistant",
+        text: "建议先做“遥测上报/集中收集”再推进。",
+      },
+    ];
+
+    const { container } = render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    expect(container.querySelector(".message-file-link")).toBeNull();
+    expect(container.textContent ?? "").toContain("遥测上报/集中收集");
+  });
+
   it("renders file references as compact links and opens them", () => {
     const items: ConversationItem[] = [
       {

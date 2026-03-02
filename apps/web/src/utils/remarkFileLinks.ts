@@ -1,9 +1,11 @@
 const FILE_LINK_PROTOCOL = "codex-file:";
 const FILE_LINE_SUFFIX_PATTERN = "(?::\\d+(?::\\d+)?)?";
+const FILE_PATH_SEGMENT_PATTERN = "[A-Za-z0-9._@%+-]+";
+const FILE_PATH_BODY_PATTERN = `${FILE_PATH_SEGMENT_PATTERN}(?:\\/${FILE_PATH_SEGMENT_PATTERN})*`;
 
 const FILE_PATH_PATTERN =
   new RegExp(
-    `(\\/[^\\s\\\`"'<>]+|~\\/[^\\s\\\`"'<>]+|\\.{1,2}\\/[^\\s\\\`"'<>]+|[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)+)${FILE_LINE_SUFFIX_PATTERN}`,
+    `(\\/${FILE_PATH_BODY_PATTERN}|~\\/${FILE_PATH_BODY_PATTERN}|\\.{1,2}\\/${FILE_PATH_BODY_PATTERN}|[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)+)${FILE_LINE_SUFFIX_PATTERN}`,
     "g",
   );
 const FILE_PATH_MATCH = new RegExp(`^${FILE_PATH_PATTERN.source}$`);
