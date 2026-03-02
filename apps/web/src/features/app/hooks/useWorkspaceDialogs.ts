@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ask, message } from "@tauri-apps/plugin-dialog";
-import type { WorkspaceInfo } from "../../../types";
+import type { AccessMode, WorkspaceInfo } from "../../../types";
 import { isMobilePlatform } from "../../../utils/platformPaths";
 import { pickWorkspacePaths } from "../../../services/tauri";
 import type { AddWorkspacesFromPathsResult } from "../../workspaces/hooks/useWorkspaceCrud";
@@ -91,9 +91,19 @@ function mergeRecentRemoteWorkspacePaths(current: string[], nextPaths: string[])
 
 type MobileRemoteWorkspacePathPromptState = {
   value: string;
+  accessMode: AccessMode;
   error: string | null;
   recentPaths: string[];
 } | null;
+type WorkspacePathAccessPromptState = {
+  pathCount: number;
+  accessMode: AccessMode;
+} | null;
+
+type WorkspacePathSelection = {
+  paths: string[];
+  accessMode: AccessMode | null;
+};
 
 export function useWorkspaceDialogs() {
   const [recentMobileRemoteWorkspacePaths, setRecentMobileRemoteWorkspacePaths] = useState<
@@ -101,33 +111,72 @@ export function useWorkspaceDialogs() {
   >(() => loadRecentRemoteWorkspacePaths());
   const [mobileRemoteWorkspacePathPrompt, setMobileRemoteWorkspacePathPrompt] =
     useState<MobileRemoteWorkspacePathPromptState>(null);
-  const mobileRemoteWorkspacePathResolveRef = useRef<((paths: string[]) => void) | null>(
+  const [workspacePathAccessPrompt, setWorkspacePathAccessPrompt] =
+    useState<WorkspacePathAccessPromptState>(null);
+  const mobileRemoteWorkspacePathResolveRef = useRef<
+    ((selection: WorkspacePathSelection) => void) | null
+  >(null);
+  const workspacePathAccessResolveRef = useRef<((accessMode: AccessMode | null) => void) | null>(
     null,
   );
 
-  const resolveMobileRemoteWorkspacePathRequest = useCallback((paths: string[]) => {
-    const resolve = mobileRemoteWorkspacePathResolveRef.current;
-    mobileRemoteWorkspacePathResolveRef.current = null;
+  const resolveMobileRemoteWorkspacePathRequest = useCallback(
+    (selection: WorkspacePathSelection) => {
+      const resolve = mobileRemoteWorkspacePathResolveRef.current;
+      mobileRemoteWorkspacePathResolveRef.current = null;
+      if (resolve) {
+        resolve(selection);
+      }
+    },
+    [],
+  );
+
+  const resolveWorkspacePathAccessRequest = useCallback((accessMode: AccessMode | null) => {
+    const resolve = workspacePathAccessResolveRef.current;
+    workspacePathAccessResolveRef.current = null;
     if (resolve) {
-      resolve(paths);
+      resolve(accessMode);
     }
   }, []);
 
-  const requestMobileRemoteWorkspacePaths = useCallback(() => {
-    if (mobileRemoteWorkspacePathResolveRef.current) {
-      resolveMobileRemoteWorkspacePathRequest([]);
-    }
+  const requestWorkspacePathAccessMode = useCallback(
+    (pathCount: number, defaultAccessMode: AccessMode) => {
+      if (workspacePathAccessResolveRef.current) {
+        resolveWorkspacePathAccessRequest(null);
+      }
+      setWorkspacePathAccessPrompt({
+        pathCount,
+        accessMode: defaultAccessMode,
+      });
+      return new Promise<AccessMode | null>((resolve) => {
+        workspacePathAccessResolveRef.current = resolve;
+      });
+    },
+    [resolveWorkspacePathAccessRequest],
+  );
 
-    setMobileRemoteWorkspacePathPrompt({
-      value: "",
-      error: null,
-      recentPaths: recentMobileRemoteWorkspacePaths,
-    });
+  const requestMobileRemoteWorkspacePaths = useCallback(
+    (defaultAccessMode: AccessMode) => {
+      if (mobileRemoteWorkspacePathResolveRef.current) {
+        resolveMobileRemoteWorkspacePathRequest({
+          paths: [],
+          accessMode: null,
+        });
+      }
 
-    return new Promise<string[]>((resolve) => {
-      mobileRemoteWorkspacePathResolveRef.current = resolve;
-    });
-  }, [recentMobileRemoteWorkspacePaths, resolveMobileRemoteWorkspacePathRequest]);
+      setMobileRemoteWorkspacePathPrompt({
+        value: "",
+        accessMode: defaultAccessMode,
+        error: null,
+        recentPaths: recentMobileRemoteWorkspacePaths,
+      });
+
+      return new Promise<WorkspacePathSelection>((resolve) => {
+        mobileRemoteWorkspacePathResolveRef.current = resolve;
+      });
+    },
+    [recentMobileRemoteWorkspacePaths, resolveMobileRemoteWorkspacePathRequest],
+  );
 
   const updateMobileRemoteWorkspacePathInput = useCallback((value: string) => {
     setMobileRemoteWorkspacePathPrompt((prev) =>
@@ -141,9 +190,48 @@ export function useWorkspaceDialogs() {
     );
   }, []);
 
+  const updateMobileRemoteWorkspacePathAccessMode = useCallback((accessMode: AccessMode) => {
+    setMobileRemoteWorkspacePathPrompt((prev) =>
+      prev
+        ? {
+            ...prev,
+            accessMode,
+            error: null,
+          }
+        : prev,
+    );
+  }, []);
+
+  const updateWorkspacePathAccessMode = useCallback((accessMode: AccessMode) => {
+    setWorkspacePathAccessPrompt((prev) =>
+      prev
+        ? {
+            ...prev,
+            accessMode,
+          }
+        : prev,
+    );
+  }, []);
+
+  const cancelWorkspacePathAccessPrompt = useCallback(() => {
+    setWorkspacePathAccessPrompt(null);
+    resolveWorkspacePathAccessRequest(null);
+  }, [resolveWorkspacePathAccessRequest]);
+
+  const confirmWorkspacePathAccessPrompt = useCallback(() => {
+    if (!workspacePathAccessPrompt) {
+      return;
+    }
+    setWorkspacePathAccessPrompt(null);
+    resolveWorkspacePathAccessRequest(workspacePathAccessPrompt.accessMode);
+  }, [resolveWorkspacePathAccessRequest, workspacePathAccessPrompt]);
+
   const cancelMobileRemoteWorkspacePathPrompt = useCallback(() => {
     setMobileRemoteWorkspacePathPrompt(null);
-    resolveMobileRemoteWorkspacePathRequest([]);
+    resolveMobileRemoteWorkspacePathRequest({
+      paths: [],
+      accessMode: null,
+    });
   }, [resolveMobileRemoteWorkspacePathRequest]);
 
   const appendMobileRemoteWorkspacePathFromRecent = useCallback((path: string) => {
@@ -191,21 +279,45 @@ export function useWorkspaceDialogs() {
       return;
     }
     setMobileRemoteWorkspacePathPrompt(null);
-    resolveMobileRemoteWorkspacePathRequest(paths);
+    resolveMobileRemoteWorkspacePathRequest({
+      paths,
+      accessMode: mobileRemoteWorkspacePathPrompt.accessMode,
+    });
   }, [mobileRemoteWorkspacePathPrompt, resolveMobileRemoteWorkspacePathRequest]);
 
   useEffect(() => {
     return () => {
-      resolveMobileRemoteWorkspacePathRequest([]);
+      resolveMobileRemoteWorkspacePathRequest({
+        paths: [],
+        accessMode: null,
+      });
+      resolveWorkspacePathAccessRequest(null);
     };
-  }, [resolveMobileRemoteWorkspacePathRequest]);
+  }, [resolveMobileRemoteWorkspacePathRequest, resolveWorkspacePathAccessRequest]);
 
-  const requestWorkspacePaths = useCallback(async (backendMode?: string) => {
-    if (isMobilePlatform() && backendMode === "remote") {
-      return requestMobileRemoteWorkspacePaths();
-    }
-    return pickWorkspacePaths();
-  }, [requestMobileRemoteWorkspacePaths]);
+  const requestWorkspacePaths = useCallback(
+    async (backendMode: string | undefined, defaultAccessMode: AccessMode) => {
+      if (isMobilePlatform() && backendMode === "remote") {
+        return requestMobileRemoteWorkspacePaths(defaultAccessMode);
+      }
+
+      const paths = await pickWorkspacePaths();
+      if (paths.length === 0) {
+        return { paths: [], accessMode: null };
+      }
+
+      const accessMode = await requestWorkspacePathAccessMode(
+        paths.length,
+        defaultAccessMode,
+      );
+      if (!accessMode) {
+        return { paths: [], accessMode: null };
+      }
+
+      return { paths, accessMode };
+    },
+    [requestMobileRemoteWorkspacePaths, requestWorkspacePathAccessMode],
+  );
 
   const showAddWorkspacesResult = useCallback(
     async (result: AddWorkspacesFromPathsResult) => {
@@ -328,9 +440,14 @@ export function useWorkspaceDialogs() {
     requestWorkspacePaths,
     mobileRemoteWorkspacePathPrompt,
     updateMobileRemoteWorkspacePathInput,
+    updateMobileRemoteWorkspacePathAccessMode,
     cancelMobileRemoteWorkspacePathPrompt,
     submitMobileRemoteWorkspacePathPrompt,
     appendMobileRemoteWorkspacePathFromRecent,
+    workspacePathAccessPrompt,
+    updateWorkspacePathAccessMode,
+    cancelWorkspacePathAccessPrompt,
+    confirmWorkspacePathAccessPrompt,
     rememberRecentMobileRemoteWorkspacePaths,
     showAddWorkspacesResult,
     confirmWorkspaceRemoval,

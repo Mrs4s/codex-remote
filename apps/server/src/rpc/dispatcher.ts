@@ -174,6 +174,24 @@ function optionalBoolean(params: Record<string, unknown>, key: string): boolean 
   return value;
 }
 
+type AccessMode = "read-only" | "current" | "full-access";
+
+const ACCESS_MODES = new Set<AccessMode>(["read-only", "current", "full-access"]);
+
+function optionalAccessMode(
+  params: Record<string, unknown>,
+  key: string,
+): AccessMode | null {
+  const value = optionalString(params, key);
+  if (value === null) {
+    return null;
+  }
+  if (ACCESS_MODES.has(value as AccessMode)) {
+    return value as AccessMode;
+  }
+  throw new Error(`${key} must be one of: read-only, current, full-access`);
+}
+
 function parseLaunchScripts(value: unknown): LaunchScriptEntry[] | null {
   if (!Array.isArray(value)) {
     return null;
@@ -274,7 +292,10 @@ export async function dispatchRpc(
     }
     case "add_workspace": {
       const workspacePath = requireString(params, "path");
-      const entry = await deps.workspaceService.addWorkspace(workspacePath);
+      const defaultAccessMode = optionalAccessMode(params, "defaultAccessMode");
+      const entry = await deps.workspaceService.addWorkspace(workspacePath, {
+        defaultAccessMode,
+      });
       return {
         ...entry,
         connected: deps.sessionManager.connectedWorkspaceIds().has(entry.id),
@@ -284,10 +305,12 @@ export async function dispatchRpc(
       const url = requireString(params, "url");
       const destinationPath = requireString(params, "destinationPath");
       const targetFolderName = optionalString(params, "targetFolderName");
+      const defaultAccessMode = optionalAccessMode(params, "defaultAccessMode");
       const entry = await deps.workspaceService.addWorkspaceFromGitUrl(
         url,
         destinationPath,
         targetFolderName,
+        { defaultAccessMode },
       );
       return {
         ...entry,

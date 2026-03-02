@@ -16,9 +16,11 @@ describe("MobileRemoteWorkspacePrompt", () => {
       return (
         <MobileRemoteWorkspacePrompt
           value={value}
+          accessMode="current"
           error={null}
           recentPaths={[recentPath]}
           onChange={setValue}
+          onAccessModeChange={vi.fn()}
           onRecentPathSelect={(path) => {
             setValue((prev) => (prev.length > 0 ? `${prev}\n${path}` : path));
           }}

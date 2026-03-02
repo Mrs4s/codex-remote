@@ -5,6 +5,7 @@ import * as notification from "@tauri-apps/plugin-notification";
 import {
   exportMarkdownFile,
   addWorkspace,
+  addWorkspaceFromGitUrl,
   compactThread,
   createGitHubRepo,
   fetchGit,
@@ -85,7 +86,7 @@ describe("tauri invoke wrappers", () => {
     });
   });
 
-  it("uses path-only payload for addWorkspace", async () => {
+  it("maps addWorkspace payload including default access mode", async () => {
     const invokeMock = vi.mocked(invoke);
     invokeMock.mockResolvedValueOnce({ id: "ws-1" });
 
@@ -93,6 +94,26 @@ describe("tauri invoke wrappers", () => {
 
     expect(invokeMock).toHaveBeenCalledWith("add_workspace", {
       path: "/tmp/project",
+      defaultAccessMode: null,
+    });
+  });
+
+  it("maps addWorkspaceFromGitUrl payload including default access mode", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({ id: "ws-2" });
+
+    await addWorkspaceFromGitUrl(
+      "https://github.com/org/repo.git",
+      "/tmp",
+      "repo",
+      { defaultAccessMode: "full-access" },
+    );
+
+    expect(invokeMock).toHaveBeenCalledWith("add_workspace_from_git_url", {
+      url: "https://github.com/org/repo.git",
+      destinationPath: "/tmp",
+      targetFolderName: "repo",
+      defaultAccessMode: "full-access",
     });
   });
 

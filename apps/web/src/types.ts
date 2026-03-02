@@ -7,6 +7,7 @@ export type WorkspaceSettings = {
   launchScript?: string | null;
   launchScripts?: LaunchScriptEntry[] | null;
   worktreeSetupScript?: string | null;
+  defaultAccessMode?: AccessMode | null;
 };
 
 export type LaunchScriptIconId =

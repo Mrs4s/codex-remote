@@ -93,6 +93,8 @@ export type LaunchScriptEntry = {
   label?: string | null;
 };
 
+export type AccessMode = "read-only" | "current" | "full-access";
+
 export type WorkspaceSettings = {
   sidebarCollapsed: boolean;
   sortOrder?: number | null;
@@ -102,6 +104,7 @@ export type WorkspaceSettings = {
   launchScript?: string | null;
   launchScripts?: LaunchScriptEntry[] | null;
   worktreeSetupScript?: string | null;
+  defaultAccessMode?: AccessMode | null;
 };
 
 export type WorkspaceInfo = {
@@ -211,7 +214,7 @@ export type RpcMethodMap = {
     result: WorkspaceInfo[];
   };
   add_workspace: {
-    params: { path: string };
+    params: { path: string; defaultAccessMode?: AccessMode | null };
     result: WorkspaceInfo;
   };
   add_workspace_from_git_url: {
@@ -219,6 +222,7 @@ export type RpcMethodMap = {
       url: string;
       destinationPath: string;
       targetFolderName?: string | null;
+      defaultAccessMode?: AccessMode | null;
     };
     result: WorkspaceInfo;
   };

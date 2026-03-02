@@ -1,11 +1,14 @@
 import { useEffect, useRef } from "react";
+import type { AccessMode } from "../../../types";
 import { ModalShell } from "../../design-system/components/modal/ModalShell";
 
 type MobileRemoteWorkspacePromptProps = {
   value: string;
+  accessMode: AccessMode;
   error: string | null;
   recentPaths: string[];
   onChange: (value: string) => void;
+  onAccessModeChange: (value: AccessMode) => void;
   onRecentPathSelect: (path: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
@@ -13,9 +16,11 @@ type MobileRemoteWorkspacePromptProps = {
 
 export function MobileRemoteWorkspacePrompt({
   value,
+  accessMode,
   error,
   recentPaths,
   onChange,
+  onAccessModeChange,
   onRecentPathSelect,
   onCancel,
   onConfirm,
@@ -63,6 +68,19 @@ export function MobileRemoteWorkspacePrompt({
         <div className="mobile-remote-workspace-modal-hint">
           One path per line. Comma and semicolon separators also work. You can use `~/...`.
         </div>
+        <label className="ds-modal-label" htmlFor="mobile-remote-workspace-access">
+          Default access
+        </label>
+        <select
+          id="mobile-remote-workspace-access"
+          className="ds-modal-input"
+          value={accessMode}
+          onChange={(event) => onAccessModeChange(event.target.value as AccessMode)}
+        >
+          <option value="read-only">Read only</option>
+          <option value="current">On-Request</option>
+          <option value="full-access">Full access</option>
+        </select>
         {recentPaths.length > 0 && (
           <div className="mobile-remote-workspace-modal-recent">
             <div className="mobile-remote-workspace-modal-recent-title">Recently added</div>

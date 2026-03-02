@@ -223,9 +223,14 @@ function MainApp() {
     addWorkspacesFromPaths,
     mobileRemoteWorkspacePathPrompt,
     updateMobileRemoteWorkspacePathInput,
+    updateMobileRemoteWorkspacePathAccessMode,
     appendMobileRemoteWorkspacePathFromRecent,
     cancelMobileRemoteWorkspacePathPrompt,
     submitMobileRemoteWorkspacePathPrompt,
+    workspacePathAccessPrompt,
+    updateWorkspacePathAccessMode,
+    cancelWorkspacePathAccessPrompt,
+    confirmWorkspacePathAccessPrompt,
     addCloneAgent,
     addWorktreeAgent,
     connectWorkspace,
@@ -949,6 +954,7 @@ function MainApp() {
   useThreadCodexSyncOrchestration({
     activeWorkspaceId,
     activeThreadId,
+    workspaceDefaultAccessMode: activeWorkspace?.settings.defaultAccessMode ?? null,
     appSettings: {
       defaultAccessMode: appSettings.defaultAccessMode,
       lastComposerModelId: appSettings.lastComposerModelId,
@@ -1314,11 +1320,14 @@ function MainApp() {
     submitWorkspaceFromUrlPrompt,
     updateWorkspaceFromUrlUrl,
     updateWorkspaceFromUrlTargetFolderName,
+    updateWorkspaceFromUrlAccessMode,
     clearWorkspaceFromUrlDestinationPath,
     canSubmitWorkspaceFromUrlPrompt,
   } = useWorkspaceFromUrlPrompt({
-    onSubmit: async (url, destinationPath, targetFolderName) => {
-      await handleAddWorkspaceFromGitUrl(url, destinationPath, targetFolderName);
+    onSubmit: async (url, destinationPath, targetFolderName, accessMode) => {
+      await handleAddWorkspaceFromGitUrl(url, destinationPath, targetFolderName, {
+        defaultAccessMode: accessMode ?? appSettings.defaultAccessMode,
+      });
     },
   });
 
@@ -2010,7 +2019,7 @@ function MainApp() {
       void handleAddWorkspace();
     },
     onAddWorkspaceFromUrl: () => {
-      openWorkspaceFromUrlPrompt();
+      openWorkspaceFromUrlPrompt(appSettings.defaultAccessMode);
     },
     onAddAgent: (workspace) => {
       void handleAddAgent(workspace);
@@ -2114,7 +2123,7 @@ function MainApp() {
     onOpenDebug: handleDebugClick,
     showDebugButton,
     onAddWorkspace: handleAddWorkspace,
-    onAddWorkspaceFromUrl: openWorkspaceFromUrlPrompt,
+    onAddWorkspaceFromUrl: () => openWorkspaceFromUrlPrompt(appSettings.defaultAccessMode),
     onSelectHome: handleSidebarSelectHome,
     onSelectWorkspace: handleSidebarSelectWorkspace,
     onConnectWorkspace: handleSidebarConnectWorkspace,
@@ -2679,17 +2688,25 @@ function MainApp() {
         workspaceFromUrlCanSubmit={canSubmitWorkspaceFromUrlPrompt}
         onWorkspaceFromUrlPromptUrlChange={updateWorkspaceFromUrlUrl}
         onWorkspaceFromUrlPromptTargetFolderNameChange={updateWorkspaceFromUrlTargetFolderName}
+        onWorkspaceFromUrlPromptAccessModeChange={updateWorkspaceFromUrlAccessMode}
         onWorkspaceFromUrlPromptChooseDestinationPath={chooseWorkspaceFromUrlDestinationPath}
         onWorkspaceFromUrlPromptClearDestinationPath={clearWorkspaceFromUrlDestinationPath}
         onWorkspaceFromUrlPromptCancel={closeWorkspaceFromUrlPrompt}
         onWorkspaceFromUrlPromptConfirm={submitWorkspaceFromUrlPrompt}
         mobileRemoteWorkspacePathPrompt={mobileRemoteWorkspacePathPrompt}
         onMobileRemoteWorkspacePathPromptChange={updateMobileRemoteWorkspacePathInput}
+        onMobileRemoteWorkspacePathPromptAccessModeChange={
+          updateMobileRemoteWorkspacePathAccessMode
+        }
         onMobileRemoteWorkspacePathPromptRecentPathSelect={
           appendMobileRemoteWorkspacePathFromRecent
         }
         onMobileRemoteWorkspacePathPromptCancel={cancelMobileRemoteWorkspacePathPrompt}
         onMobileRemoteWorkspacePathPromptConfirm={submitMobileRemoteWorkspacePathPrompt}
+        workspacePathAccessPrompt={workspacePathAccessPrompt}
+        onWorkspacePathAccessPromptAccessModeChange={updateWorkspacePathAccessMode}
+        onWorkspacePathAccessPromptCancel={cancelWorkspacePathAccessPrompt}
+        onWorkspacePathAccessPromptConfirm={confirmWorkspacePathAccessPrompt}
         branchSwitcher={branchSwitcher}
         branches={branches}
         workspaces={workspaces}

@@ -3,6 +3,7 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import { v4 as uuidv4 } from "uuid";
+import type { AccessMode } from "@codex-remote/shared-types";
 import { toWorkspaceInfo, defaultWorkspaceSettings, type WorkspaceEntry } from "../types/domain.js";
 import type { JsonStore } from "../storage/jsonStore.js";
 
@@ -246,7 +247,10 @@ export class WorkspaceService {
     this.worktreeSetupRan.add(workspaceId);
   }
 
-  async addWorkspace(rawPath: string) {
+  async addWorkspace(
+    rawPath: string,
+    options?: { defaultAccessMode?: AccessMode | null },
+  ) {
     const workspacePath = path.resolve(rawPath.trim());
     const stat = await fs.stat(workspacePath).catch(() => null);
     if (!stat?.isDirectory()) {
@@ -263,7 +267,10 @@ export class WorkspaceService {
       kind: "main",
       parentId: null,
       worktree: null,
-      settings: defaultWorkspaceSettings(),
+      settings: {
+        ...defaultWorkspaceSettings(),
+        defaultAccessMode: options?.defaultAccessMode ?? null,
+      },
     };
     this.cache.push(entry);
     await this.store.writeWorkspaces(this.cache);
@@ -274,6 +281,7 @@ export class WorkspaceService {
     url: string,
     destinationPath: string,
     targetFolderName?: string | null,
+    options?: { defaultAccessMode?: AccessMode | null },
   ): Promise<WorkspaceEntry> {
     const destinationRoot = path.resolve(destinationPath.trim());
     const destinationStat = await fs.stat(destinationRoot).catch(() => null);
@@ -304,7 +312,7 @@ export class WorkspaceService {
       maxBuffer: 10 * 1024 * 1024,
     });
 
-    return this.addWorkspace(repoPath);
+    return this.addWorkspace(repoPath, options);
   }
 
   async isWorkspacePathDir(rawPath: string): Promise<boolean> {

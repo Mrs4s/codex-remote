@@ -248,19 +248,27 @@ export async function getConfigModel(workspaceId: string): Promise<string | null
   return trimmed.length > 0 ? trimmed : null;
 }
 
-export async function addWorkspace(path: string): Promise<WorkspaceInfo> {
-  return invoke<WorkspaceInfo>("add_workspace", { path });
+export async function addWorkspace(
+  path: string,
+  options?: { defaultAccessMode?: AccessMode | null },
+): Promise<WorkspaceInfo> {
+  return invoke<WorkspaceInfo>("add_workspace", {
+    path,
+    defaultAccessMode: options?.defaultAccessMode ?? null,
+  });
 }
 
 export async function addWorkspaceFromGitUrl(
   url: string,
   destinationPath: string,
   targetFolderName: string | null,
+  options?: { defaultAccessMode?: AccessMode | null },
 ): Promise<WorkspaceInfo> {
   return invoke<WorkspaceInfo>("add_workspace_from_git_url", {
     url,
     destinationPath,
     targetFolderName,
+    defaultAccessMode: options?.defaultAccessMode ?? null,
   });
 }
 

@@ -53,6 +53,7 @@ function makeSyncParams(
   return {
     activeWorkspaceId: "ws-1",
     activeThreadId: "thread-2",
+    workspaceDefaultAccessMode: null,
     appSettings: {
       defaultAccessMode: "current",
       lastComposerModelId: "gpt-5",

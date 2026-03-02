@@ -1,15 +1,18 @@
 import { useEffect, useRef } from "react";
+import type { AccessMode } from "../../../types";
 import { ModalShell } from "../../design-system/components/modal/ModalShell";
 
 type WorkspaceFromUrlPromptProps = {
   url: string;
   destinationPath: string;
   targetFolderName: string;
+  accessMode: AccessMode;
   error: string | null;
   isBusy: boolean;
   canSubmit: boolean;
   onUrlChange: (value: string) => void;
   onTargetFolderNameChange: (value: string) => void;
+  onAccessModeChange: (value: AccessMode) => void;
   onChooseDestinationPath: () => void;
   onClearDestinationPath: () => void;
   onCancel: () => void;
@@ -20,11 +23,13 @@ export function WorkspaceFromUrlPrompt({
   url,
   destinationPath,
   targetFolderName,
+  accessMode,
   error,
   isBusy,
   canSubmit,
   onUrlChange,
   onTargetFolderNameChange,
+  onAccessModeChange,
   onChooseDestinationPath,
   onClearDestinationPath,
   onCancel,
@@ -70,6 +75,19 @@ export function WorkspaceFromUrlPrompt({
           onChange={(event) => onTargetFolderNameChange(event.target.value)}
           placeholder="Defaults to repo name"
         />
+        <label className="ds-modal-label" htmlFor="workspace-url-access-mode">
+          Default access
+        </label>
+        <select
+          id="workspace-url-access-mode"
+          className="ds-modal-input"
+          value={accessMode}
+          onChange={(event) => onAccessModeChange(event.target.value as AccessMode)}
+        >
+          <option value="read-only">Read only</option>
+          <option value="current">On-Request</option>
+          <option value="full-access">Full access</option>
+        </select>
         <label className="ds-modal-label" htmlFor="workspace-url-destination">
           Destination parent folder
         </label>

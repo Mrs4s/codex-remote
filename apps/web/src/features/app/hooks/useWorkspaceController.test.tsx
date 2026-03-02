@@ -63,6 +63,7 @@ const workspaceTwo: WorkspaceInfo = {
 const baseAppSettings = {
   codexBin: null,
   backendMode: "local",
+  defaultAccessMode: "current",
   workspaceGroups: [],
 } as unknown as AppSettings;
 
@@ -91,9 +92,19 @@ describe("useWorkspaceController dialogs", () => {
       await Promise.resolve();
     });
 
+    let addPromise: Promise<WorkspaceInfo | null> = Promise.resolve(null);
+    await act(async () => {
+      addPromise = result.current.addWorkspace();
+    });
+
+    await act(async () => {
+      await Promise.resolve();
+      result.current.confirmWorkspacePathAccessPrompt();
+    });
+
     let added: WorkspaceInfo | null = null;
     await act(async () => {
-      added = await result.current.addWorkspace();
+      added = await addPromise;
     });
 
     expect(added).toMatchObject({ id: workspaceTwo.id });

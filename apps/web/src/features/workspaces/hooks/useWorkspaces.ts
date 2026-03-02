@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type {
+  AccessMode,
   AppSettings,
   DebugEntry,
   WorkspaceGroup,
@@ -36,14 +37,20 @@ export type UseWorkspacesResult = {
   activeWorkspace: WorkspaceInfo | null;
   activeWorkspaceId: string | null;
   setActiveWorkspaceId: (workspaceId: string | null) => void;
-  addWorkspaceFromPath: (path: string, options?: { activate?: boolean }) => Promise<WorkspaceInfo | null>;
+  addWorkspaceFromPath: (
+    path: string,
+    options?: { activate?: boolean; defaultAccessMode?: AccessMode | null },
+  ) => Promise<WorkspaceInfo | null>;
   addWorkspaceFromGitUrl: (
     url: string,
     destinationPath: string,
     targetFolderName?: string | null,
-    options?: { activate?: boolean },
+    options?: { activate?: boolean; defaultAccessMode?: AccessMode | null },
   ) => Promise<WorkspaceInfo | null>;
-  addWorkspacesFromPaths: (paths: string[]) => Promise<AddWorkspacesFromPathsResult>;
+  addWorkspacesFromPaths: (
+    paths: string[],
+    options?: { defaultAccessMode?: AccessMode | null },
+  ) => Promise<AddWorkspacesFromPathsResult>;
   filterWorkspacePaths: (paths: string[]) => Promise<string[]>;
   addCloneAgent: (source: WorkspaceInfo, copyName: string, copiesFolder: string) => Promise<WorkspaceInfo | null>;
   addWorktreeAgent: (

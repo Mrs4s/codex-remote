@@ -36,6 +36,7 @@ export const defaultWorkspaceSettings = (): WorkspaceSettings => ({
   launchScript: null,
   launchScripts: null,
   worktreeSetupScript: null,
+  defaultAccessMode: null,
 });
 
 export const defaultAppSettings = (): AppSettings => ({

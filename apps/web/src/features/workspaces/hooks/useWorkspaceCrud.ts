@@ -1,7 +1,12 @@
 import { useCallback } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import * as Sentry from "@sentry/react";
-import type { DebugEntry, WorkspaceInfo, WorkspaceSettings } from "../../../types";
+import type {
+  AccessMode,
+  DebugEntry,
+  WorkspaceInfo,
+  WorkspaceSettings,
+} from "../../../types";
 import {
   addWorkspace as addWorkspaceService,
   addWorkspaceFromGitUrl as addWorkspaceFromGitUrlService,
@@ -115,7 +120,10 @@ export function useWorkspaceCrud({
   }, [setActiveWorkspaceId, setHasLoaded, setWorkspaces]);
 
   const addWorkspaceFromPath = useCallback(
-    async (path: string, options?: { activate?: boolean }) => {
+    async (
+      path: string,
+      options?: { activate?: boolean; defaultAccessMode?: AccessMode | null },
+    ) => {
       const selection = path.trim();
       if (!selection) {
         return null;
@@ -129,7 +137,9 @@ export function useWorkspaceCrud({
         payload: { path: selection },
       });
       try {
-        const workspace = await addWorkspaceService(selection);
+        const workspace = await addWorkspaceService(selection, {
+          defaultAccessMode: options?.defaultAccessMode ?? null,
+        });
         setWorkspaces((prev) => [...prev, workspace]);
         if (shouldActivate) {
           setActiveWorkspaceId(workspace.id);
@@ -160,7 +170,7 @@ export function useWorkspaceCrud({
       url: string,
       destinationPath: string,
       targetFolderName?: string | null,
-      options?: { activate?: boolean },
+      options?: { activate?: boolean; defaultAccessMode?: AccessMode | null },
     ) => {
       const trimmedUrl = url.trim();
       const trimmedDestination = destinationPath.trim();
@@ -188,6 +198,9 @@ export function useWorkspaceCrud({
           trimmedUrl,
           trimmedDestination,
           trimmedFolderName,
+          {
+            defaultAccessMode: options?.defaultAccessMode ?? null,
+          },
         );
         setWorkspaces((prev) => [...prev, workspace]);
         if (shouldActivate) {
@@ -209,7 +222,10 @@ export function useWorkspaceCrud({
   );
 
   const addWorkspacesFromPaths = useCallback(
-    async (paths: string[]): Promise<AddWorkspacesFromPathsResult> => {
+    async (
+      paths: string[],
+      options?: { defaultAccessMode?: AccessMode | null },
+    ): Promise<AddWorkspacesFromPathsResult> => {
       const homePrefixes = inferHomePrefixes(workspaces.map((entry) => entry.path));
       const existingPaths = new Set(
         workspaces.map((entry) => normalizeWorkspacePathKey(entry.path)),
@@ -259,6 +275,7 @@ export function useWorkspaceCrud({
           try {
             const workspace = await addWorkspaceFromPath(candidate, {
               activate: added.length === 0,
+              defaultAccessMode: options?.defaultAccessMode ?? null,
             });
             if (workspace) {
               added.push(workspace);

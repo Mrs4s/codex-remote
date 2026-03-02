@@ -34,6 +34,11 @@ const MobileRemoteWorkspacePrompt = lazy(() =>
     default: module.MobileRemoteWorkspacePrompt,
   })),
 );
+const WorkspacePathAccessPrompt = lazy(() =>
+  import("../../workspaces/components/WorkspacePathAccessPrompt").then((module) => ({
+    default: module.WorkspacePathAccessPrompt,
+  })),
+);
 const BranchSwitcherPrompt = lazy(() =>
   import("../../git/components/BranchSwitcherPrompt").then((module) => ({
     default: module.BranchSwitcherPrompt,
@@ -55,8 +60,13 @@ type WorkspaceFromUrlPromptState = ReturnType<
 >["workspaceFromUrlPrompt"];
 type MobileRemoteWorkspacePathPromptState = {
   value: string;
+  accessMode: "read-only" | "current" | "full-access";
   error: string | null;
   recentPaths: string[];
+} | null;
+type WorkspacePathAccessPromptState = {
+  pathCount: number;
+  accessMode: "read-only" | "current" | "full-access";
 } | null;
 
 type AppModalsProps = {
@@ -97,15 +107,23 @@ type AppModalsProps = {
   workspaceFromUrlCanSubmit: boolean;
   onWorkspaceFromUrlPromptUrlChange: (value: string) => void;
   onWorkspaceFromUrlPromptTargetFolderNameChange: (value: string) => void;
+  onWorkspaceFromUrlPromptAccessModeChange: (value: "read-only" | "current" | "full-access") => void;
   onWorkspaceFromUrlPromptChooseDestinationPath: () => void;
   onWorkspaceFromUrlPromptClearDestinationPath: () => void;
   onWorkspaceFromUrlPromptCancel: () => void;
   onWorkspaceFromUrlPromptConfirm: () => void;
   mobileRemoteWorkspacePathPrompt: MobileRemoteWorkspacePathPromptState;
   onMobileRemoteWorkspacePathPromptChange: (value: string) => void;
+  onMobileRemoteWorkspacePathPromptAccessModeChange: (value: "read-only" | "current" | "full-access") => void;
   onMobileRemoteWorkspacePathPromptRecentPathSelect: (path: string) => void;
   onMobileRemoteWorkspacePathPromptCancel: () => void;
   onMobileRemoteWorkspacePathPromptConfirm: () => void;
+  workspacePathAccessPrompt: WorkspacePathAccessPromptState;
+  onWorkspacePathAccessPromptAccessModeChange: (
+    value: "read-only" | "current" | "full-access",
+  ) => void;
+  onWorkspacePathAccessPromptCancel: () => void;
+  onWorkspacePathAccessPromptConfirm: () => void;
   branchSwitcher: BranchSwitcherState;
   branches: BranchInfo[];
   workspaces: WorkspaceInfo[];
@@ -151,15 +169,21 @@ export const AppModals = memo(function AppModals({
   workspaceFromUrlCanSubmit,
   onWorkspaceFromUrlPromptUrlChange,
   onWorkspaceFromUrlPromptTargetFolderNameChange,
+  onWorkspaceFromUrlPromptAccessModeChange,
   onWorkspaceFromUrlPromptChooseDestinationPath,
   onWorkspaceFromUrlPromptClearDestinationPath,
   onWorkspaceFromUrlPromptCancel,
   onWorkspaceFromUrlPromptConfirm,
   mobileRemoteWorkspacePathPrompt,
   onMobileRemoteWorkspacePathPromptChange,
+  onMobileRemoteWorkspacePathPromptAccessModeChange,
   onMobileRemoteWorkspacePathPromptRecentPathSelect,
   onMobileRemoteWorkspacePathPromptCancel,
   onMobileRemoteWorkspacePathPromptConfirm,
+  workspacePathAccessPrompt,
+  onWorkspacePathAccessPromptAccessModeChange,
+  onWorkspacePathAccessPromptCancel,
+  onWorkspacePathAccessPromptConfirm,
   branchSwitcher,
   branches,
   workspaces,
@@ -256,11 +280,13 @@ export const AppModals = memo(function AppModals({
             url={workspaceFromUrlPrompt.url}
             destinationPath={workspaceFromUrlPrompt.destinationPath}
             targetFolderName={workspaceFromUrlPrompt.targetFolderName}
+            accessMode={workspaceFromUrlPrompt.accessMode}
             error={workspaceFromUrlPrompt.error}
             isBusy={workspaceFromUrlPrompt.isSubmitting}
             canSubmit={workspaceFromUrlCanSubmit}
             onUrlChange={onWorkspaceFromUrlPromptUrlChange}
             onTargetFolderNameChange={onWorkspaceFromUrlPromptTargetFolderNameChange}
+            onAccessModeChange={onWorkspaceFromUrlPromptAccessModeChange}
             onChooseDestinationPath={onWorkspaceFromUrlPromptChooseDestinationPath}
             onClearDestinationPath={onWorkspaceFromUrlPromptClearDestinationPath}
             onCancel={onWorkspaceFromUrlPromptCancel}
@@ -272,12 +298,25 @@ export const AppModals = memo(function AppModals({
         <Suspense fallback={null}>
           <MobileRemoteWorkspacePrompt
             value={mobileRemoteWorkspacePathPrompt.value}
+            accessMode={mobileRemoteWorkspacePathPrompt.accessMode}
             error={mobileRemoteWorkspacePathPrompt.error}
             recentPaths={mobileRemoteWorkspacePathPrompt.recentPaths}
             onChange={onMobileRemoteWorkspacePathPromptChange}
+            onAccessModeChange={onMobileRemoteWorkspacePathPromptAccessModeChange}
             onRecentPathSelect={onMobileRemoteWorkspacePathPromptRecentPathSelect}
             onCancel={onMobileRemoteWorkspacePathPromptCancel}
             onConfirm={onMobileRemoteWorkspacePathPromptConfirm}
+          />
+        </Suspense>
+      )}
+      {workspacePathAccessPrompt && (
+        <Suspense fallback={null}>
+          <WorkspacePathAccessPrompt
+            pathCount={workspacePathAccessPrompt.pathCount}
+            accessMode={workspacePathAccessPrompt.accessMode}
+            onAccessModeChange={onWorkspacePathAccessPromptAccessModeChange}
+            onCancel={onWorkspacePathAccessPromptCancel}
+            onConfirm={onWorkspacePathAccessPromptConfirm}
           />
         </Suspense>
       )}

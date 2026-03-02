@@ -52,6 +52,7 @@ type UseThreadCodexBootstrapOrchestrationParams = {
 type UseThreadCodexSyncOrchestrationParams = {
   activeWorkspaceId: string | null | undefined;
   activeThreadId: string | null;
+  workspaceDefaultAccessMode: AccessMode | null;
   appSettings: Pick<
     AppSettings,
     "defaultAccessMode" | "lastComposerModelId" | "lastComposerReasoningEffort"
@@ -119,6 +120,7 @@ export function useThreadCodexBootstrapOrchestration({
 export function useThreadCodexSyncOrchestration({
   activeWorkspaceId,
   activeThreadId,
+  workspaceDefaultAccessMode,
   appSettings,
   threadCodexParamsVersion,
   getThreadCodexParams,
@@ -154,7 +156,8 @@ export function useThreadCodexSyncOrchestration({
     const resolved = resolveThreadCodexState({
       workspaceId,
       threadId,
-      defaultAccessMode: appSettings.defaultAccessMode,
+      defaultAccessMode:
+        workspaceDefaultAccessMode ?? appSettings.defaultAccessMode,
       lastComposerModelId: appSettings.lastComposerModelId,
       lastComposerReasoningEffort: appSettings.lastComposerReasoningEffort,
       stored,
@@ -174,6 +177,7 @@ export function useThreadCodexSyncOrchestration({
     appSettings.defaultAccessMode,
     appSettings.lastComposerModelId,
     appSettings.lastComposerReasoningEffort,
+    workspaceDefaultAccessMode,
     getThreadCodexParams,
     setPreferredCollabModeId,
     setPreferredCodexArgsOverride,

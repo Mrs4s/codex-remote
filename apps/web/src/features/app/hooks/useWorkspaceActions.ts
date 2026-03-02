@@ -1,7 +1,7 @@
 import type { RefObject } from "react";
 import { useCallback } from "react";
 import * as Sentry from "@sentry/react";
-import type { DebugEntry, WorkspaceInfo } from "../../../types";
+import type { AccessMode, DebugEntry, WorkspaceInfo } from "../../../types";
 
 type Params = {
   isCompact: boolean;
@@ -11,6 +11,7 @@ type Params = {
     url: string,
     destinationPath: string,
     targetFolderName?: string | null,
+    options?: { defaultAccessMode?: AccessMode | null },
   ) => Promise<WorkspaceInfo | null>;
   addWorkspacesFromPaths: (paths: string[]) => Promise<WorkspaceInfo | null>;
   setActiveThreadId: (threadId: string | null, workspaceId: string) => void;
@@ -115,9 +116,19 @@ export function useWorkspaceActions({
 
 
   const handleAddWorkspaceFromGitUrl = useCallback(
-    async (url: string, destinationPath: string, targetFolderName?: string | null) => {
+    async (
+      url: string,
+      destinationPath: string,
+      targetFolderName?: string | null,
+      options?: { defaultAccessMode?: AccessMode | null },
+    ) => {
       try {
-        const workspace = await addWorkspaceFromGitUrl(url, destinationPath, targetFolderName);
+        const workspace = await addWorkspaceFromGitUrl(
+          url,
+          destinationPath,
+          targetFolderName,
+          options,
+        );
         if (workspace) {
           handleWorkspaceAdded(workspace);
         }

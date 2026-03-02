@@ -250,7 +250,9 @@ describe("useWorkspaces.addWorkspaceFromPath", () => {
       await result.current.addWorkspaceFromPath("/tmp/repo");
     });
 
-    expect(addWorkspaceMock).toHaveBeenCalledWith("/tmp/repo");
+    expect(addWorkspaceMock).toHaveBeenCalledWith("/tmp/repo", {
+      defaultAccessMode: null,
+    });
     expect(result.current.workspaces).toHaveLength(1);
     expect(result.current.activeWorkspaceId).toBe("workspace-1");
   });
@@ -313,8 +315,12 @@ describe("useWorkspaces.addWorkspacesFromPaths", () => {
     });
 
     expect(addWorkspaceMock).toHaveBeenCalledTimes(2);
-    expect(addWorkspaceMock).toHaveBeenCalledWith("/tmp/ws-1");
-    expect(addWorkspaceMock).toHaveBeenCalledWith("/tmp/ws-2");
+    expect(addWorkspaceMock).toHaveBeenCalledWith("/tmp/ws-1", {
+      defaultAccessMode: null,
+    });
+    expect(addWorkspaceMock).toHaveBeenCalledWith("/tmp/ws-2", {
+      defaultAccessMode: null,
+    });
     expect(result.current.workspaces).toHaveLength(2);
     expect(result.current.activeWorkspaceId).toBe("added-1");
     expect(addResult!.firstAdded?.id).toBe("added-1");
@@ -349,7 +355,9 @@ describe("useWorkspaces.addWorkspacesFromPaths", () => {
     });
 
     expect(addWorkspaceMock).toHaveBeenCalledTimes(1);
-    expect(addWorkspaceMock).toHaveBeenCalledWith(workspaceTwo.path);
+    expect(addWorkspaceMock).toHaveBeenCalledWith(workspaceTwo.path, {
+      defaultAccessMode: null,
+    });
     expect(addResult!.added).toHaveLength(1);
     expect(addResult!.firstAdded?.id).toBe(workspaceTwo.id);
     expect(addResult!.skippedExisting).toEqual([workspaceOne.path]);
@@ -389,8 +397,12 @@ describe("useWorkspaces.addWorkspacesFromPaths", () => {
 
     expect(isWorkspacePathDirMock).toHaveBeenCalledWith("~/dev/personal");
     expect(isWorkspacePathDirMock).not.toHaveBeenCalledWith("/Users/vlad/dev/personal");
-    expect(addWorkspaceMock).toHaveBeenCalledWith("~/dev/personal");
-    expect(addWorkspaceMock).not.toHaveBeenCalledWith("/Users/vlad/dev/personal");
+    expect(addWorkspaceMock).toHaveBeenCalledWith("~/dev/personal", {
+      defaultAccessMode: null,
+    });
+    expect(addWorkspaceMock).not.toHaveBeenCalledWith("/Users/vlad/dev/personal", {
+      defaultAccessMode: null,
+    });
     expect(addResult!.added).toHaveLength(1);
     expect(addResult!.skippedInvalid).toHaveLength(0);
     expect(addResult!.failures).toHaveLength(0);
@@ -462,7 +474,9 @@ describe("useWorkspaces.addWorkspacesFromPaths", () => {
 
     expect(isWorkspacePathDirMock).toHaveBeenNthCalledWith(1, "~/dev/personal");
     expect(isWorkspacePathDirMock).toHaveBeenNthCalledWith(2, "/Users/vlad/dev/personal");
-    expect(addWorkspaceMock).toHaveBeenCalledWith("/Users/vlad/dev/personal");
+    expect(addWorkspaceMock).toHaveBeenCalledWith("/Users/vlad/dev/personal", {
+      defaultAccessMode: null,
+    });
     expect(addResult!.added).toHaveLength(1);
     expect(addResult!.skippedInvalid).toHaveLength(0);
     expect(addResult!.failures).toHaveLength(0);
@@ -514,7 +528,9 @@ describe("useWorkspaces.addWorkspacesFromPaths", () => {
     expect(isWorkspacePathDirMock).toHaveBeenNthCalledWith(1, "~/project");
     expect(isWorkspacePathDirMock).toHaveBeenNthCalledWith(2, "/srv/codex-monitor/project");
     expect(isWorkspacePathDirMock).toHaveBeenNthCalledWith(3, "/Users/vlad/project");
-    expect(addWorkspaceMock).toHaveBeenCalledWith("/Users/vlad/project");
+    expect(addWorkspaceMock).toHaveBeenCalledWith("/Users/vlad/project", {
+      defaultAccessMode: null,
+    });
     expect(addResult!.added).toHaveLength(1);
     expect(addResult!.skippedExisting).toHaveLength(0);
     expect(addResult!.skippedInvalid).toHaveLength(0);
@@ -547,6 +563,9 @@ describe("useWorkspaces.addWorkspaceFromGitUrl", () => {
       "https://github.com/org/repo.git",
       "/tmp",
       "repo",
+      {
+        defaultAccessMode: null,
+      },
     );
     expect(result.current.activeWorkspace?.id).toBe("from-url");
   });
