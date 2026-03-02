@@ -173,6 +173,26 @@ export type LocalUsageSnapshot = {
   topModels: LocalUsageModel[];
 };
 
+export type LocalUsageCostDay = {
+  day: string;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  inputCostUsd: number;
+  cachedInputCostUsd: number;
+  outputCostUsd: number;
+  totalCostUsd: number;
+};
+
+export type LocalUsageCostSnapshot = {
+  updatedAt: number;
+  days: LocalUsageCostDay[];
+  pricingFetchedAt: number | null;
+  pricingSource: "empty" | "disk" | "remote";
+  missingPricingModels: string[];
+};
+
 export type LiteLLMPricingLookup = {
   model: string;
   matchedModel: string | null;
@@ -429,6 +449,10 @@ export type RpcMethodMap = {
   local_usage_snapshot: {
     params: { days?: number | null; workspacePath?: string | null };
     result: LocalUsageSnapshot;
+  };
+  local_usage_cost_snapshot: {
+    params: { days?: number | null; workspacePath?: string | null };
+    result: LocalUsageCostSnapshot;
   };
   litellm_pricing_lookup: {
     params: { model: string };

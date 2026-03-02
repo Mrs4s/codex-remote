@@ -3,6 +3,10 @@ import { createReadStream, type Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import readline from "node:readline";
+import type {
+  LiteLLMModelPricing,
+  LiteLLMPricingService,
+} from "./litellmPricingService.js";
 
 type LocalUsageDay = {
   day: string;
@@ -36,6 +40,26 @@ export type LocalUsageSnapshot = {
   topModels: LocalUsageModel[];
 };
 
+export type LocalUsageCostDay = {
+  day: string;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  inputCostUsd: number;
+  cachedInputCostUsd: number;
+  outputCostUsd: number;
+  totalCostUsd: number;
+};
+
+export type LocalUsageCostSnapshot = {
+  updatedAt: number;
+  days: LocalUsageCostDay[];
+  pricingFetchedAt: number | null;
+  pricingSource: "empty" | "disk" | "remote";
+  missingPricingModels: string[];
+};
+
 type DailyTotals = {
   inputTokens: number;
   cachedInputTokens: number;
@@ -49,6 +73,19 @@ type UsageTotals = {
   cachedInputTokens: number;
   outputTokens: number;
 };
+
+type ScanUsageResult = {
+  updatedAt: number;
+  dayKeys: string[];
+  daily: Map<string, DailyTotals>;
+  modelTotals: Map<string, number>;
+  dailyModelTotals: Map<string, Map<string, UsageTotals>> | null;
+};
+
+const CODEX_MODEL_ALIASES_MAP = new Map<string, string>([
+  ["gpt-5-codex", "gpt-5"],
+  ["gpt-5.3-codex", "gpt-5.2-codex"],
+]);
 
 const MAX_ACTIVITY_GAP_MS = 2 * 60 * 1000;
 const MAX_LINE_CHARS = 512_000;
@@ -69,6 +106,31 @@ function defaultUsageTotals(): UsageTotals {
     cachedInputTokens: 0,
     outputTokens: 0,
   };
+}
+
+function isOpenRouterFreeModel(rawModel: string): boolean {
+  const model = rawModel.trim().toLowerCase();
+  if (model === "openrouter/free") {
+    return true;
+  }
+  return model.startsWith("openrouter/") && model.endsWith(":free");
+}
+
+function hasNonZeroTokenPricing(pricing: LiteLLMModelPricing | null): boolean {
+  if (!pricing) {
+    return false;
+  }
+  return (
+    (pricing.input_cost_per_token ?? 0) > 0 ||
+    (pricing.output_cost_per_token ?? 0) > 0 ||
+    (pricing.cache_read_input_token_cost ?? 0) > 0
+  );
+}
+
+function addUsageTotals(target: UsageTotals, delta: UsageTotals): void {
+  target.inputTokens += delta.inputTokens;
+  target.cachedInputTokens += delta.cachedInputTokens;
+  target.outputTokens += delta.outputTokens;
 }
 
 function normalizeWorkspacePath(workspacePath?: string | null): string | null {
@@ -257,6 +319,7 @@ async function scanFile(
   daily: Map<string, DailyTotals>,
   modelTotals: Map<string, number>,
   workspacePath: string | null,
+  dailyModelTotals: Map<string, Map<string, UsageTotals>> | null,
 ): Promise<void> {
   const stream = createReadStream(filePath, { encoding: "utf8" });
   const reader = readline.createInterface({
@@ -410,15 +473,28 @@ async function scanFile(
             const day = daily.get(dayKey);
             if (day) {
               const cached = Math.min(delta.cachedInputTokens, delta.inputTokens);
+              const model = currentModel ?? extractModelFromTokenCount(value) ?? "unknown";
               day.inputTokens += delta.inputTokens;
               day.cachedInputTokens += cached;
               day.outputTokens += delta.outputTokens;
 
-              const model = currentModel ?? extractModelFromTokenCount(value) ?? "unknown";
               modelTotals.set(
                 model,
                 (modelTotals.get(model) ?? 0) + delta.inputTokens + delta.outputTokens,
               );
+
+              if (dailyModelTotals) {
+                const dayModels =
+                  dailyModelTotals.get(dayKey) ?? new Map<string, UsageTotals>();
+                const modelUsage = dayModels.get(model) ?? defaultUsageTotals();
+                addUsageTotals(modelUsage, {
+                  inputTokens: delta.inputTokens,
+                  cachedInputTokens: cached,
+                  outputTokens: delta.outputTokens,
+                });
+                dayModels.set(model, modelUsage);
+                dailyModelTotals.set(dayKey, dayModels);
+              }
             }
           }
           trackActivity(daily, lastActivityMs, timestampMs);
@@ -522,13 +598,20 @@ function buildSnapshot(
   };
 }
 
-async function scanLocalUsage(days: number, workspacePath: string | null): Promise<LocalUsageSnapshot> {
+async function scanUsage(
+  days: number,
+  workspacePath: string | null,
+  options?: { includeDailyModelTotals?: boolean },
+): Promise<ScanUsageResult> {
   const updatedAt = Date.now();
   const dayKeys = makeDayKeys(days);
   const daily = new Map<string, DailyTotals>(
     dayKeys.map((dayKey) => [dayKey, defaultDailyTotals()]),
   );
   const modelTotals = new Map<string, number>();
+  const dailyModelTotals = options?.includeDailyModelTotals
+    ? new Map<string, Map<string, UsageTotals>>()
+    : null;
   const sessionsRoots = resolveSessionsRoots(workspacePath);
 
   for (const root of sessionsRoots) {
@@ -545,12 +628,87 @@ async function scanLocalUsage(days: number, workspacePath: string | null): Promi
         if (!entry.isFile() || path.extname(entry.name) !== ".jsonl") {
           continue;
         }
-        await scanFile(path.join(dayDir, entry.name), daily, modelTotals, workspacePath);
+        await scanFile(
+          path.join(dayDir, entry.name),
+          daily,
+          modelTotals,
+          workspacePath,
+          dailyModelTotals,
+        );
       }
     }
   }
 
-  return buildSnapshot(updatedAt, dayKeys, daily, modelTotals);
+  return {
+    updatedAt,
+    dayKeys,
+    daily,
+    modelTotals,
+    dailyModelTotals,
+  };
+}
+
+type ResolvedModelPricing = {
+  inputCostPerToken: number;
+  cachedInputCostPerToken: number;
+  outputCostPerToken: number;
+  found: boolean;
+};
+
+async function resolveModelPricing(
+  model: string,
+  pricingService: LiteLLMPricingService,
+): Promise<ResolvedModelPricing> {
+  if (isOpenRouterFreeModel(model)) {
+    return {
+      inputCostPerToken: 0,
+      cachedInputCostPerToken: 0,
+      outputCostPerToken: 0,
+      found: true,
+    };
+  }
+
+  let pricing: LiteLLMModelPricing | null = null;
+  try {
+    pricing = await pricingService.getModelPricing(model, { allowStale: true });
+    const alias = CODEX_MODEL_ALIASES_MAP.get(model);
+    if (alias && !hasNonZeroTokenPricing(pricing)) {
+      const aliasPricing = await pricingService.getModelPricing(alias, {
+        allowStale: true,
+      });
+      if (hasNonZeroTokenPricing(aliasPricing)) {
+        pricing = aliasPricing;
+      }
+    }
+  } catch {
+    pricing = null;
+  }
+
+  if (!pricing) {
+    return {
+      inputCostPerToken: 0,
+      cachedInputCostPerToken: 0,
+      outputCostPerToken: 0,
+      found: false,
+    };
+  }
+
+  const input = pricing.input_cost_per_token ?? 0;
+  const cached = pricing.cache_read_input_token_cost ?? input;
+  const output = pricing.output_cost_per_token ?? 0;
+  return {
+    inputCostPerToken: input,
+    cachedInputCostPerToken: cached,
+    outputCostPerToken: output,
+    found: true,
+  };
+}
+
+function roundUsd(value: number): number {
+  if (!Number.isFinite(value) || value <= 0) {
+    return 0;
+  }
+  return Math.round(value * 1_000_000_000) / 1_000_000_000;
 }
 
 export async function localUsageSnapshot(
@@ -559,5 +717,95 @@ export async function localUsageSnapshot(
 ): Promise<LocalUsageSnapshot> {
   const safeDays = Math.min(Math.max(Math.trunc(days ?? 30), 1), 90);
   const normalizedWorkspacePath = normalizeWorkspacePath(workspacePath);
-  return scanLocalUsage(safeDays, normalizedWorkspacePath);
+  const scanned = await scanUsage(safeDays, normalizedWorkspacePath);
+  return buildSnapshot(
+    scanned.updatedAt,
+    scanned.dayKeys,
+    scanned.daily,
+    scanned.modelTotals,
+  );
+}
+
+export async function localUsageCostSnapshot(
+  pricingService: LiteLLMPricingService,
+  days?: number | null,
+  workspacePath?: string | null,
+): Promise<LocalUsageCostSnapshot> {
+  const safeDays = Math.min(Math.max(Math.trunc(days ?? 365), 1), 365);
+  const normalizedWorkspacePath = normalizeWorkspacePath(workspacePath);
+  const scanned = await scanUsage(safeDays, normalizedWorkspacePath, {
+    includeDailyModelTotals: true,
+  });
+  const dailyModelTotals = scanned.dailyModelTotals ?? new Map<string, Map<string, UsageTotals>>();
+  const uniqueModels = new Set<string>();
+  for (const modelMap of dailyModelTotals.values()) {
+    for (const model of modelMap.keys()) {
+      if (model && model !== "unknown") {
+        uniqueModels.add(model);
+      }
+    }
+  }
+
+  const pricingByModel = new Map<string, ResolvedModelPricing>();
+  await Promise.all(
+    [...uniqueModels].map(async (model) => {
+      pricingByModel.set(model, await resolveModelPricing(model, pricingService));
+    }),
+  );
+
+  const missingModelSet = new Set<string>();
+  const daysRows: LocalUsageCostDay[] = scanned.dayKeys.map((dayKey) => {
+    const totals = scanned.daily.get(dayKey) ?? defaultDailyTotals();
+    const dayModels = dailyModelTotals.get(dayKey) ?? new Map<string, UsageTotals>();
+
+    let inputCostUsd = 0;
+    let cachedInputCostUsd = 0;
+    let outputCostUsd = 0;
+
+    for (const [model, usage] of dayModels.entries()) {
+      if (!model || model === "unknown") {
+        continue;
+      }
+      const pricing = pricingByModel.get(model);
+      if (!pricing) {
+        missingModelSet.add(model);
+        continue;
+      }
+      if (!pricing.found) {
+        missingModelSet.add(model);
+      }
+
+      const cachedInputTokens = Math.min(
+        Math.max(usage.cachedInputTokens, 0),
+        Math.max(usage.inputTokens, 0),
+      );
+      const nonCachedInputTokens = Math.max(usage.inputTokens - cachedInputTokens, 0);
+      const outputTokens = Math.max(usage.outputTokens, 0);
+
+      inputCostUsd += nonCachedInputTokens * pricing.inputCostPerToken;
+      cachedInputCostUsd += cachedInputTokens * pricing.cachedInputCostPerToken;
+      outputCostUsd += outputTokens * pricing.outputCostPerToken;
+    }
+
+    return {
+      day: dayKey,
+      inputTokens: totals.inputTokens,
+      cachedInputTokens: totals.cachedInputTokens,
+      outputTokens: totals.outputTokens,
+      totalTokens: totals.inputTokens + totals.outputTokens,
+      inputCostUsd: roundUsd(inputCostUsd),
+      cachedInputCostUsd: roundUsd(cachedInputCostUsd),
+      outputCostUsd: roundUsd(outputCostUsd),
+      totalCostUsd: roundUsd(inputCostUsd + cachedInputCostUsd + outputCostUsd),
+    };
+  });
+
+  const pricingState = pricingService.getState();
+  return {
+    updatedAt: scanned.updatedAt,
+    days: daysRows,
+    pricingFetchedAt: pricingState.fetchedAt,
+    pricingSource: pricingState.source,
+    missingPricingModels: [...missingModelSet].sort().slice(0, 50),
+  };
 }

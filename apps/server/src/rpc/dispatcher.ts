@@ -39,7 +39,10 @@ import {
 import { rememberApprovalRule } from "../services/approvalRuleService.js";
 import type { JsonStore } from "../storage/jsonStore.js";
 import { fileRead, fileWrite, type FileKind, type FileScope } from "../services/textFileService.js";
-import { localUsageSnapshot } from "../services/localUsageService.js";
+import {
+  localUsageCostSnapshot,
+  localUsageSnapshot,
+} from "../services/localUsageService.js";
 import {
   generateAgentDescription,
   generateCommitMessage,
@@ -700,6 +703,13 @@ export async function dispatchRpc(
     }
     case "local_usage_snapshot": {
       return localUsageSnapshot(optionalNumber(params, "days"), optionalString(params, "workspacePath"));
+    }
+    case "local_usage_cost_snapshot": {
+      return localUsageCostSnapshot(
+        deps.litellmPricingService,
+        optionalNumber(params, "days"),
+        optionalString(params, "workspacePath"),
+      );
     }
     case "litellm_pricing_lookup": {
       const model = requireString(params, "model");

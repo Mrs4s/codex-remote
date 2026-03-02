@@ -535,6 +535,26 @@ export type LocalUsageSnapshot = {
   topModels: LocalUsageModel[];
 };
 
+export type LocalUsageCostDay = {
+  day: string;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  totalTokens: number;
+  inputCostUsd: number;
+  cachedInputCostUsd: number;
+  outputCostUsd: number;
+  totalCostUsd: number;
+};
+
+export type LocalUsageCostSnapshot = {
+  updatedAt: number;
+  days: LocalUsageCostDay[];
+  pricingFetchedAt: number | null;
+  pricingSource: "empty" | "disk" | "remote";
+  missingPricingModels: string[];
+};
+
 export type TurnPlanStepStatus = "pending" | "inProgress" | "completed";
 
 export type TurnPlanStep = {

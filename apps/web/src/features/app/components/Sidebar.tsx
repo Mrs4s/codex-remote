@@ -299,7 +299,6 @@ export const Sidebar = memo(function Sidebar({
       ? "API key"
       : "Sign in to Codex";
   const accountActionLabel = accountEmail ? "Switch account" : "Sign in";
-  const showAccountSwitcher = Boolean(activeWorkspaceId);
   const accountSwitchDisabled = accountSwitching || !activeWorkspaceId;
   const accountCancelDisabled = !accountSwitching || !activeWorkspaceId;
   const refreshDisabled = workspaces.length === 0 || workspaces.every((workspace) => !workspace.connected);
@@ -1206,7 +1205,7 @@ export const Sidebar = memo(function Sidebar({
         onOpenSettings={onOpenSettings}
         onOpenDebug={onOpenDebug}
         showDebugButton={showDebugButton}
-        showAccountSwitcher={showAccountSwitcher}
+        showAccountSwitcher={false}
         accountLabel={accountButtonLabel}
         accountActionLabel={accountActionLabel}
         accountDisabled={accountSwitchDisabled}

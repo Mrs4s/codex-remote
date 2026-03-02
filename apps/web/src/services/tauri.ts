@@ -8,6 +8,7 @@ import type {
   CodexDoctorResult,
   DictationModelStatus,
   DictationSessionState,
+  LocalUsageCostSnapshot,
   LocalUsageSnapshot,
   TcpDaemonStatus,
   TailscaleDaemonCommandPreview,
@@ -714,6 +715,17 @@ export async function localUsageSnapshot(
     payload.workspacePath = workspacePath;
   }
   return invoke("local_usage_snapshot", payload);
+}
+
+export async function localUsageCostSnapshot(
+  days?: number,
+  workspacePath?: string | null,
+): Promise<LocalUsageCostSnapshot> {
+  const payload: { days: number; workspacePath?: string } = { days: days ?? 365 };
+  if (workspacePath) {
+    payload.workspacePath = workspacePath;
+  }
+  return invoke("local_usage_cost_snapshot", payload);
 }
 
 export type LiteLLMPricingLookup = {
