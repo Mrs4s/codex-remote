@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from "react";
+import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type {
   AccessMode,
@@ -32,6 +33,8 @@ import { WorkspaceHomeGitInitBanner } from "./WorkspaceHomeGitInitBanner";
 import { buildIconPath } from "./workspaceHomeHelpers";
 import { useWorkspaceHomeSuggestionsStyle } from "../hooks/useWorkspaceHomeSuggestionsStyle";
 import type { ThreadStatusById } from "../../../utils/threadStatus";
+import { useLocalUsage } from "../../home/hooks/useLocalUsage";
+import { formatRelativeTime } from "../../../utils/time";
 
 type WorkspaceHomeProps = {
   workspace: WorkspaceInfo;
@@ -138,6 +141,12 @@ export function WorkspaceHome({
   onAgentMdRefresh,
   onAgentMdSave,
 }: WorkspaceHomeProps) {
+  const {
+    snapshot: localUsageSnapshot,
+    isLoading: isLoadingLocalUsage,
+    error: localUsageError,
+    refresh: refreshLocalUsage,
+  } = useLocalUsage(true, workspace.path);
   const [showIcon, setShowIcon] = useState(true);
   const [selectionStart, setSelectionStart] = useState<number | null>(null);
   const iconPath = useMemo(() => buildIconPath(workspace.path), [workspace.path]);
@@ -272,6 +281,37 @@ export function WorkspaceHome({
   const agentMdSaveLabel = agentMdExists ? "Save" : "Create";
   const agentMdSaveDisabled = agentMdLoading || agentMdSaving || !agentMdDirty;
   const agentMdRefreshDisabled = agentMdLoading || agentMdSaving;
+  const usageTotals = localUsageSnapshot?.totals ?? null;
+  const usageUpdatedAt = localUsageSnapshot
+    ? `Updated ${formatRelativeTime(localUsageSnapshot.updatedAt)}`
+    : null;
+  const peakDayLabel = (() => {
+    const day = usageTotals?.peakDay;
+    if (!day) {
+      return "--";
+    }
+    const [year, month, date] = day.split("-").map(Number);
+    if (!year || !month || !date) {
+      return day;
+    }
+    const parsed = new Date(year, month - 1, date);
+    if (Number.isNaN(parsed.getTime())) {
+      return day;
+    }
+    return new Intl.DateTimeFormat(undefined, {
+      month: "short",
+      day: "numeric",
+    }).format(parsed);
+  })();
+  const topModels = localUsageSnapshot?.topModels?.slice(0, 5) ?? [];
+  const formatNumber = (value: number | null | undefined) => {
+    if (value === null || value === undefined) {
+      return "--";
+    }
+    return new Intl.NumberFormat().format(value);
+  };
+  const showUsageSkeleton = isLoadingLocalUsage && !localUsageSnapshot;
+  const showUsageEmpty = !isLoadingLocalUsage && !localUsageSnapshot;
 
   return (
     <div className="workspace-home">
@@ -289,13 +329,6 @@ export function WorkspaceHome({
           <div className="workspace-home-path">{workspace.path}</div>
         </div>
       </div>
-
-      {showGitInitBanner && (
-        <WorkspaceHomeGitInitBanner
-          isLoading={initGitRepoLoading}
-          onInitGitRepo={onInitGitRepo}
-        />
-      )}
 
       <div className="workspace-home-composer">
         <div className="composer">
@@ -332,6 +365,13 @@ export function WorkspaceHome({
         </div>
         {error && <div className="workspace-home-error">{error}</div>}
       </div>
+
+      {showGitInitBanner && (
+        <WorkspaceHomeGitInitBanner
+          isLoading={initGitRepoLoading}
+          onInitGitRepo={onInitGitRepo}
+        />
+      )}
 
       <WorkspaceHomeRunControls
         workspaceKind={workspace.kind}
@@ -397,6 +437,102 @@ export function WorkspaceHome({
         threadStatusById={threadStatusById}
         onSelectInstance={onSelectInstance}
       />
+
+      <div className="workspace-home-usage">
+        <div className="workspace-home-section-header">
+          <div className="workspace-home-section-title">Project usage</div>
+          <div className="workspace-home-section-actions">
+            {usageUpdatedAt && (
+              <span className="workspace-home-section-meta">{usageUpdatedAt}</span>
+            )}
+            <button
+              type="button"
+              className={
+                isLoadingLocalUsage
+                  ? "ghost workspace-home-usage-refresh is-loading"
+                  : "ghost workspace-home-usage-refresh"
+              }
+              onClick={() => {
+                refreshLocalUsage()?.catch(() => {});
+              }}
+              disabled={isLoadingLocalUsage}
+              aria-label="Refresh project usage"
+              title="Refresh project usage"
+            >
+              <RefreshCw
+                size={14}
+                className={isLoadingLocalUsage ? "workspace-home-refresh-icon spinning" : ""}
+                aria-hidden
+              />
+            </button>
+          </div>
+        </div>
+        {showUsageSkeleton ? (
+          <div className="workspace-home-usage-empty">Loading usage data…</div>
+        ) : showUsageEmpty ? (
+          <div className="workspace-home-usage-empty">No usage data yet for this project.</div>
+        ) : (
+          <>
+            <div className="workspace-home-usage-grid">
+              <div className="workspace-home-usage-card">
+                <span className="workspace-home-usage-label">Last 7 days</span>
+                <span className="workspace-home-usage-value">
+                  {formatNumber(usageTotals?.last7DaysTokens)}
+                </span>
+              </div>
+              <div className="workspace-home-usage-card">
+                <span className="workspace-home-usage-label">Last 30 days</span>
+                <span className="workspace-home-usage-value">
+                  {formatNumber(usageTotals?.last30DaysTokens)}
+                </span>
+              </div>
+              <div className="workspace-home-usage-card">
+                <span className="workspace-home-usage-label">Avg / day</span>
+                <span className="workspace-home-usage-value">
+                  {formatNumber(usageTotals?.averageDailyTokens)}
+                </span>
+              </div>
+              <div className="workspace-home-usage-card">
+                <span className="workspace-home-usage-label">Cache hit rate</span>
+                <span className="workspace-home-usage-value">
+                  {usageTotals ? `${usageTotals.cacheHitRatePercent.toFixed(1)}%` : "--"}
+                </span>
+              </div>
+              <div className="workspace-home-usage-card">
+                <span className="workspace-home-usage-label">Peak day</span>
+                <span className="workspace-home-usage-value">
+                  {peakDayLabel}
+                  {usageTotals?.peakDayTokens
+                    ? ` · ${formatNumber(usageTotals.peakDayTokens)}`
+                    : ""}
+                </span>
+              </div>
+            </div>
+            <div className="workspace-home-usage-models">
+              <span className="workspace-home-section-meta">Top models</span>
+              <div className="workspace-home-usage-model-list">
+                {topModels.length > 0 ? (
+                  topModels.map((model) => (
+                    <span
+                      className="workspace-home-usage-model-chip"
+                      key={model.model}
+                      title={`${model.model}: ${formatNumber(model.tokens)} tokens`}
+                    >
+                      {model.model}
+                      <span className="workspace-home-usage-model-share">
+                        {model.sharePercent.toFixed(1)}%
+                      </span>
+                    </span>
+                  ))
+                ) : (
+                  <span className="workspace-home-section-meta">No models yet</span>
+                )}
+              </div>
+            </div>
+          </>
+        )}
+        {localUsageError && <div className="workspace-home-error">{localUsageError}</div>}
+      </div>
     </div>
   );
 }

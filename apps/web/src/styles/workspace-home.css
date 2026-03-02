@@ -117,6 +117,98 @@
   color: var(--text-muted);
 }
 
+.workspace-home-usage {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.workspace-home-usage-refresh {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.workspace-home-usage-refresh.is-loading {
+  opacity: 0.85;
+}
+
+.workspace-home-refresh-icon.spinning {
+  animation: workspace-home-refresh-spin 1s linear infinite;
+}
+
+.workspace-home-usage-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.workspace-home-usage-card {
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 68px;
+}
+
+.workspace-home-usage-label {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.workspace-home-usage-value {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.workspace-home-usage-models {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.workspace-home-usage-model-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.workspace-home-usage-model-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--border-muted);
+  background: var(--surface-item);
+  color: var(--text-strong);
+  font-size: 12px;
+}
+
+.workspace-home-usage-model-share {
+  color: var(--text-faint);
+  font-size: 11px;
+}
+
+.workspace-home-usage-empty {
+  font-size: 13px;
+  color: var(--text-muted);
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px dashed var(--border-subtle);
+  background: var(--surface-quiet);
+}
+
 .workspace-home-controls {
   display: flex;
   flex-wrap: wrap;
@@ -476,6 +568,15 @@
   }
   50% {
     opacity: 1;
+  }
+}
+
+@keyframes workspace-home-refresh-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 
