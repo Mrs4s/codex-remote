@@ -13,7 +13,6 @@
     "@codex-remote/sdk": "workspace:*",
     "@codex-remote/shared-types": "workspace:*",
     "@pierre/diffs": "^1.0.6",
-    "@sentry/react": "^10.36.0",
     "@tanstack/react-virtual": "^3.13.18",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",

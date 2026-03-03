@@ -1,6 +1,5 @@
 import type { RefObject } from "react";
 import { useCallback } from "react";
-import * as Sentry from "@sentry/react";
 import type { AccessMode, DebugEntry, WorkspaceInfo } from "../../../types";
 
 type Params = {
@@ -164,12 +163,6 @@ ${message}`);
       selectWorkspace(workspace.id);
       setActiveThreadId(null, workspace.id);
       onStartNewAgentDraft(workspace.id);
-      Sentry.metrics.count("agent_created", 1, {
-        attributes: {
-          workspace_id: workspace.id,
-          thread_id: "draft",
-        },
-      });
       if (isCompact) {
         setActiveTab("codex");
       }

@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import type { Dispatch, MutableRefObject } from "react";
-import * as Sentry from "@sentry/react";
 import type {
   AccessMode,
   AppMention,
@@ -211,18 +210,6 @@ export function useThreadMessaging({
           : sendIntent === "queue"
             ? false
             : canSteerCurrentTurn;
-      Sentry.metrics.count("prompt_sent", 1, {
-        attributes: {
-          workspace_id: workspace.id,
-          thread_id: threadId,
-          has_images: images.length > 0 ? "true" : "false",
-          text_length: String(finalText.length),
-          model: resolvedModel ?? "unknown",
-          effort: resolvedEffort ?? "unknown",
-          collaboration_mode: sanitizedCollaborationMode ?? "unknown",
-          send_intent: sendIntent,
-        },
-      });
       const timestamp = Date.now();
       const customThreadName = getCustomName(workspace.id, threadId) ?? null;
       recordThreadActivity(workspace.id, threadId, timestamp);

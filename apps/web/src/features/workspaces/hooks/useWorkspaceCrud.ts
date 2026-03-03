@@ -1,6 +1,5 @@
 import { useCallback } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import * as Sentry from "@sentry/react";
 import type {
   AccessMode,
   DebugEntry,
@@ -144,12 +143,6 @@ export function useWorkspaceCrud({
         if (shouldActivate) {
           setActiveWorkspaceId(workspace.id);
         }
-        Sentry.metrics.count("workspace_added", 1, {
-          attributes: {
-            workspace_id: workspace.id,
-            workspace_kind: workspace.kind ?? "main",
-          },
-        });
         return workspace;
       } catch (error) {
         onDebug?.({
