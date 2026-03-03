@@ -2,6 +2,7 @@ import type {
   AccessMode,
   AccountSnapshot,
   RequestUserInputRequest,
+  ThreadFolder,
   RateLimitSnapshot,
   ThreadListOrganizeMode,
   ThreadListSortKey,
@@ -40,9 +41,15 @@ import { getUsageLabels } from "../utils/usageLabels";
 import { formatRelativeTimeShort } from "../../../utils/time";
 import type { ThreadStatusById } from "../../../utils/threadStatus";
 import type { WorkspaceLaunchScriptsState } from "../hooks/useWorkspaceLaunchScripts";
+import {
+  buildThreadFolderSections,
+  type ThreadFolderSection,
+} from "../utils/threadFolderSections";
 
 const COLLAPSED_GROUPS_STORAGE_KEY = "codexmonitor.collapsedGroups";
+const COLLAPSED_THREAD_FOLDERS_STORAGE_KEY = "codexmonitor.collapsedThreadFolders";
 const UNGROUPED_COLLAPSE_ID = "__ungrouped__";
+const UNGROUPED_THREAD_FOLDER_ID = "__ungrouped_thread_folder__";
 const ADD_MENU_WIDTH = 200;
 const ALL_THREADS_ADD_MENU_WIDTH = 220;
 
@@ -50,13 +57,6 @@ type WorkspaceGroupSection = {
   id: string | null;
   name: string;
   workspaces: WorkspaceInfo[];
-};
-
-type FlatThreadRow = {
-  thread: ThreadSummary;
-  depth: number;
-  workspaceId: string;
-  workspaceName: string;
 };
 
 type SidebarProps = {
@@ -106,6 +106,16 @@ type SidebarProps = {
   onSelectThread: (workspaceId: string, threadId: string) => void;
   onDeleteThread: (workspaceId: string, threadId: string) => void;
   onSyncThread: (workspaceId: string, threadId: string) => void;
+  getThreadFolders: (workspaceId: string) => ThreadFolder[];
+  getThreadFolderId: (workspaceId: string, threadId: string) => string | null;
+  onCreateThreadFolder: (workspaceId: string, threadId?: string | null) => void;
+  onRenameThreadFolder: (workspaceId: string, folderId: string) => void;
+  onDeleteThreadFolder: (workspaceId: string, folderId: string) => void;
+  onAssignThreadFolder: (
+    workspaceId: string,
+    threadId: string,
+    folderId: string | null,
+  ) => void;
   pinThread: (workspaceId: string, threadId: string) => boolean;
   unpinThread: (workspaceId: string, threadId: string) => void;
   isThreadPinned: (workspaceId: string, threadId: string) => boolean;
@@ -169,6 +179,12 @@ export const Sidebar = memo(function Sidebar({
   onSelectThread,
   onDeleteThread,
   onSyncThread,
+  getThreadFolders,
+  getThreadFolderId,
+  onCreateThreadFolder,
+  onRenameThreadFolder,
+  onDeleteThreadFolder,
+  onAssignThreadFolder,
   pinThread,
   unpinThread,
   isThreadPinned,
@@ -218,8 +234,16 @@ export const Sidebar = memo(function Sidebar({
   const { collapsedGroups, toggleGroupCollapse } = useCollapsedGroups(
     COLLAPSED_GROUPS_STORAGE_KEY,
   );
+  const { collapsedGroups: collapsedThreadFolders, toggleGroupCollapse: toggleThreadFolderCollapse } =
+    useCollapsedGroups(COLLAPSED_THREAD_FOLDERS_STORAGE_KEY);
   const { getThreadRows } = useThreadRows(threadParentById);
-  const { showThreadMenu, showWorkspaceMenu, showWorktreeMenu, showCloneMenu } =
+  const {
+    showThreadMenu,
+    showWorkspaceMenu,
+    showThreadFolderMenu,
+    showWorktreeMenu,
+    showCloneMenu,
+  } =
     useSidebarMenus({
       onDeleteThread,
       onSyncThread,
@@ -227,6 +251,12 @@ export const Sidebar = memo(function Sidebar({
       onUnpinThread: unpinThread,
       isThreadPinned,
       onRenameThread,
+      onCreateThreadFolder,
+      onRenameThreadFolder,
+      onDeleteThreadFolder,
+      onAssignThreadFolder,
+      getThreadFolders,
+      getThreadFolderId,
       onReloadWorkspaceThreads,
       onDeleteWorkspace,
       onDeleteWorktree,
@@ -517,103 +547,9 @@ export const Sidebar = memo(function Sidebar({
     }));
   }, [filteredGroupedWorkspaces, threadListOrganizeMode, workspaceActivityById]);
 
-  const flatThreadRows = useMemo(() => {
-    if (threadListOrganizeMode !== "threads_only") {
-      return [] as FlatThreadRow[];
-    }
-
-    const rootGroups: Array<{
-      rootTimestamp: number;
-      workspaceName: string;
-      rootIndex: number;
-      rows: FlatThreadRow[];
-    }> = [];
-
-    filteredGroupedWorkspaces.forEach((group) => {
-      group.workspaces.forEach((workspace) => {
-        const threads = threadsByWorkspace[workspace.id] ?? [];
-        if (!threads.length) {
-          return;
-        }
-        const { unpinnedRows } = getThreadRows(
-          threads,
-          true,
-          workspace.id,
-          getPinTimestamp,
-          pinnedThreadsVersion,
-        );
-        if (!unpinnedRows.length) {
-          return;
-        }
-
-        let currentRows: FlatThreadRow[] = [];
-        let currentRootTimestamp = 0;
-        let currentRootIndex = 0;
-        unpinnedRows.forEach((row, rowIndex) => {
-          if (row.depth === 0) {
-            if (currentRows.length > 0) {
-              rootGroups.push({
-                rootTimestamp: currentRootTimestamp,
-                workspaceName: workspace.name,
-                rootIndex: currentRootIndex,
-                rows: currentRows,
-              });
-            }
-            currentRows = [
-              {
-                ...row,
-                workspaceId: workspace.id,
-                workspaceName: workspace.name,
-              },
-            ];
-            currentRootTimestamp = getSortTimestamp(row.thread);
-            currentRootIndex = rowIndex;
-            return;
-          }
-          currentRows.push({
-            ...row,
-            workspaceId: workspace.id,
-            workspaceName: workspace.name,
-          });
-        });
-        if (currentRows.length > 0) {
-          rootGroups.push({
-            rootTimestamp: currentRootTimestamp,
-            workspaceName: workspace.name,
-            rootIndex: currentRootIndex,
-            rows: currentRows,
-          });
-        }
-      });
-    });
-
-    return rootGroups
-      .sort((a, b) => {
-        const timestampDiff = b.rootTimestamp - a.rootTimestamp;
-        if (timestampDiff !== 0) {
-          return timestampDiff;
-        }
-        const workspaceNameDiff = a.workspaceName.localeCompare(b.workspaceName);
-        if (workspaceNameDiff !== 0) {
-          return workspaceNameDiff;
-        }
-        return a.rootIndex - b.rootIndex;
-      })
-      .flatMap((group) => group.rows);
-  }, [
-    filteredGroupedWorkspaces,
-    getPinTimestamp,
-    getSortTimestamp,
-    getThreadRows,
-    pinnedThreadsVersion,
-    threadListOrganizeMode,
-    threadsByWorkspace,
-  ]);
-
   const scrollFadeDeps = useMemo(
     () => [
       sortedGroupedWorkspaces,
-      flatThreadRows,
       threadsByWorkspace,
       expandedWorkspaces,
       normalizedQuery,
@@ -621,7 +557,6 @@ export const Sidebar = memo(function Sidebar({
     ],
     [
       sortedGroupedWorkspaces,
-      flatThreadRows,
       threadsByWorkspace,
       expandedWorkspaces,
       normalizedQuery,
@@ -648,6 +583,23 @@ export const Sidebar = memo(function Sidebar({
       ? sortedGroupedWorkspaces
       : filteredGroupedWorkspaces;
   const isThreadsOnlyMode = threadListOrganizeMode === "threads_only";
+
+  const getThreadFolderCollapseKey = useCallback(
+    (workspaceId: string, folderId: string | null) =>
+      `${workspaceId}:${folderId ?? UNGROUPED_THREAD_FOLDER_ID}`,
+    [],
+  );
+
+  const buildWorkspaceThreadFolderSections = useCallback(
+    (workspaceId: string, rows: Array<{ thread: ThreadSummary; depth: number }>) =>
+      buildThreadFolderSections({
+        workspaceId,
+        rows,
+        folders: getThreadFolders(workspaceId),
+        getThreadFolderId,
+      }),
+    [getThreadFolderId, getThreadFolders],
+  );
 
   const handleAllThreadsAddMenuToggle = useCallback(
     (event: MouseEvent<HTMLButtonElement>) => {
@@ -766,6 +718,163 @@ export const Sidebar = memo(function Sidebar({
       return timestamp ? formatRelativeTimeShort(timestamp) : null;
     },
     [],
+  );
+
+  const renderThreadFolderSections = useCallback(
+    ({
+      workspaceId,
+      sections,
+      totalThreadRoots,
+      isExpanded,
+      nextCursor,
+      isPaging,
+      showLoadOlder,
+    }: {
+      workspaceId: string;
+      sections: ThreadFolderSection[];
+      totalThreadRoots: number;
+      isExpanded: boolean;
+      nextCursor: string | null;
+      isPaging: boolean;
+      showLoadOlder: boolean;
+    }) => {
+      const hasNamedFolder = sections.some((section) => Boolean(section.folderId));
+      return (
+        <>
+          {sections.map((section) => {
+            const collapseKey = getThreadFolderCollapseKey(workspaceId, section.folderId);
+            const isCollapsed = collapsedThreadFolders.has(collapseKey);
+            const showSectionHeader = hasNamedFolder || section.folderId !== null;
+            const isSectionToggleable = showSectionHeader;
+            const toggleLabel =
+              section.folderId === null ? "ungrouped" : "folder";
+            return (
+              <div key={collapseKey} className="thread-folder-section">
+                {showSectionHeader && (
+                  <div
+                    className={`thread-folder-header${isSectionToggleable ? " is-toggleable" : ""}`}
+                    onClick={
+                      isSectionToggleable
+                        ? () => {
+                            toggleThreadFolderCollapse(collapseKey);
+                          }
+                        : undefined
+                    }
+                    onContextMenu={
+                      section.folderId
+                        ? (event) => {
+                            showThreadFolderMenu(event, workspaceId, section.folderId as string);
+                          }
+                        : undefined
+                    }
+                    onKeyDown={
+                      isSectionToggleable
+                        ? (event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault();
+                              toggleThreadFolderCollapse(collapseKey);
+                            }
+                          }
+                        : undefined
+                    }
+                    role={isSectionToggleable ? "button" : undefined}
+                    tabIndex={isSectionToggleable ? 0 : undefined}
+                    aria-expanded={isSectionToggleable ? !isCollapsed : undefined}
+                  >
+                    <div className="thread-folder-label">{section.name}</div>
+                    {isSectionToggleable && (
+                      <button
+                        className={`group-toggle ${isCollapsed ? "" : "expanded"}`}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          toggleThreadFolderCollapse(collapseKey);
+                        }}
+                        aria-label={
+                          isCollapsed
+                            ? `Expand ${toggleLabel}`
+                            : `Collapse ${toggleLabel}`
+                        }
+                        aria-expanded={!isCollapsed}
+                        type="button"
+                      >
+                        <span className="group-toggle-icon">›</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+                {!isCollapsed && (
+                  <ThreadList
+                    workspaceId={workspaceId}
+                    pinnedRows={[]}
+                    unpinnedRows={section.rows}
+                    totalThreadRoots={0}
+                    isExpanded={true}
+                    nextCursor={null}
+                    isPaging={false}
+                    activeWorkspaceId={activeWorkspaceId}
+                    activeThreadId={activeThreadId}
+                    threadStatusById={threadStatusById}
+                    pendingUserInputKeys={pendingUserInputKeys}
+                    getThreadTime={getThreadTime}
+                    getThreadArgsBadge={getThreadArgsBadge}
+                    isThreadPinned={isThreadPinned}
+                    onToggleExpanded={handleToggleExpanded}
+                    onLoadOlderThreads={onLoadOlderThreads}
+                    onSelectThread={onSelectThread}
+                    onShowThreadMenu={showThreadMenu}
+                    showLoadOlder={false}
+                  />
+                )}
+              </div>
+            );
+          })}
+          {totalThreadRoots > 3 && (
+            <button
+              className="thread-more"
+              onClick={(event) => {
+                event.stopPropagation();
+                handleToggleExpanded(workspaceId);
+              }}
+            >
+              {isExpanded ? "Show less" : "More..."}
+            </button>
+          )}
+          {showLoadOlder && nextCursor && (isExpanded || totalThreadRoots <= 3) && (
+            <button
+              className="thread-more"
+              onClick={(event) => {
+                event.stopPropagation();
+                onLoadOlderThreads(workspaceId);
+              }}
+              disabled={isPaging}
+            >
+              {isPaging
+                ? "Loading..."
+                : totalThreadRoots === 0
+                  ? "Search older..."
+                  : "Load older..."}
+            </button>
+          )}
+        </>
+      );
+    },
+    [
+      activeThreadId,
+      activeWorkspaceId,
+      collapsedThreadFolders,
+      getThreadArgsBadge,
+      getThreadFolderCollapseKey,
+      getThreadTime,
+      handleToggleExpanded,
+      isThreadPinned,
+      onLoadOlderThreads,
+      onSelectThread,
+      pendingUserInputKeys,
+      showThreadFolderMenu,
+      showThreadMenu,
+      threadStatusById,
+      toggleThreadFolderCollapse,
+    ],
   );
 
   useEffect(() => {
@@ -912,21 +1021,49 @@ export const Sidebar = memo(function Sidebar({
                       <Plus aria-hidden />
                     </button>
                   </div>
-                  {flatThreadRows.length > 0 && (
-                    <PinnedThreadList
-                      rows={flatThreadRows}
-                      activeWorkspaceId={activeWorkspaceId}
-                      activeThreadId={activeThreadId}
-                      threadStatusById={threadStatusById}
-                      pendingUserInputKeys={pendingUserInputKeys}
-                      getThreadTime={getThreadTime}
-                      getThreadArgsBadge={getThreadArgsBadge}
-                      isThreadPinned={isThreadPinned}
-                      onSelectThread={onSelectThread}
-                      onShowThreadMenu={showThreadMenu}
-                      getWorkspaceLabel={getWorkspaceLabel}
-                    />
-                  )}
+                  {groupedWorkspacesForRender
+                    .flatMap((group) => group.workspaces)
+                    .filter((entry) => !cloneChildIds.has(entry.id))
+                    .map((entry) => {
+                      const threads = threadsByWorkspace[entry.id] ?? [];
+                      const isExpanded = expandedWorkspaces.has(entry.id);
+                      const {
+                        unpinnedRows,
+                        totalRoots: totalThreadRoots,
+                      } = getThreadRows(
+                        threads,
+                        isExpanded,
+                        entry.id,
+                        getPinTimestamp,
+                        pinnedThreadsVersion,
+                      );
+                      const sections = buildWorkspaceThreadFolderSections(
+                        entry.id,
+                        unpinnedRows,
+                      );
+                      const nextCursor = threadListCursorByWorkspace[entry.id] ?? null;
+                      const isPaging = threadListPagingByWorkspace[entry.id] ?? false;
+                      const showThreadList = sections.length > 0 || Boolean(nextCursor);
+                      if (!showThreadList) {
+                        return null;
+                      }
+                      return (
+                        <div key={entry.id} className="threads-only-project">
+                          <div className="workspace-group-header thread-project-header">
+                            <div className="workspace-group-label">{entry.name}</div>
+                          </div>
+                          {renderThreadFolderSections({
+                            workspaceId: entry.id,
+                            sections,
+                            totalThreadRoots,
+                            isExpanded,
+                            nextCursor,
+                            isPaging,
+                            showLoadOlder: true,
+                          })}
+                        </div>
+                      );
+                    })}
                   {allThreadsAddMenuAnchor &&
                     createPortal(
                       <PopoverSurface
@@ -977,9 +1114,7 @@ export const Sidebar = memo(function Sidebar({
                 const groupId = group.id;
                 const showGroupHeader = Boolean(groupId) || hasWorkspaceGroups;
                 const toggleId = groupId ?? (showGroupHeader ? UNGROUPED_COLLAPSE_ID : null);
-                const isGroupCollapsed = Boolean(
-                  toggleId && collapsedGroups.has(toggleId),
-                );
+                const isGroupCollapsed = Boolean(toggleId && collapsedGroups.has(toggleId));
 
                 return (
                   <WorkspaceGroup
@@ -993,245 +1128,232 @@ export const Sidebar = memo(function Sidebar({
                     {group.workspaces
                       .filter((entry) => !cloneChildIds.has(entry.id))
                       .map((entry) => {
-                      const threads = threadsByWorkspace[entry.id] ?? [];
-                      const isCollapsed = entry.settings.sidebarCollapsed;
-                      const isExpanded = expandedWorkspaces.has(entry.id);
-                      const {
-                        unpinnedRows,
-                        totalRoots: totalThreadRoots,
-                      } = getThreadRows(
-                        threads,
-                        isExpanded,
-                        entry.id,
-                        getPinTimestamp,
-                        pinnedThreadsVersion,
-                      );
-                      const nextCursor =
-                        threadListCursorByWorkspace[entry.id] ?? null;
-                      const showThreadList =
-                        threads.length > 0 || Boolean(nextCursor);
-                      const isLoadingThreads =
-                        threadListLoadingByWorkspace[entry.id] ?? false;
-                      const showThreadLoader =
-                        isLoadingThreads && threads.length === 0;
-                      const isPaging = threadListPagingByWorkspace[entry.id] ?? false;
-                      const clones = clonesBySource.get(entry.id) ?? [];
-                      const visibleClones =
-                        isSearchActive && !isWorkspaceMatch(entry)
-                          ? clones.filter((clone) => isWorkspaceMatch(clone))
-                          : clones;
-                      const worktrees = worktreesByParent.get(entry.id) ?? [];
-                      const addMenuOpen = addMenuAnchor?.workspaceId === entry.id;
-                      const isDraftNewAgent = newAgentDraftWorkspaceId === entry.id;
-                      const isDraftRowActive =
-                        isDraftNewAgent &&
-                        entry.id === activeWorkspaceId &&
-                        !activeThreadId;
-                      const draftStatusClass =
-                        startingDraftThreadWorkspaceId === entry.id
-                          ? "processing"
-                          : "ready";
+                        const threads = threadsByWorkspace[entry.id] ?? [];
+                        const isCollapsed = entry.settings.sidebarCollapsed;
+                        const isExpanded = expandedWorkspaces.has(entry.id);
+                        const {
+                          unpinnedRows,
+                          totalRoots: totalThreadRoots,
+                        } = getThreadRows(
+                          threads,
+                          isExpanded,
+                          entry.id,
+                          getPinTimestamp,
+                          pinnedThreadsVersion,
+                        );
+                        const sections = buildWorkspaceThreadFolderSections(
+                          entry.id,
+                          unpinnedRows,
+                        );
+                        const nextCursor = threadListCursorByWorkspace[entry.id] ?? null;
+                        const showThreadList = sections.length > 0 || Boolean(nextCursor);
+                        const isLoadingThreads =
+                          threadListLoadingByWorkspace[entry.id] ?? false;
+                        const showThreadLoader = isLoadingThreads && threads.length === 0;
+                        const isPaging = threadListPagingByWorkspace[entry.id] ?? false;
+                        const clones = clonesBySource.get(entry.id) ?? [];
+                        const visibleClones =
+                          isSearchActive && !isWorkspaceMatch(entry)
+                            ? clones.filter((clone) => isWorkspaceMatch(clone))
+                            : clones;
+                        const worktrees = worktreesByParent.get(entry.id) ?? [];
+                        const addMenuOpen = addMenuAnchor?.workspaceId === entry.id;
+                        const isDraftNewAgent = newAgentDraftWorkspaceId === entry.id;
+                        const isDraftRowActive =
+                          isDraftNewAgent &&
+                          entry.id === activeWorkspaceId &&
+                          !activeThreadId;
+                        const draftStatusClass =
+                          startingDraftThreadWorkspaceId === entry.id
+                            ? "processing"
+                            : "ready";
 
-                      return (
-                        <WorkspaceCard
-                          key={entry.id}
-                          workspace={entry}
-                          workspaceName={renderHighlightedName(entry.name)}
-                          isActive={entry.id === activeWorkspaceId}
-                          isCollapsed={isCollapsed}
-                          addMenuOpen={addMenuOpen}
-                          addMenuWidth={ADD_MENU_WIDTH}
-                          onSelectWorkspace={onSelectWorkspace}
-                          onShowWorkspaceMenu={showWorkspaceMenu}
-                          onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
-                          onConnectWorkspace={onConnectWorkspace}
-                          onToggleAddMenu={(anchor) => {
-                            if (anchor) {
-                              setNewSessionAccessMode(
-                                entry.settings.defaultAccessMode ?? "current",
-                              );
-                            }
-                            setAddMenuAnchor(anchor);
-                          }}
-                        >
-                          {addMenuOpen && addMenuAnchor &&
-                            createPortal(
-                              <PopoverSurface
-                                className="workspace-add-menu"
-                                ref={addMenuRef}
-                                style={{
-                                  top: addMenuAnchor.top,
-                                  left: addMenuAnchor.left,
-                                  width: addMenuAnchor.width,
+                        return (
+                          <WorkspaceCard
+                            key={entry.id}
+                            workspace={entry}
+                            workspaceName={renderHighlightedName(entry.name)}
+                            isActive={entry.id === activeWorkspaceId}
+                            isCollapsed={isCollapsed}
+                            addMenuOpen={addMenuOpen}
+                            addMenuWidth={ADD_MENU_WIDTH}
+                            onSelectWorkspace={onSelectWorkspace}
+                            onShowWorkspaceMenu={showWorkspaceMenu}
+                            onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
+                            onConnectWorkspace={onConnectWorkspace}
+                            onToggleAddMenu={(anchor) => {
+                              if (anchor) {
+                                setNewSessionAccessMode(
+                                  entry.settings.defaultAccessMode ?? "current",
+                                );
+                              }
+                              setAddMenuAnchor(anchor);
+                            }}
+                          >
+                            {addMenuOpen && addMenuAnchor &&
+                              createPortal(
+                                <PopoverSurface
+                                  className="workspace-add-menu"
+                                  ref={addMenuRef}
+                                  style={{
+                                    top: addMenuAnchor.top,
+                                    left: addMenuAnchor.left,
+                                    width: addMenuAnchor.width,
+                                  }}
+                                >
+                                  <div
+                                    className="workspace-add-session-access"
+                                    onClick={(event) => event.stopPropagation()}
+                                  >
+                                    <label htmlFor={`workspace-session-access-${entry.id}`}>
+                                      Access
+                                    </label>
+                                    <select
+                                      id={`workspace-session-access-${entry.id}`}
+                                      value={newSessionAccessMode}
+                                      onChange={(event) =>
+                                        setNewSessionAccessMode(
+                                          event.target.value as AccessMode,
+                                        )
+                                      }
+                                    >
+                                      <option value="read-only">Read only</option>
+                                      <option value="current">On-Request</option>
+                                      <option value="full-access">Full access</option>
+                                    </select>
+                                  </div>
+                                  <PopoverMenuItem
+                                    className="workspace-add-option"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setAddMenuAnchor(null);
+                                      onAddAgent(entry, {
+                                        accessMode: newSessionAccessMode,
+                                      });
+                                    }}
+                                    icon={<Plus aria-hidden />}
+                                  >
+                                    New agent
+                                  </PopoverMenuItem>
+                                  <PopoverMenuItem
+                                    className="workspace-add-option"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setAddMenuAnchor(null);
+                                      onAddWorktreeAgent(entry);
+                                    }}
+                                    icon={<GitBranch aria-hidden />}
+                                  >
+                                    New worktree agent
+                                  </PopoverMenuItem>
+                                  <PopoverMenuItem
+                                    className="workspace-add-option"
+                                    onClick={(event) => {
+                                      event.stopPropagation();
+                                      setAddMenuAnchor(null);
+                                      onAddCloneAgent(entry);
+                                    }}
+                                    icon={<Copy aria-hidden />}
+                                  >
+                                    New clone agent
+                                  </PopoverMenuItem>
+                                </PopoverSurface>,
+                                document.body,
+                              )}
+                            {isDraftNewAgent && (
+                              <div
+                                className={`thread-row thread-row-draft${
+                                  isDraftRowActive ? " active" : ""
+                                }`}
+                                onClick={() => onSelectWorkspace(entry.id)}
+                                role="button"
+                                tabIndex={0}
+                                onKeyDown={(event) => {
+                                  if (event.key === "Enter" || event.key === " ") {
+                                    event.preventDefault();
+                                    onSelectWorkspace(entry.id);
+                                  }
                                 }}
                               >
-                                <div
-                                  className="workspace-add-session-access"
-                                  onClick={(event) => event.stopPropagation()}
-                                >
-                                  <label htmlFor={`workspace-session-access-${entry.id}`}>
-                                    Access
-                                  </label>
-                                  <select
-                                    id={`workspace-session-access-${entry.id}`}
-                                    value={newSessionAccessMode}
-                                    onChange={(event) =>
-                                      setNewSessionAccessMode(
-                                        event.target.value as AccessMode,
-                                      )
-                                    }
-                                  >
-                                    <option value="read-only">Read only</option>
-                                    <option value="current">On-Request</option>
-                                    <option value="full-access">Full access</option>
-                                  </select>
-                                </div>
-                                <PopoverMenuItem
-                                  className="workspace-add-option"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setAddMenuAnchor(null);
-                                    onAddAgent(entry, {
-                                      accessMode: newSessionAccessMode,
-                                    });
-                                  }}
-                                  icon={<Plus aria-hidden />}
-                                >
-                                  New agent
-                                </PopoverMenuItem>
-                                <PopoverMenuItem
-                                  className="workspace-add-option"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setAddMenuAnchor(null);
-                                    onAddWorktreeAgent(entry);
-                                  }}
-                                  icon={<GitBranch aria-hidden />}
-                                >
-                                  New worktree agent
-                                </PopoverMenuItem>
-                                <PopoverMenuItem
-                                  className="workspace-add-option"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    setAddMenuAnchor(null);
-                                    onAddCloneAgent(entry);
-                                  }}
-                                  icon={<Copy aria-hidden />}
-                                >
-                                  New clone agent
-                                </PopoverMenuItem>
-                              </PopoverSurface>,
-                              document.body,
+                                <span className={`thread-status ${draftStatusClass}`} aria-hidden />
+                                <span className="thread-name">New Agent</span>
+                              </div>
                             )}
-                          {isDraftNewAgent && (
-                            <div
-                              className={`thread-row thread-row-draft${
-                                isDraftRowActive ? " active" : ""
-                              }`}
-                              onClick={() => onSelectWorkspace(entry.id)}
-                              role="button"
-                              tabIndex={0}
-                              onKeyDown={(event) => {
-                                if (event.key === "Enter" || event.key === " ") {
-                                  event.preventDefault();
-                                  onSelectWorkspace(entry.id);
-                                }
-                              }}
-                            >
-                              <span className={`thread-status ${draftStatusClass}`} aria-hidden />
-                              <span className="thread-name">New Agent</span>
-                            </div>
-                          )}
-                          {visibleClones.length > 0 && (
-                            <WorktreeSection
-                              worktrees={visibleClones}
-                              deletingWorktreeIds={deletingWorktreeIds}
-                              threadsByWorkspace={threadsByWorkspace}
-                              threadStatusById={threadStatusById}
-                              threadListLoadingByWorkspace={threadListLoadingByWorkspace}
-                              threadListPagingByWorkspace={threadListPagingByWorkspace}
-                              threadListCursorByWorkspace={threadListCursorByWorkspace}
-                              expandedWorkspaces={expandedWorkspaces}
-                              activeWorkspaceId={activeWorkspaceId}
-                              activeThreadId={activeThreadId}
-                              pendingUserInputKeys={pendingUserInputKeys}
-                              getThreadRows={getThreadRows}
-                              getThreadTime={getThreadTime}
-                              getThreadArgsBadge={getThreadArgsBadge}
-                              isThreadPinned={isThreadPinned}
-                              getPinTimestamp={getPinTimestamp}
-                              pinnedThreadsVersion={pinnedThreadsVersion}
-                              onSelectWorkspace={onSelectWorkspace}
-                              onConnectWorkspace={onConnectWorkspace}
-                              onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
-                              onSelectThread={onSelectThread}
-                              onShowThreadMenu={showThreadMenu}
-                              onShowWorktreeMenu={showCloneMenu}
-                              onToggleExpanded={handleToggleExpanded}
-                              onLoadOlderThreads={onLoadOlderThreads}
-                              sectionLabel="Clone agents"
-                              sectionIcon={
-                                <Copy className="worktree-header-icon" aria-hidden />
-                              }
-                              className="clone-section"
-                            />
-                          )}
-                          {worktrees.length > 0 && (
-                            <WorktreeSection
-                              worktrees={worktrees}
-                              deletingWorktreeIds={deletingWorktreeIds}
-                              threadsByWorkspace={threadsByWorkspace}
-                              threadStatusById={threadStatusById}
-                              threadListLoadingByWorkspace={threadListLoadingByWorkspace}
-                              threadListPagingByWorkspace={threadListPagingByWorkspace}
-                              threadListCursorByWorkspace={threadListCursorByWorkspace}
-                              expandedWorkspaces={expandedWorkspaces}
-                              activeWorkspaceId={activeWorkspaceId}
-                              activeThreadId={activeThreadId}
-                              pendingUserInputKeys={pendingUserInputKeys}
-                              getThreadRows={getThreadRows}
-                              getThreadTime={getThreadTime}
-                              getThreadArgsBadge={getThreadArgsBadge}
-                              isThreadPinned={isThreadPinned}
-                              getPinTimestamp={getPinTimestamp}
-                              pinnedThreadsVersion={pinnedThreadsVersion}
-                              onSelectWorkspace={onSelectWorkspace}
-                              onConnectWorkspace={onConnectWorkspace}
-                              onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
-                              onSelectThread={onSelectThread}
-                              onShowThreadMenu={showThreadMenu}
-                              onShowWorktreeMenu={showWorktreeMenu}
-                              onToggleExpanded={handleToggleExpanded}
-                              onLoadOlderThreads={onLoadOlderThreads}
-                            />
-                          )}
-                          {showThreadList && (
-                            <ThreadList
-                              workspaceId={entry.id}
-                              pinnedRows={[]}
-                              unpinnedRows={unpinnedRows}
-                              totalThreadRoots={totalThreadRoots}
-                              isExpanded={isExpanded}
-                              nextCursor={nextCursor}
-                              isPaging={isPaging}
-                              activeWorkspaceId={activeWorkspaceId}
-                              activeThreadId={activeThreadId}
-                              threadStatusById={threadStatusById}
-                              pendingUserInputKeys={pendingUserInputKeys}
-                              getThreadTime={getThreadTime}
-                              getThreadArgsBadge={getThreadArgsBadge}
-                              isThreadPinned={isThreadPinned}
-                              onToggleExpanded={handleToggleExpanded}
-                              onLoadOlderThreads={onLoadOlderThreads}
-                              onSelectThread={onSelectThread}
-                              onShowThreadMenu={showThreadMenu}
-                            />
-                          )}
-                          {showThreadLoader && <ThreadLoading />}
-                        </WorkspaceCard>
-                      );
-                    })}
+                            {visibleClones.length > 0 && (
+                              <WorktreeSection
+                                worktrees={visibleClones}
+                                deletingWorktreeIds={deletingWorktreeIds}
+                                threadsByWorkspace={threadsByWorkspace}
+                                threadStatusById={threadStatusById}
+                                threadListLoadingByWorkspace={threadListLoadingByWorkspace}
+                                threadListPagingByWorkspace={threadListPagingByWorkspace}
+                                threadListCursorByWorkspace={threadListCursorByWorkspace}
+                                expandedWorkspaces={expandedWorkspaces}
+                                activeWorkspaceId={activeWorkspaceId}
+                                activeThreadId={activeThreadId}
+                                pendingUserInputKeys={pendingUserInputKeys}
+                                getThreadRows={getThreadRows}
+                                getThreadTime={getThreadTime}
+                                getThreadArgsBadge={getThreadArgsBadge}
+                                isThreadPinned={isThreadPinned}
+                                getPinTimestamp={getPinTimestamp}
+                                pinnedThreadsVersion={pinnedThreadsVersion}
+                                onSelectWorkspace={onSelectWorkspace}
+                                onConnectWorkspace={onConnectWorkspace}
+                                onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
+                                onSelectThread={onSelectThread}
+                                onShowThreadMenu={showThreadMenu}
+                                onShowWorktreeMenu={showCloneMenu}
+                                onToggleExpanded={handleToggleExpanded}
+                                onLoadOlderThreads={onLoadOlderThreads}
+                                sectionLabel="Clone agents"
+                                sectionIcon={<Copy className="worktree-header-icon" aria-hidden />}
+                                className="clone-section"
+                              />
+                            )}
+                            {worktrees.length > 0 && (
+                              <WorktreeSection
+                                worktrees={worktrees}
+                                deletingWorktreeIds={deletingWorktreeIds}
+                                threadsByWorkspace={threadsByWorkspace}
+                                threadStatusById={threadStatusById}
+                                threadListLoadingByWorkspace={threadListLoadingByWorkspace}
+                                threadListPagingByWorkspace={threadListPagingByWorkspace}
+                                threadListCursorByWorkspace={threadListCursorByWorkspace}
+                                expandedWorkspaces={expandedWorkspaces}
+                                activeWorkspaceId={activeWorkspaceId}
+                                activeThreadId={activeThreadId}
+                                pendingUserInputKeys={pendingUserInputKeys}
+                                getThreadRows={getThreadRows}
+                                getThreadTime={getThreadTime}
+                                getThreadArgsBadge={getThreadArgsBadge}
+                                isThreadPinned={isThreadPinned}
+                                getPinTimestamp={getPinTimestamp}
+                                pinnedThreadsVersion={pinnedThreadsVersion}
+                                onSelectWorkspace={onSelectWorkspace}
+                                onConnectWorkspace={onConnectWorkspace}
+                                onToggleWorkspaceCollapse={onToggleWorkspaceCollapse}
+                                onSelectThread={onSelectThread}
+                                onShowThreadMenu={showThreadMenu}
+                                onShowWorktreeMenu={showWorktreeMenu}
+                                onToggleExpanded={handleToggleExpanded}
+                                onLoadOlderThreads={onLoadOlderThreads}
+                              />
+                            )}
+                            {showThreadList &&
+                              renderThreadFolderSections({
+                                workspaceId: entry.id,
+                                sections,
+                                totalThreadRoots,
+                                isExpanded,
+                                nextCursor,
+                                isPaging,
+                                showLoadOlder: true,
+                              })}
+                            {showThreadLoader && <ThreadLoading />}
+                          </WorkspaceCard>
+                        );
+                      })}
                   </WorkspaceGroup>
                 );
               })}
@@ -1244,7 +1366,14 @@ export const Sidebar = memo(function Sidebar({
           )}
           {isThreadsOnlyMode &&
             groupedWorkspacesForRender.length > 0 &&
-            flatThreadRows.length === 0 &&
+            groupedWorkspacesForRender
+              .flatMap((group) => group.workspaces)
+              .filter((entry) => !cloneChildIds.has(entry.id))
+              .every(
+                (entry) =>
+                  (threadsByWorkspace[entry.id] ?? []).length === 0 &&
+                  !threadListCursorByWorkspace[entry.id],
+              ) &&
             pinnedThreadRows.length === 0 && (
               <div className="empty">No threads yet.</div>
             )}

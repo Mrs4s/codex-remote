@@ -52,6 +52,12 @@ const baseProps = {
   onSelectThread: vi.fn(),
   onDeleteThread: vi.fn(),
   onSyncThread: vi.fn(),
+  getThreadFolders: vi.fn(() => []),
+  getThreadFolderId: vi.fn(() => null),
+  onCreateThreadFolder: vi.fn(),
+  onRenameThreadFolder: vi.fn(),
+  onDeleteThreadFolder: vi.fn(),
+  onAssignThreadFolder: vi.fn(),
   pinThread: vi.fn(() => false),
   unpinThread: vi.fn(),
   isThreadPinned: vi.fn(() => false),
@@ -210,7 +216,7 @@ describe("Sidebar", () => {
     expect(onSetThreadListOrganizeMode).toHaveBeenCalledWith("threads_only");
   });
 
-  it("renders threads-only mode as a global chronological list", () => {
+  it("renders threads-only mode grouped by project", () => {
     const older = Date.now() - 10_000;
     const newer = Date.now();
     const { container } = render(
@@ -265,8 +271,8 @@ describe("Sidebar", () => {
     const renderedNames = Array.from(container.querySelectorAll(".thread-row .thread-name")).map(
       (node) => node.textContent?.trim(),
     );
-    expect(renderedNames[0]).toBe("Newer thread");
-    expect(renderedNames[1]).toBe("Older thread");
+    expect(renderedNames).toContain("Older thread");
+    expect(renderedNames).toContain("Newer thread");
     expect(screen.getByText("Alpha Project")).toBeTruthy();
     expect(screen.getByText("Beta Project")).toBeTruthy();
   });
@@ -327,6 +333,140 @@ describe("Sidebar", () => {
       expect.objectContaining({ id: "ws-1" }),
       { accessMode: "current" },
     );
+  });
+
+  it("groups workspace threads by folder and supports collapsing a folder", () => {
+    const { queryByText } = render(
+      <Sidebar
+        {...baseProps}
+        workspaces={[
+          {
+            id: "ws-1",
+            name: "Alpha Project",
+            path: "/tmp/alpha",
+            connected: true,
+            settings: { sidebarCollapsed: false },
+          },
+        ]}
+        groupedWorkspaces={[
+          {
+            id: null,
+            name: "Workspaces",
+            workspaces: [
+              {
+                id: "ws-1",
+                name: "Alpha Project",
+                path: "/tmp/alpha",
+                connected: true,
+                settings: { sidebarCollapsed: false },
+              },
+            ],
+          },
+        ]}
+        threadsByWorkspace={{
+          "ws-1": [{ id: "thread-1", name: "Thread in folder", updatedAt: 100 }],
+        }}
+        getThreadFolders={() => [
+          { id: "folder-1", name: "Focus", sortOrder: 0, createdAt: 1 },
+        ]}
+        getThreadFolderId={(_workspaceId, threadId) =>
+          threadId === "thread-1" ? "folder-1" : null
+        }
+      />,
+    );
+
+    expect(screen.getByText("Focus")).toBeTruthy();
+    expect(screen.getByText("Thread in folder")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse folder" }));
+    expect(queryByText("Thread in folder")).toBeNull();
+  });
+
+  it("supports collapsing the ungrouped section", () => {
+    const { queryByText } = render(
+      <Sidebar
+        {...baseProps}
+        workspaces={[
+          {
+            id: "ws-1",
+            name: "Alpha Project",
+            path: "/tmp/alpha",
+            connected: true,
+            settings: { sidebarCollapsed: false },
+          },
+        ]}
+        groupedWorkspaces={[
+          {
+            id: null,
+            name: "Workspaces",
+            workspaces: [
+              {
+                id: "ws-1",
+                name: "Alpha Project",
+                path: "/tmp/alpha",
+                connected: true,
+                settings: { sidebarCollapsed: false },
+              },
+            ],
+          },
+        ]}
+        threadsByWorkspace={{
+          "ws-1": [
+            { id: "thread-foldered", name: "In folder", updatedAt: 100 },
+            { id: "thread-ungrouped", name: "Ungrouped thread", updatedAt: 90 },
+          ],
+        }}
+        getThreadFolders={() => [
+          { id: "folder-1", name: "Focus", sortOrder: 0, createdAt: 1 },
+        ]}
+        getThreadFolderId={(_workspaceId, threadId) =>
+          threadId === "thread-foldered" ? "folder-1" : null
+        }
+      />,
+    );
+
+    expect(screen.getByText("Ungrouped")).toBeTruthy();
+    expect(screen.getByText("Ungrouped thread")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "Collapse ungrouped" }));
+    expect(queryByText("Ungrouped thread")).toBeNull();
+  });
+
+  it("renders empty thread folders when a project has no threads", () => {
+    render(
+      <Sidebar
+        {...baseProps}
+        workspaces={[
+          {
+            id: "ws-1",
+            name: "Alpha Project",
+            path: "/tmp/alpha",
+            connected: true,
+            settings: { sidebarCollapsed: false },
+          },
+        ]}
+        groupedWorkspaces={[
+          {
+            id: null,
+            name: "Workspaces",
+            workspaces: [
+              {
+                id: "ws-1",
+                name: "Alpha Project",
+                path: "/tmp/alpha",
+                connected: true,
+                settings: { sidebarCollapsed: false },
+              },
+            ],
+          },
+        ]}
+        getThreadFolders={() => [
+          { id: "folder-1", name: "Focus", sortOrder: 0, createdAt: 1 },
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Focus")).toBeTruthy();
   });
 
   it("refreshes all workspace threads from the header button", () => {

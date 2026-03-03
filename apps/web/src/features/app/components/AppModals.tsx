@@ -2,6 +2,7 @@ import { lazy, memo, Suspense } from "react";
 import type { ComponentType } from "react";
 import type { BranchInfo, WorkspaceInfo } from "../../../types";
 import type { SettingsViewProps } from "../../settings/components/SettingsView";
+import { useThreadFolderPrompt } from "../../threads/hooks/useThreadFolderPrompt";
 import { useRenameThreadPrompt } from "../../threads/hooks/useRenameThreadPrompt";
 import { useClonePrompt } from "../../workspaces/hooks/useClonePrompt";
 import { useWorktreePrompt } from "../../workspaces/hooks/useWorktreePrompt";
@@ -12,6 +13,11 @@ import { useGitBranches } from "../../git/hooks/useGitBranches";
 const RenameThreadPrompt = lazy(() =>
   import("../../threads/components/RenameThreadPrompt").then((module) => ({
     default: module.RenameThreadPrompt,
+  })),
+);
+const ThreadFolderPrompt = lazy(() =>
+  import("../../threads/components/ThreadFolderPrompt").then((module) => ({
+    default: module.ThreadFolderPrompt,
   })),
 );
 const WorktreePrompt = lazy(() =>
@@ -51,6 +57,9 @@ const InitGitRepoPrompt = lazy(() =>
 );
 
 type RenamePromptState = ReturnType<typeof useRenameThreadPrompt>["renamePrompt"];
+type ThreadFolderPromptState = ReturnType<
+  typeof useThreadFolderPrompt
+>["threadFolderPrompt"];
 
 type WorktreePromptState = ReturnType<typeof useWorktreePrompt>["worktreePrompt"];
 
@@ -74,6 +83,10 @@ type AppModalsProps = {
   onRenamePromptChange: (value: string) => void;
   onRenamePromptCancel: () => void;
   onRenamePromptConfirm: () => void;
+  threadFolderPrompt: ThreadFolderPromptState;
+  onThreadFolderPromptChange: (value: string) => void;
+  onThreadFolderPromptCancel: () => void;
+  onThreadFolderPromptConfirm: () => void;
   initGitRepoPrompt: {
     workspaceName: string;
     branch: string;
@@ -143,6 +156,10 @@ export const AppModals = memo(function AppModals({
   onRenamePromptChange,
   onRenamePromptCancel,
   onRenamePromptConfirm,
+  threadFolderPrompt,
+  onThreadFolderPromptChange,
+  onThreadFolderPromptCancel,
+  onThreadFolderPromptConfirm,
   initGitRepoPrompt,
   initGitRepoPromptBusy,
   onInitGitRepoPromptBranchChange,
@@ -211,6 +228,20 @@ export const AppModals = memo(function AppModals({
             onChange={onRenamePromptChange}
             onCancel={onRenamePromptCancel}
             onConfirm={onRenamePromptConfirm}
+          />
+        </Suspense>
+      )}
+      {threadFolderPrompt && (
+        <Suspense fallback={null}>
+          <ThreadFolderPrompt
+            mode={threadFolderPrompt.mode}
+            workspaceName={threadFolderPrompt.workspaceName}
+            currentName={threadFolderPrompt.originalName}
+            name={threadFolderPrompt.name}
+            error={threadFolderPrompt.error}
+            onChange={onThreadFolderPromptChange}
+            onCancel={onThreadFolderPromptCancel}
+            onConfirm={onThreadFolderPromptConfirm}
           />
         </Suspense>
       )}

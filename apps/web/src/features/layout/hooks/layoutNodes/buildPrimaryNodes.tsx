@@ -76,6 +76,12 @@ export function buildPrimaryNodes(options: LayoutNodesOptions): PrimaryLayoutNod
       onSelectThread={options.onSelectThread}
       onDeleteThread={options.onDeleteThread}
       onSyncThread={options.onSyncThread}
+      getThreadFolders={options.getThreadFolders}
+      getThreadFolderId={options.getThreadFolderId}
+      onCreateThreadFolder={options.onCreateThreadFolder}
+      onRenameThreadFolder={options.onRenameThreadFolder}
+      onDeleteThreadFolder={options.onDeleteThreadFolder}
+      onAssignThreadFolder={options.onAssignThreadFolder}
       pinThread={options.pinThread}
       unpinThread={options.unpinThread}
       isThreadPinned={options.isThreadPinned}

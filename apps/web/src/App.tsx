@@ -90,6 +90,8 @@ import { useComposerEditorState } from "@/features/composer/hooks/useComposerEdi
 import { useComposerController } from "@app/hooks/useComposerController";
 import { useComposerInsert } from "@app/hooks/useComposerInsert";
 import { useRenameThreadPrompt } from "@threads/hooks/useRenameThreadPrompt";
+import { useThreadFolderPrompt } from "@threads/hooks/useThreadFolderPrompt";
+import { useThreadFolders } from "@threads/hooks/useThreadFolders";
 import { useWorktreePrompt } from "@/features/workspaces/hooks/useWorktreePrompt";
 import { useClonePrompt } from "@/features/workspaces/hooks/useClonePrompt";
 import { useWorkspaceFromUrlPrompt } from "@/features/workspaces/hooks/useWorkspaceFromUrlPrompt";
@@ -349,6 +351,20 @@ function MainApp() {
     (workspaceId: string) => workspacesById.get(workspaceId)?.name,
     [workspacesById],
   );
+  const {
+    getThreadFolders,
+    getThreadFolderById,
+    getThreadFolderId,
+    createThreadFolder,
+    renameThreadFolder,
+    deleteThreadFolder,
+    assignThreadFolder,
+    clearThreadFolderAssignment,
+  } = useThreadFolders({
+    appSettings,
+    setAppSettings,
+    queueSaveSettings,
+  });
 
   const recordPendingThreadLinkRef = useRef<
     (workspaceId: string, threadId: string) => void
@@ -1074,6 +1090,20 @@ function MainApp() {
     threadsByWorkspace,
     renameThread,
   });
+  const {
+    threadFolderPrompt,
+    openCreateThreadFolderPrompt,
+    openRenameThreadFolderPrompt,
+    handleThreadFolderPromptChange,
+    handleThreadFolderPromptCancel,
+    handleThreadFolderPromptConfirm,
+  } = useThreadFolderPrompt({
+    getWorkspaceName,
+    getThreadFolderById,
+    createThreadFolder,
+    renameThreadFolder,
+    assignThreadFolder,
+  });
 
   const {
     renamePrompt: renameWorktreePrompt,
@@ -1103,6 +1133,18 @@ function MainApp() {
       openRenamePrompt(workspaceId, threadId);
     },
     [openRenamePrompt],
+  );
+  const handleCreateThreadFolder = useCallback(
+    (workspaceId: string, threadId: string | null = null) => {
+      openCreateThreadFolderPrompt(workspaceId, threadId);
+    },
+    [openCreateThreadFolderPrompt],
+  );
+  const handleRenameThreadFolder = useCallback(
+    (workspaceId: string, folderId: string) => {
+      openRenameThreadFolderPrompt(workspaceId, folderId);
+    },
+    [openRenameThreadFolderPrompt],
   );
 
   const handleOpenRenameWorktree = useCallback(() => {
@@ -1991,6 +2033,7 @@ function MainApp() {
     workspacesById,
     updateWorkspaceSettings,
     removeThread,
+    clearThreadFolderAssignment,
     clearDraftForThread,
     removeImagesForThread,
     refreshThread,
@@ -2145,6 +2188,16 @@ function MainApp() {
     onOpenThreadLink: handleOpenThreadLink,
     onDeleteThread: handleSidebarDeleteThread,
     onSyncThread: handleSidebarSyncThread,
+    getThreadFolders,
+    getThreadFolderId,
+    onCreateThreadFolder: handleCreateThreadFolder,
+    onRenameThreadFolder: handleRenameThreadFolder,
+    onDeleteThreadFolder: (workspaceId, folderId) => {
+      deleteThreadFolder({ workspaceId, folderId });
+    },
+    onAssignThreadFolder: (workspaceId, threadId, folderId) => {
+      assignThreadFolder({ workspaceId, threadId, folderId });
+    },
     pinThread,
     unpinThread,
     isThreadPinned,
@@ -2675,6 +2728,10 @@ function MainApp() {
         onRenamePromptChange={handleRenamePromptChange}
         onRenamePromptCancel={handleRenamePromptCancel}
         onRenamePromptConfirm={handleRenamePromptConfirm}
+        threadFolderPrompt={threadFolderPrompt}
+        onThreadFolderPromptChange={handleThreadFolderPromptChange}
+        onThreadFolderPromptCancel={handleThreadFolderPromptCancel}
+        onThreadFolderPromptConfirm={handleThreadFolderPromptConfirm}
         initGitRepoPrompt={initGitRepoPrompt}
         initGitRepoPromptBusy={initGitRepoLoading || createGitHubRepoLoading}
         onInitGitRepoPromptBranchChange={handleInitGitRepoPromptBranchChange}

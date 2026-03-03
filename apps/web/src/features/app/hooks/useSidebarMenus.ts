@@ -3,7 +3,7 @@ import { Menu, MenuItem } from "@tauri-apps/api/menu";
 import { LogicalPosition } from "@tauri-apps/api/dpi";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 
-import type { WorkspaceInfo } from "../../../types";
+import type { ThreadFolder, WorkspaceInfo } from "../../../types";
 import { pushErrorToast } from "../../../services/toasts";
 import { fileManagerName } from "../../../utils/platformPaths";
 
@@ -14,6 +14,16 @@ type SidebarMenuHandlers = {
   onUnpinThread: (workspaceId: string, threadId: string) => void;
   isThreadPinned: (workspaceId: string, threadId: string) => boolean;
   onRenameThread: (workspaceId: string, threadId: string) => void;
+  onCreateThreadFolder: (workspaceId: string, threadId?: string | null) => void;
+  onRenameThreadFolder: (workspaceId: string, folderId: string) => void;
+  onDeleteThreadFolder: (workspaceId: string, folderId: string) => void;
+  onAssignThreadFolder: (
+    workspaceId: string,
+    threadId: string,
+    folderId: string | null,
+  ) => void;
+  getThreadFolders: (workspaceId: string) => ThreadFolder[];
+  getThreadFolderId: (workspaceId: string, threadId: string) => string | null;
   onReloadWorkspaceThreads: (workspaceId: string) => void;
   onDeleteWorkspace: (workspaceId: string) => void;
   onDeleteWorktree: (workspaceId: string) => void;
@@ -26,6 +36,12 @@ export function useSidebarMenus({
   onUnpinThread,
   isThreadPinned,
   onRenameThread,
+  onCreateThreadFolder,
+  onRenameThreadFolder,
+  onDeleteThreadFolder,
+  onAssignThreadFolder,
+  getThreadFolders,
+  getThreadFolderId,
   onReloadWorkspaceThreads,
   onDeleteWorkspace,
   onDeleteWorktree,
@@ -76,6 +92,37 @@ export function useSidebarMenus({
             },
           }),
         );
+
+        const folders = getThreadFolders(workspaceId);
+        const currentFolderId = getThreadFolderId(workspaceId, threadId);
+        items.push(
+          await MenuItem.new({
+            text: currentFolderId ? "Move to ungrouped" : "Move to ungrouped (current)",
+            action: () => {
+              onAssignThreadFolder(workspaceId, threadId, null);
+            },
+          }),
+        );
+        // Build folder move actions in deterministic order.
+        for (const folder of folders) {
+          const isCurrentFolder = folder.id === currentFolderId;
+          items.push(
+            await MenuItem.new({
+              text: isCurrentFolder
+                ? `Move to ${folder.name} (current)`
+                : `Move to ${folder.name}`,
+              action: () => {
+                onAssignThreadFolder(workspaceId, threadId, folder.id);
+              },
+            }),
+          );
+        }
+        items.push(
+          await MenuItem.new({
+            text: "Create folder and move…",
+            action: () => onCreateThreadFolder(workspaceId, threadId),
+          }),
+        );
       }
       items.push(copyItem, archiveItem);
       const menu = await Menu.new({ items });
@@ -85,6 +132,10 @@ export function useSidebarMenus({
     },
     [
       isThreadPinned,
+      getThreadFolderId,
+      getThreadFolders,
+      onAssignThreadFolder,
+      onCreateThreadFolder,
       onDeleteThread,
       onPinThread,
       onRenameThread,
@@ -101,16 +152,42 @@ export function useSidebarMenus({
         text: "Reload threads",
         action: () => onReloadWorkspaceThreads(workspaceId),
       });
+      const createThreadFolderItem = await MenuItem.new({
+        text: "Create thread folder…",
+        action: () => onCreateThreadFolder(workspaceId, null),
+      });
       const deleteItem = await MenuItem.new({
         text: "Delete",
         action: () => onDeleteWorkspace(workspaceId),
       });
-      const menu = await Menu.new({ items: [reloadItem, deleteItem] });
+      const menu = await Menu.new({
+        items: [reloadItem, createThreadFolderItem, deleteItem],
+      });
       const window = getCurrentWindow();
       const position = new LogicalPosition(event.clientX, event.clientY);
       await menu.popup(position, window);
     },
-    [onReloadWorkspaceThreads, onDeleteWorkspace],
+    [onCreateThreadFolder, onDeleteWorkspace, onReloadWorkspaceThreads],
+  );
+
+  const showThreadFolderMenu = useCallback(
+    async (event: MouseEvent, workspaceId: string, folderId: string) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const renameItem = await MenuItem.new({
+        text: "Rename folder",
+        action: () => onRenameThreadFolder(workspaceId, folderId),
+      });
+      const deleteItem = await MenuItem.new({
+        text: "Delete folder",
+        action: () => onDeleteThreadFolder(workspaceId, folderId),
+      });
+      const menu = await Menu.new({ items: [renameItem, deleteItem] });
+      const window = getCurrentWindow();
+      const position = new LogicalPosition(event.clientX, event.clientY);
+      await menu.popup(position, window);
+    },
+    [onDeleteThreadFolder, onRenameThreadFolder],
   );
 
   const showWorktreeMenu = useCallback(
@@ -205,5 +282,11 @@ export function useSidebarMenus({
     [onReloadWorkspaceThreads, onDeleteWorkspace],
   );
 
-  return { showThreadMenu, showWorkspaceMenu, showWorktreeMenu, showCloneMenu };
+  return {
+    showThreadMenu,
+    showWorkspaceMenu,
+    showThreadFolderMenu,
+    showWorktreeMenu,
+    showCloneMenu,
+  };
 }

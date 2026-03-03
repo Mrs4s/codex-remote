@@ -22,6 +22,7 @@ type UseSidebarLayoutActionsOptions = {
     patch: Partial<WorkspaceSettings>,
   ) => void | Promise<unknown>;
   removeThread: (workspaceId: string, threadId: string) => void;
+  clearThreadFolderAssignment: (workspaceId: string, threadId: string) => void;
   clearDraftForThread: (threadId: string) => void;
   removeImagesForThread: (threadId: string) => void;
   refreshThread: (workspaceId: string, threadId: string) => void | Promise<unknown>;
@@ -47,6 +48,7 @@ export function useSidebarLayoutActions({
   workspacesById,
   updateWorkspaceSettings,
   removeThread,
+  clearThreadFolderAssignment,
   clearDraftForThread,
   removeImagesForThread,
   refreshThread,
@@ -125,11 +127,17 @@ export function useSidebarLayoutActions({
 
   const onDeleteThread = useCallback(
     (workspaceId: string, threadId: string) => {
+      clearThreadFolderAssignment(workspaceId, threadId);
       removeThread(workspaceId, threadId);
       clearDraftForThread(threadId);
       removeImagesForThread(threadId);
     },
-    [clearDraftForThread, removeImagesForThread, removeThread],
+    [
+      clearDraftForThread,
+      clearThreadFolderAssignment,
+      removeImagesForThread,
+      removeThread,
+    ],
   );
 
   const onSyncThread = useCallback(

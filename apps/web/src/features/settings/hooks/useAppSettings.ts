@@ -29,6 +29,7 @@ const DEFAULT_REMOTE_BACKEND_NAME = "Primary remote";
 const DEFAULT_REMOTE_PROVIDER: AppSettings["remoteBackendProvider"] = "tcp";
 
 type RemoteBackendTarget = AppSettings["remoteBackends"][number];
+type ThreadFolder = AppSettings["threadFoldersByWorkspace"][string][number];
 
 function normalizeRemoteProvider(value: unknown): AppSettings["remoteBackendProvider"] {
   void value;
@@ -122,6 +123,102 @@ function normalizeRemoteBackends(settings: AppSettings): {
   };
 }
 
+function normalizeThreadFolderName(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeThreadFoldersByWorkspace(
+  source: unknown,
+): AppSettings["threadFoldersByWorkspace"] {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return {};
+  }
+  const byWorkspace: AppSettings["threadFoldersByWorkspace"] = {};
+  Object.entries(source as Record<string, unknown>).forEach(([workspaceId, rawFolders]) => {
+    const trimmedWorkspaceId = workspaceId.trim();
+    if (!trimmedWorkspaceId || !Array.isArray(rawFolders)) {
+      return;
+    }
+    const seen = new Set<string>();
+    const folders: ThreadFolder[] = [];
+    rawFolders.forEach((rawFolder, index) => {
+      if (!rawFolder || typeof rawFolder !== "object" || Array.isArray(rawFolder)) {
+        return;
+      }
+      const record = rawFolder as Record<string, unknown>;
+      const id = typeof record.id === "string" ? record.id.trim() : "";
+      const name = normalizeThreadFolderName(record.name);
+      if (!id || !name || seen.has(id)) {
+        return;
+      }
+      const sortOrder =
+        typeof record.sortOrder === "number" && Number.isFinite(record.sortOrder)
+          ? Math.trunc(record.sortOrder)
+          : index;
+      const createdAt =
+        typeof record.createdAt === "number" && Number.isFinite(record.createdAt)
+          ? Math.trunc(record.createdAt)
+          : sortOrder;
+      seen.add(id);
+      folders.push({
+        id,
+        name,
+        sortOrder,
+        createdAt,
+      });
+    });
+    if (folders.length === 0) {
+      return;
+    }
+    byWorkspace[trimmedWorkspaceId] = folders.sort((a, b) => {
+      const sortDiff = a.sortOrder - b.sortOrder;
+      if (sortDiff !== 0) {
+        return sortDiff;
+      }
+      return a.name.localeCompare(b.name);
+    });
+  });
+  return byWorkspace;
+}
+
+function normalizeThreadFolderAssignmentsByWorkspace(
+  source: unknown,
+  foldersByWorkspace: AppSettings["threadFoldersByWorkspace"],
+): AppSettings["threadFolderAssignmentsByWorkspace"] {
+  if (!source || typeof source !== "object" || Array.isArray(source)) {
+    return {};
+  }
+  const byWorkspace: AppSettings["threadFolderAssignmentsByWorkspace"] = {};
+  Object.entries(source as Record<string, unknown>).forEach(([workspaceId, rawAssignments]) => {
+    const trimmedWorkspaceId = workspaceId.trim();
+    if (!trimmedWorkspaceId || !rawAssignments || typeof rawAssignments !== "object" || Array.isArray(rawAssignments)) {
+      return;
+    }
+    const folderIds = new Set(
+      (foldersByWorkspace[trimmedWorkspaceId] ?? []).map((folder) => folder.id),
+    );
+    if (folderIds.size === 0) {
+      return;
+    }
+    const assignments: Record<string, string> = {};
+    Object.entries(rawAssignments as Record<string, unknown>).forEach(
+      ([threadId, folderId]) => {
+        const trimmedThreadId = threadId.trim();
+        const trimmedFolderId =
+          typeof folderId === "string" ? folderId.trim() : "";
+        if (!trimmedThreadId || !trimmedFolderId || !folderIds.has(trimmedFolderId)) {
+          return;
+        }
+        assignments[trimmedThreadId] = trimmedFolderId;
+      },
+    );
+    if (Object.keys(assignments).length > 0) {
+      byWorkspace[trimmedWorkspaceId] = assignments;
+    }
+  });
+  return byWorkspace;
+}
+
 function buildDefaultSettings(): AppSettings {
   const isMac = isMacPlatform();
   const isMobile = isMobilePlatform();
@@ -204,6 +301,8 @@ function buildDefaultSettings(): AppSettings {
     composerListContinuation: false,
     composerCodeBlockCopyUseModifier: false,
     workspaceGroups: [],
+    threadFoldersByWorkspace: {},
+    threadFolderAssignmentsByWorkspace: {},
     openAppTargets: DEFAULT_OPEN_APP_TARGETS,
     selectedOpenAppId: DEFAULT_OPEN_APP_ID,
   };
@@ -211,6 +310,13 @@ function buildDefaultSettings(): AppSettings {
 
 function normalizeAppSettings(settings: AppSettings): AppSettings {
   const remoteBackendSettings = normalizeRemoteBackends(settings);
+  const threadFoldersByWorkspace = normalizeThreadFoldersByWorkspace(
+    settings.threadFoldersByWorkspace,
+  );
+  const threadFolderAssignmentsByWorkspace = normalizeThreadFolderAssignmentsByWorkspace(
+    settings.threadFolderAssignmentsByWorkspace,
+    threadFoldersByWorkspace,
+  );
   const normalizedTargets =
     settings.openAppTargets && settings.openAppTargets.length
       ? normalizeOpenAppTargets(settings.openAppTargets)
@@ -272,6 +378,8 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
       settings.reviewDeliveryMode === "detached" ? "detached" : "inline",
     chatHistoryScrollbackItems,
     commitMessagePrompt,
+    threadFoldersByWorkspace,
+    threadFolderAssignmentsByWorkspace,
     openAppTargets: normalizedTargets,
     selectedOpenAppId,
   };

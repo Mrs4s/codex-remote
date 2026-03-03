@@ -122,6 +122,13 @@ export type ThreadSummary = {
   isSubagent?: boolean;
 };
 
+export type ThreadFolder = {
+  id: string;
+  name: string;
+  sortOrder: number;
+  createdAt: number;
+};
+
 export type ThreadListSortKey = "created_at" | "updated_at";
 export type ThreadListOrganizeMode =
   | "by_project"
@@ -274,6 +281,8 @@ export type AppSettings = {
   composerListContinuation: boolean;
   composerCodeBlockCopyUseModifier: boolean;
   workspaceGroups: WorkspaceGroup[];
+  threadFoldersByWorkspace: Record<string, ThreadFolder[]>;
+  threadFolderAssignmentsByWorkspace: Record<string, Record<string, string>>;
   openAppTargets: OpenAppTarget[];
   selectedOpenAppId: string;
 };

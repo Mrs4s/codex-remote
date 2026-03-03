@@ -31,6 +31,7 @@ import type {
   RequestUserInputRequest,
   RequestUserInputResponse,
   SkillOption,
+  ThreadFolder,
   ThreadListOrganizeMode,
   ThreadListSortKey,
   ThreadSummary,
@@ -172,6 +173,16 @@ export type LayoutNodesOptions = {
   onOpenThreadLink: (threadId: string) => void;
   onDeleteThread: (workspaceId: string, threadId: string) => void;
   onSyncThread: (workspaceId: string, threadId: string) => void;
+  getThreadFolders: (workspaceId: string) => ThreadFolder[];
+  getThreadFolderId: (workspaceId: string, threadId: string) => string | null;
+  onCreateThreadFolder: (workspaceId: string, threadId?: string | null) => void;
+  onRenameThreadFolder: (workspaceId: string, folderId: string) => void;
+  onDeleteThreadFolder: (workspaceId: string, folderId: string) => void;
+  onAssignThreadFolder: (
+    workspaceId: string,
+    threadId: string,
+    folderId: string | null,
+  ) => void;
   pinThread: (workspaceId: string, threadId: string) => boolean;
   unpinThread: (workspaceId: string, threadId: string) => void;
   isThreadPinned: (workspaceId: string, threadId: string) => boolean;
