@@ -1,6 +1,6 @@
-import type { GitHubIssue, GitHubPullRequest, GitLogEntry } from "../../../types";
+import type { BranchInfo, GitHubIssue, GitHubPullRequest, GitLogEntry } from "../../../types";
 import type { MouseEvent as ReactMouseEvent } from "react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import ArrowLeftRight from "lucide-react/dist/esm/icons/arrow-left-right";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
@@ -16,12 +16,14 @@ import {
 } from "@/features/shared/components/MagicSparkleIcon";
 import type { GitPanelMode } from "../types";
 import type { PerFileDiffGroup } from "../utils/perFileThreadDiffs";
+import { ModalShell } from "../../design-system/components/modal/ModalShell";
 import {
   CommitButton,
   DiffSection,
   type DiffFile,
   GitLogEntryRow,
 } from "./GitDiffPanelShared";
+import { pushErrorToast } from "../../../services/toasts";
 import {
   DEPTH_OPTIONS,
   isGitRootNotFound,
@@ -112,33 +114,414 @@ export function GitPanelModeStatus({
 type GitBranchRowProps = {
   mode: GitMode;
   branchName: string;
+  branches: BranchInfo[];
+  remoteBranches: BranchInfo[];
+  onCheckoutBranch?: (name: string) => void | Promise<void>;
   onFetch?: () => void | Promise<void>;
   fetchLoading: boolean;
 };
 
-export function GitBranchRow({ mode, branchName, onFetch, fetchLoading }: GitBranchRowProps) {
+type BranchTreeNode = {
+  key: string;
+  label: string;
+  fullName: string | null;
+  children: BranchTreeNode[];
+};
+
+type BranchTreeFlatNode = {
+  key: string;
+  label: string;
+  fullName: string | null;
+  depth: number;
+};
+
+function buildBranchTree(branches: string[]): BranchTreeNode[] {
+  type MutableNode = {
+    key: string;
+    label: string;
+    fullName: string | null;
+    children: Map<string, MutableNode>;
+  };
+
+  const root = new Map<string, MutableNode>();
+
+  const ensureChild = (
+    parent: Map<string, MutableNode>,
+    segment: string,
+    key: string,
+  ) => {
+    const existing = parent.get(segment);
+    if (existing) {
+      return existing;
+    }
+    const created: MutableNode = {
+      key,
+      label: segment,
+      fullName: null,
+      children: new Map<string, MutableNode>(),
+    };
+    parent.set(segment, created);
+    return created;
+  };
+
+  for (const branch of branches) {
+    const segments = branch.split("/").filter(Boolean);
+    if (segments.length === 0) {
+      continue;
+    }
+    let path = "";
+    let parent = root;
+    for (let index = 0; index < segments.length; index += 1) {
+      const segment = segments[index];
+      path = path ? `${path}/${segment}` : segment;
+      const node = ensureChild(parent, segment, path);
+      if (index === segments.length - 1) {
+        node.fullName = branch;
+      }
+      parent = node.children;
+    }
+  }
+
+  const toReadonlyNodes = (map: Map<string, MutableNode>): BranchTreeNode[] =>
+    Array.from(map.values())
+      .sort((a, b) => a.label.localeCompare(b.label))
+      .map((node) => ({
+        key: node.key,
+        label: node.label,
+        fullName: node.fullName,
+        children: toReadonlyNodes(node.children),
+      }));
+
+  return toReadonlyNodes(root);
+}
+
+function flattenBranchTree(nodes: BranchTreeNode[], depth = 0): BranchTreeFlatNode[] {
+  const rows: BranchTreeFlatNode[] = [];
+  for (const node of nodes) {
+    rows.push({
+      key: node.key,
+      label: node.label,
+      fullName: node.fullName,
+      depth,
+    });
+    if (node.children.length > 0) {
+      rows.push(...flattenBranchTree(node.children, depth + 1));
+    }
+  }
+  return rows;
+}
+
+type BranchSwitchDialogProps = {
+  open: boolean;
+  localBranches: string[];
+  remoteBranches: string[];
+  currentBranch: string;
+  switching: boolean;
+  onClose: () => void;
+  onConfirm: (branch: string) => void;
+};
+
+function BranchSwitchDialog({
+  open,
+  localBranches,
+  remoteBranches,
+  currentBranch,
+  switching,
+  onClose,
+  onConfirm,
+}: BranchSwitchDialogProps) {
+  type BranchTab = "local" | "remote";
+  const [query, setQuery] = useState("");
+  const [activeTab, setActiveTab] = useState<BranchTab>("local");
+  const [selectedBranch, setSelectedBranch] = useState(currentBranch);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const defaultTab: BranchTab =
+      currentBranch && remoteBranches.includes(currentBranch)
+        ? "remote"
+        : localBranches.length > 0
+          ? "local"
+          : "remote";
+    const defaultBranches = defaultTab === "local" ? localBranches : remoteBranches;
+    const fallback =
+      (currentBranch && defaultBranches.includes(currentBranch) ? currentBranch : null) ??
+      defaultBranches[0] ??
+      "";
+    setActiveTab(defaultTab);
+    setQuery("");
+    setSelectedBranch(fallback);
+  }, [currentBranch, localBranches, open, remoteBranches]);
+
+  const branchesInTab = useMemo(
+    () => (activeTab === "local" ? localBranches : remoteBranches),
+    [activeTab, localBranches, remoteBranches],
+  );
+
+  const filteredBranches = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+    if (!normalizedQuery) {
+      return branchesInTab;
+    }
+    return branchesInTab.filter((branch) => branch.toLowerCase().includes(normalizedQuery));
+  }, [branchesInTab, query]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setSelectedBranch((previous) => {
+      if (previous && filteredBranches.includes(previous)) {
+        return previous;
+      }
+      if (currentBranch && filteredBranches.includes(currentBranch)) {
+        return currentBranch;
+      }
+      return filteredBranches[0] ?? "";
+    });
+  }, [activeTab, currentBranch, filteredBranches, open]);
+
+  const treeRows = useMemo(
+    () => flattenBranchTree(buildBranchTree(filteredBranches)),
+    [filteredBranches],
+  );
+
+  if (!open) {
+    return null;
+  }
+
+  const canConfirm =
+    !switching &&
+    selectedBranch.trim().length > 0 &&
+    selectedBranch !== currentBranch &&
+    filteredBranches.includes(selectedBranch);
+
+  return (
+    <ModalShell
+      className="git-branch-tree-modal"
+      onBackdropClick={switching ? undefined : onClose}
+      ariaLabel="Switch branch"
+    >
+      <div className="git-branch-tree-title">Switch branch</div>
+      <div className="git-branch-tree-tabs" role="tablist" aria-label="Branch source">
+        <button
+          type="button"
+          role="tab"
+          className={`git-branch-tree-tab${activeTab === "local" ? " active" : ""}`}
+          aria-selected={activeTab === "local"}
+          onClick={() => {
+            setActiveTab("local");
+            setQuery("");
+          }}
+          disabled={switching || localBranches.length === 0}
+        >
+          Local
+        </button>
+        <button
+          type="button"
+          role="tab"
+          className={`git-branch-tree-tab${activeTab === "remote" ? " active" : ""}`}
+          aria-selected={activeTab === "remote"}
+          onClick={() => {
+            setActiveTab("remote");
+            setQuery("");
+          }}
+          disabled={switching || remoteBranches.length === 0}
+        >
+          Remote
+        </button>
+      </div>
+      <input
+        className="git-branch-tree-search"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder={`Filter ${activeTab} branches...`}
+        disabled={switching}
+      />
+      <div className="git-branch-tree-list" role="tree" aria-label="Branch tree">
+        {treeRows.length === 0 ? (
+          <div className="git-branch-tree-empty">No {activeTab} branches found</div>
+        ) : (
+          treeRows.map((row) => {
+            const isLeaf = Boolean(row.fullName);
+            const value = row.fullName ?? "";
+            const isSelected = isLeaf && value === selectedBranch;
+            const isCurrent = isLeaf && value === currentBranch;
+            return (
+              <div
+                key={row.key}
+                className="git-branch-tree-entry"
+                style={{ paddingLeft: `${12 + row.depth * 16}px` }}
+              >
+                {isLeaf ? (
+                  <button
+                    type="button"
+                    className={`git-branch-tree-item${isSelected ? " selected" : ""}`}
+                    role="treeitem"
+                    aria-selected={isSelected}
+                    onClick={() => setSelectedBranch(value)}
+                    disabled={switching}
+                  >
+                    <span className="git-branch-tree-item-label">{row.label}</span>
+                    {isCurrent && <span className="git-branch-tree-badge">current</span>}
+                  </button>
+                ) : (
+                  <div className="git-branch-tree-group" role="treeitem" aria-expanded="true">
+                    {row.label}
+                  </div>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+      <div className="git-branch-tree-actions">
+        <button
+          type="button"
+          className="ghost settings-button-compact"
+          onClick={onClose}
+          disabled={switching}
+        >
+          Cancel
+        </button>
+        <button
+          type="button"
+          className="primary settings-button-compact"
+          onClick={() => onConfirm(selectedBranch)}
+          disabled={!canConfirm}
+        >
+          {switching ? "Switching..." : "Switch"}
+        </button>
+      </div>
+    </ModalShell>
+  );
+}
+
+export function GitBranchRow({
+  mode,
+  branchName,
+  branches,
+  remoteBranches,
+  onCheckoutBranch,
+  onFetch,
+  fetchLoading,
+}: GitBranchRowProps) {
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const { localBranchOptions, remoteBranchOptions } = useMemo(() => {
+    const toUniqueNames = (input: BranchInfo[]): string[] => {
+      const names: string[] = [];
+      const seen = new Set<string>();
+      for (const item of input) {
+        const trimmed = item.name.trim();
+        if (!trimmed || seen.has(trimmed)) {
+          continue;
+        }
+        seen.add(trimmed);
+        names.push(trimmed);
+      }
+      return names;
+    };
+
+    const local = toUniqueNames(branches);
+    const remote = toUniqueNames(remoteBranches);
+    const current = branchName.trim();
+    if (current && !local.includes(current) && !remote.includes(current)) {
+      local.unshift(current);
+    }
+    return {
+      localBranchOptions: local,
+      remoteBranchOptions: remote,
+    };
+  }, [branchName, branches, remoteBranches]);
+
+  const hasBranchSwitcher =
+    Boolean(onCheckoutBranch) &&
+    (localBranchOptions.length > 0 || remoteBranchOptions.length > 0);
+
+  const handleSwitchBranch = useCallback(
+    async (targetBranch: string) => {
+      if (!onCheckoutBranch || !targetBranch || targetBranch === branchName) {
+        return;
+      }
+
+      setCheckoutLoading(true);
+      try {
+        await onCheckoutBranch(targetBranch);
+        setDialogOpen(false);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        pushErrorToast({
+          title: "Failed to switch branch",
+          message,
+        });
+      } finally {
+        setCheckoutLoading(false);
+      }
+    },
+    [branchName, onCheckoutBranch],
+  );
+
   if (mode !== "diff" && mode !== "perFile" && mode !== "log") {
     return null;
   }
 
   return (
-    <div className="diff-branch-row">
-      <div className="diff-branch">{branchName || "unknown"}</div>
-      <button
-        type="button"
-        className="diff-branch-refresh"
-        onClick={() => void onFetch?.()}
-        disabled={!onFetch || fetchLoading}
-        title={fetchLoading ? "Fetching remote..." : "Fetch remote"}
-        aria-label={fetchLoading ? "Fetching remote" : "Fetch remote"}
-      >
-        {fetchLoading ? (
-          <span className="git-panel-spinner" aria-hidden />
-        ) : (
-          <RotateCw size={12} aria-hidden />
-        )}
-      </button>
-    </div>
+    <>
+      <div className="diff-branch-row">
+        <div className="diff-branch-main">
+          <div className="diff-branch">{branchName || "unknown"}</div>
+        </div>
+        <div className="diff-branch-actions">
+          {hasBranchSwitcher && (
+            <button
+              type="button"
+              className="diff-branch-switch"
+              onClick={() => setDialogOpen(true)}
+              disabled={checkoutLoading}
+              title="Switch branch"
+              aria-label="Switch branch"
+            >
+              Switch branch
+            </button>
+          )}
+          <button
+            type="button"
+            className="diff-branch-refresh"
+            onClick={() => void onFetch?.()}
+            disabled={!onFetch || fetchLoading}
+            title={fetchLoading ? "Fetching remote..." : "Fetch remote"}
+            aria-label={fetchLoading ? "Fetching remote" : "Fetch remote"}
+          >
+            {fetchLoading ? (
+              <span className="git-panel-spinner" aria-hidden />
+            ) : (
+              <RotateCw size={12} aria-hidden />
+            )}
+          </button>
+        </div>
+      </div>
+      {hasBranchSwitcher && (
+        <BranchSwitchDialog
+          open={dialogOpen}
+          localBranches={localBranchOptions}
+          remoteBranches={remoteBranchOptions}
+          currentBranch={branchName}
+          switching={checkoutLoading}
+          onClose={() => {
+            if (!checkoutLoading) {
+              setDialogOpen(false);
+            }
+          }}
+          onConfirm={(branch) => {
+            void handleSwitchBranch(branch);
+          }}
+        />
+      )}
+    </>
   );
 }
 

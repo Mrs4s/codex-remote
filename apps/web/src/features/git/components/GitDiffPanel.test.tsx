@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { GitLogEntry } from "../../../types";
 import { GitDiffPanel } from "./GitDiffPanel";
 import { fileManagerName } from "../../../utils/platformPaths";
+import { pushErrorToast } from "../../../services/toasts";
 
 const menuNew = vi.hoisted(() =>
   vi.fn(async ({ items }) => ({ popup: vi.fn(), items })),
@@ -289,6 +290,102 @@ describe("GitDiffPanel", () => {
     render(<GitDiffPanel {...baseProps} />);
     const options = screen.getAllByRole("option", { name: "Agent edits" });
     expect(options.length).toBeGreaterThan(0);
+  });
+
+  it("switches branch from the git panel branch row", async () => {
+    const onCheckoutBranch = vi.fn(async () => {});
+
+    render(
+      <GitDiffPanel
+        {...baseProps}
+        branches={[
+          { name: "main", lastCommit: 100 },
+          { name: "feature/switch-branch", lastCommit: 90 },
+        ]}
+        onCheckoutBranch={onCheckoutBranch}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch branch" }));
+    fireEvent.click(screen.getByRole("button", { name: "switch-branch" }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch" }));
+
+    await waitFor(() => {
+      expect(onCheckoutBranch).toHaveBeenCalledWith("feature/switch-branch");
+    });
+  });
+
+  it("renders branch names as tree nodes using slash segments", () => {
+    render(
+      <GitDiffPanel
+        {...baseProps}
+        branches={[
+          { name: "main", lastCommit: 100 },
+          { name: "feature/alpha", lastCommit: 90 },
+          { name: "feature/beta", lastCommit: 80 },
+        ]}
+        onCheckoutBranch={vi.fn(async () => {})}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch branch" }));
+    expect(screen.getByText("feature")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "alpha" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "beta" })).toBeTruthy();
+  });
+
+  it("switches remote branches from the remote tab", async () => {
+    const onCheckoutBranch = vi.fn(async () => {});
+
+    render(
+      <GitDiffPanel
+        {...baseProps}
+        branches={[{ name: "main", lastCommit: 100 }]}
+        remoteBranches={[
+          { name: "origin/main", lastCommit: 100 },
+          { name: "origin/feature/remote-branch", lastCommit: 90 },
+        ]}
+        onCheckoutBranch={onCheckoutBranch}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch branch" }));
+    fireEvent.click(screen.getByRole("tab", { name: "Remote" }));
+    fireEvent.click(screen.getByRole("button", { name: "remote-branch" }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch" }));
+
+    await waitFor(() => {
+      expect(onCheckoutBranch).toHaveBeenCalledWith("origin/feature/remote-branch");
+    });
+  });
+
+  it("shows a toast when branch switching fails", async () => {
+    vi.mocked(pushErrorToast).mockClear();
+    const onCheckoutBranch = vi.fn(async () => {
+      throw new Error("checkout failed");
+    });
+
+    render(
+      <GitDiffPanel
+        {...baseProps}
+        branches={[
+          { name: "main", lastCommit: 100 },
+          { name: "feature/error", lastCommit: 90 },
+        ]}
+        onCheckoutBranch={onCheckoutBranch}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Switch branch" }));
+    fireEvent.click(screen.getByRole("button", { name: "error" }));
+    fireEvent.click(screen.getByRole("button", { name: "Switch" }));
+
+    await waitFor(() => {
+      expect(pushErrorToast).toHaveBeenCalledWith({
+        title: "Failed to switch branch",
+        message: "checkout failed",
+      });
+    });
   });
 
   it("renders per-file groups and edit rows", () => {

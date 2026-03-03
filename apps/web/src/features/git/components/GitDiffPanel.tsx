@@ -1,4 +1,4 @@
-import type { GitHubIssue, GitHubPullRequest, GitLogEntry } from "../../../types";
+import type { BranchInfo, GitHubIssue, GitHubPullRequest, GitLogEntry } from "../../../types";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { Menu, MenuItem } from "@tauri-apps/api/menu";
 import { LogicalPosition } from "@tauri-apps/api/dpi";
@@ -60,6 +60,9 @@ type GitDiffPanelProps = {
   onApplyWorktreeChanges?: () => void | Promise<void>;
   onRevertAllChanges?: () => void | Promise<void>;
   branchName: string;
+  branches?: BranchInfo[];
+  remoteBranches?: BranchInfo[];
+  onCheckoutBranch?: (name: string) => void | Promise<void>;
   totalAdditions: number;
   totalDeletions: number;
   fileStatus: string;
@@ -160,6 +163,9 @@ export function GitDiffPanel({
   onApplyWorktreeChanges,
   onRevertAllChanges: _onRevertAllChanges,
   branchName,
+  branches = [],
+  remoteBranches = [],
+  onCheckoutBranch,
   totalAdditions,
   totalDeletions,
   fileStatus,
@@ -681,6 +687,9 @@ export function GitDiffPanel({
       <GitBranchRow
         mode={mode}
         branchName={branchName}
+        branches={branches}
+        remoteBranches={remoteBranches}
+        onCheckoutBranch={onCheckoutBranch}
         onFetch={onFetch}
         fetchLoading={fetchLoading}
       />

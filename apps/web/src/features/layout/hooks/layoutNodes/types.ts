@@ -223,6 +223,7 @@ export type LayoutNodesOptions = {
   isWorktreeWorkspace: boolean;
   branchName: string;
   branches: BranchInfo[];
+  remoteBranches: BranchInfo[];
   onCheckoutBranch: (name: string) => Promise<void>;
   onCheckoutPullRequest: (
     pullRequest: GitHubPullRequest,

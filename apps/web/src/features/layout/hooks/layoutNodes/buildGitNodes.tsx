@@ -84,6 +84,9 @@ export function buildGitNodes(options: LayoutNodesOptions): GitLayoutNodes {
         worktreeApplySuccess={options.worktreeApplySuccess}
         onApplyWorktreeChanges={options.onApplyWorktreeChanges}
         branchName={options.gitStatus.branchName || "unknown"}
+        branches={options.branches}
+        remoteBranches={options.remoteBranches}
+        onCheckoutBranch={options.onCheckoutBranch}
         totalAdditions={options.gitStatus.totalAdditions}
         totalDeletions={options.gitStatus.totalDeletions}
         fileStatus={options.fileStatus}

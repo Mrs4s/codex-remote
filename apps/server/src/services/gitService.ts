@@ -6,6 +6,7 @@ import type { WorkspaceEntry } from "../types/domain.js";
 
 const execFileAsync = promisify(execFile);
 const MAX_GIT_SCAN_RESULTS = 200;
+const BRANCH_REF_SEPARATOR = "\t";
 
 async function runGit(workspace: WorkspaceEntry, args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, {
@@ -440,25 +441,83 @@ export async function syncGit(workspace: WorkspaceEntry): Promise<void> {
   await pullGit(workspace);
 }
 
-export async function listGitBranches(workspace: WorkspaceEntry): Promise<Record<string, unknown>> {
-  const raw = await runGit(workspace, ["for-each-ref", "--sort=-committerdate", "--format=%(refname:short)%x1f%(committerdate:unix)", "refs/heads"]);
-  const branches = raw
+function parseBranchRefs(raw: string): Array<{ name: string; lastCommit: number }> {
+  return raw
     .split("\n")
     .filter(Boolean)
     .map((line) => {
-      const [name, ts] = line.split("\u001f");
+      const separator = line.includes(BRANCH_REF_SEPARATOR)
+        ? BRANCH_REF_SEPARATOR
+        : line.includes("%x1f")
+          ? "%x1f"
+          : "";
+      const [name, ts] = separator ? line.split(separator) : [line, "0"];
       return {
-        name,
+        name: name.trim(),
         lastCommit: Number(ts || "0"),
       };
-    });
+    })
+    .filter((branch) => branch.name);
+}
+
+async function localBranchExists(workspace: WorkspaceEntry, branchName: string): Promise<boolean> {
+  if (!branchName.trim()) {
+    return false;
+  }
+  try {
+    await runGitUnit(workspace, ["show-ref", "--verify", "--quiet", `refs/heads/${branchName}`]);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export async function listGitBranches(workspace: WorkspaceEntry): Promise<Record<string, unknown>> {
+  const formatArgs = [
+    "--sort=-committerdate",
+    `--format=%(refname:short)${BRANCH_REF_SEPARATOR}%(committerdate:unix)`,
+  ];
+  const localRaw = await runGit(workspace, ["for-each-ref", ...formatArgs, "refs/heads"]);
+  const remoteRaw = await runGit(workspace, ["for-each-ref", ...formatArgs, "refs/remotes"]);
+  const branches = parseBranchRefs(localRaw);
+  const remoteBranches = parseBranchRefs(remoteRaw).filter(
+    (branch) => !branch.name.endsWith("/HEAD"),
+  );
   return {
     branches,
+    remoteBranches,
   };
 }
 
 export async function checkoutGitBranch(workspace: WorkspaceEntry, name: string): Promise<void> {
-  await runGitUnit(workspace, ["checkout", name]);
+  const target = name.trim();
+  if (!target) {
+    throw new Error("branch name is required");
+  }
+
+  if (await localBranchExists(workspace, target)) {
+    await runGitUnit(workspace, ["checkout", target]);
+    return;
+  }
+
+  const remoteMatch = target.match(/^([^/]+)\/(.+)$/);
+  if (remoteMatch) {
+    const localTarget = remoteMatch[2];
+    if (await localBranchExists(workspace, localTarget)) {
+      await runGitUnit(workspace, ["checkout", localTarget]);
+      return;
+    }
+    try {
+      await runGitUnit(workspace, ["checkout", "--track", target]);
+      return;
+    } catch {
+      // Fallback for detached checkout if tracking fails.
+      await runGitUnit(workspace, ["checkout", target]);
+      return;
+    }
+  }
+
+  await runGitUnit(workspace, ["checkout", target]);
 }
 
 export async function createGitBranch(workspace: WorkspaceEntry, name: string): Promise<void> {

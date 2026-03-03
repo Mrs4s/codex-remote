@@ -68,18 +68,56 @@
   font-size: 13px;
   font-weight: 600;
   margin-bottom: 4px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .diff-branch-row {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: 8px;
   margin-bottom: 4px;
 }
 
+.diff-branch-main {
+  flex: 1;
+  min-width: 0;
+}
+
 .diff-branch-row .diff-branch {
   margin-bottom: 0;
+}
+
+.diff-branch-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.diff-branch-switch {
+  height: 22px;
+  border-radius: 6px;
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  padding: 0 10px;
+}
+
+.diff-branch-switch:hover:not(:disabled) {
+  background: var(--surface-hover);
+  color: var(--text-strong);
+}
+
+.diff-branch-switch:disabled {
+  opacity: 0.6;
+  cursor: default;
 }
 
 .diff-branch-refresh {
@@ -105,6 +143,139 @@
 .diff-branch-refresh:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+.git-branch-tree-modal .ds-modal-card {
+  width: min(520px, calc(100vw - 40px));
+  max-height: calc(100vh - 120px);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--border-strong) 72%, transparent);
+  box-shadow: 0 26px 70px rgba(0, 0, 0, 0.42);
+}
+
+.git-branch-tree-title {
+  padding: 14px 16px 8px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-strong);
+}
+
+.git-branch-tree-tabs {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 16px 10px;
+}
+
+.git-branch-tree-tab {
+  border: 1px solid var(--border-subtle);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.git-branch-tree-tab.active {
+  background: var(--surface-control);
+  color: var(--text-strong);
+}
+
+.git-branch-tree-tab:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.git-branch-tree-search {
+  margin: 0 16px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  background: var(--surface-control);
+  color: var(--text-strong);
+  font-size: 13px;
+  padding: 8px 10px;
+}
+
+.git-branch-tree-list {
+  margin: 0 8px;
+  border-radius: 14px;
+  border: 1px solid var(--border-muted);
+  background: color-mix(in srgb, var(--surface-card) 94%, var(--surface-primary) 6%);
+  overflow-y: auto;
+  max-height: min(360px, calc(100vh - 300px));
+  padding: 6px 0;
+}
+
+.git-branch-tree-entry {
+  min-height: 28px;
+}
+
+.git-branch-tree-group {
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 6px 8px;
+  user-select: none;
+}
+
+.git-branch-tree-item {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text-strong);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border-radius: 10px;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.git-branch-tree-item:hover:not(:disabled),
+.git-branch-tree-item.selected {
+  background: var(--surface-hover);
+}
+
+.git-branch-tree-item:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.git-branch-tree-item-label {
+  font-family: var(--code-font-family, Menlo, Monaco, "Courier New", monospace);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.git-branch-tree-badge {
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle);
+  padding: 3px 6px;
+  color: var(--text-muted);
+}
+
+.git-branch-tree-empty {
+  padding: 20px;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.git-branch-tree-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 12px 16px 14px;
 }
 
 .git-root-current {

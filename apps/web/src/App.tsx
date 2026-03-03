@@ -818,7 +818,7 @@ function MainApp() {
   const alertError = useCallback((error: unknown) => {
     alert(error instanceof Error ? error.message : String(error));
   }, []);
-  const { branches, checkoutBranch, checkoutPullRequest, createBranch } = useGitBranches({
+  const { branches, remoteBranches, checkoutBranch, checkoutPullRequest, createBranch } = useGitBranches({
     activeWorkspace,
     onDebug: addDebugEntry
   });
@@ -2193,6 +2193,7 @@ function MainApp() {
     isWorktreeWorkspace,
     branchName: gitStatus.branchName || "unknown",
     branches,
+    remoteBranches,
     onCheckoutBranch: handleCheckoutBranch,
     onCheckoutPullRequest: (pullRequest) =>
       handleCheckoutPullRequest(pullRequest.number),

@@ -14,6 +14,7 @@ type UseGitBranchesOptions = {
 
 export function useGitBranches({ activeWorkspace, onDebug }: UseGitBranchesOptions) {
   const [branches, setBranches] = useState<BranchInfo[]>([]);
+  const [remoteBranches, setRemoteBranches] = useState<BranchInfo[]>([]);
   const [error, setError] = useState<string | null>(null);
   const lastFetchedWorkspaceId = useRef<string | null>(null);
   const inFlight = useRef(false);
@@ -22,8 +23,21 @@ export function useGitBranches({ activeWorkspace, onDebug }: UseGitBranchesOptio
   const isConnected = Boolean(activeWorkspace?.connected);
 
   const refreshBranches = useCallback(async () => {
+    const normalizeBranchList = (data: unknown): BranchInfo[] => {
+      if (!Array.isArray(data)) {
+        return [];
+      }
+      return data
+        .map((item: any) => ({
+          name: String(item?.name ?? ""),
+          lastCommit: Number(item?.lastCommit ?? item?.last_commit ?? 0),
+        }))
+        .filter((branch) => branch.name);
+    };
+
     if (!workspaceId || !isConnected) {
       setBranches([]);
+      setRemoteBranches([]);
       return;
     }
     if (inFlight.current) {
@@ -46,14 +60,15 @@ export function useGitBranches({ activeWorkspace, onDebug }: UseGitBranchesOptio
         label: "git/branches/list response",
         payload: response,
       });
-      const data = response?.branches ?? response?.result?.branches ?? response ?? [];
-      const normalized: BranchInfo[] = Array.isArray(data)
-        ? data.map((item: any) => ({
-            name: String(item?.name ?? ""),
-            lastCommit: Number(item?.lastCommit ?? item?.last_commit ?? 0),
-          }))
-        : [];
-      setBranches(normalized.filter((branch) => branch.name));
+      const localData = response?.branches ?? response?.result?.branches ?? response ?? [];
+      const remoteData =
+        response?.remoteBranches ??
+        response?.remote_branches ??
+        response?.result?.remoteBranches ??
+        response?.result?.remote_branches ??
+        [];
+      setBranches(normalizeBranchList(localData));
+      setRemoteBranches(normalizeBranchList(remoteData));
       lastFetchedWorkspaceId.current = workspaceId;
       setError(null);
     } catch (err) {
@@ -83,6 +98,10 @@ export function useGitBranches({ activeWorkspace, onDebug }: UseGitBranchesOptio
   const recentBranches = useMemo(
     () => branches.slice().sort((a, b) => b.lastCommit - a.lastCommit),
     [branches],
+  );
+  const recentRemoteBranches = useMemo(
+    () => remoteBranches.slice().sort((a, b) => b.lastCommit - a.lastCommit),
+    [remoteBranches],
   );
 
   const checkoutBranch = useCallback(
@@ -141,6 +160,7 @@ export function useGitBranches({ activeWorkspace, onDebug }: UseGitBranchesOptio
 
   return {
     branches: recentBranches,
+    remoteBranches: recentRemoteBranches,
     error,
     refreshBranches,
     checkoutBranch,
