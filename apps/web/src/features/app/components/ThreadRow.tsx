@@ -95,7 +95,17 @@ export function ThreadRow({
         {badge && <span className="thread-args-badge">{badge}</span>}
         {relativeTime && <span className="thread-time">{relativeTime}</span>}
         <div className="thread-menu">
-          <div className="thread-menu-trigger" aria-hidden="true" />
+          <button
+            type="button"
+            className="thread-menu-trigger"
+            aria-label="Thread options"
+            onClick={(event) => {
+              event.stopPropagation();
+              onShowThreadMenu(event, workspaceId, thread.id, canPin);
+            }}
+          >
+            ⋯
+          </button>
         </div>
       </div>
     </div>

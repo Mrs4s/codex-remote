@@ -959,15 +959,39 @@
   transition: opacity 0.15s ease;
 }
 
+.workspace-menu-trigger {
+  width: 22px;
+  height: 22px;
+  border-radius: 999px;
+  border: 1px solid var(--border-stronger);
+  background: var(--surface-card-muted);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  -webkit-app-region: no-drag;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+}
+
 .workspace-add:hover {
   color: var(--text-strong);
   background: var(--surface-card-strong);
 }
 
 .workspace-row:hover .workspace-add,
-.worktree-row:hover .workspace-add {
+.worktree-row:hover .workspace-add,
+.workspace-row:hover .workspace-menu-trigger {
   opacity: 1;
   pointer-events: auto;
+}
+
+.workspace-menu-trigger:hover {
+  color: var(--text-strong);
+  background: var(--surface-card-strong);
 }
 
 .workspace-name-row {
@@ -1105,7 +1129,9 @@
 }
 
 .thread-folder-header:hover .group-toggle,
-.thread-folder-header .group-toggle:focus-visible {
+.thread-folder-header:hover .thread-folder-menu-trigger,
+.thread-folder-header .group-toggle:focus-visible,
+.thread-folder-header .thread-folder-menu-trigger:focus-visible {
   opacity: 1;
   pointer-events: auto;
 }
@@ -1115,6 +1141,32 @@
   font-size: 10px;
   letter-spacing: 0.08em;
   color: var(--text-faint);
+}
+
+.thread-folder-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.thread-folder-menu-trigger {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  line-height: 1;
+  padding: 0 2px;
+  -webkit-app-region: no-drag;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
+.thread-folder-menu-trigger:hover {
+  color: var(--text-strong);
 }
 
 .threads-only-project + .threads-only-project {
@@ -1300,7 +1352,7 @@
   border: none;
   background: transparent;
   color: var(--text-faint);
-  font-size: 11px;
+  font-size: 14px;
   padding: 2px 2px;
   cursor: pointer;
   -webkit-app-region: no-drag;
@@ -1313,7 +1365,8 @@
   color: var(--text-strong);
 }
 
-.thread-row:hover .thread-menu-trigger {
+.thread-row:hover .thread-menu-trigger,
+.thread-menu-trigger:focus-visible {
   opacity: 1;
   pointer-events: auto;
 }
@@ -1505,7 +1558,27 @@
   transition: opacity 0.15s ease, color 0.15s ease;
 }
 
+.worktree-menu-trigger {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0 2px;
+  -webkit-app-region: no-drag;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease, color 0.15s ease;
+}
+
 .worktree-toggle:hover {
+  color: var(--text-strong);
+}
+
+.worktree-menu-trigger:hover {
   color: var(--text-strong);
 }
 
@@ -1519,9 +1592,25 @@
 }
 
 .worktree-row:hover .worktree-toggle,
-.worktree-toggle:focus-visible {
+.worktree-row:hover .worktree-menu-trigger,
+.worktree-toggle:focus-visible,
+.worktree-menu-trigger:focus-visible {
   opacity: 1;
   pointer-events: auto;
+}
+
+@media (hover: none), (pointer: coarse) {
+  .workspace-add,
+  .workspace-toggle,
+  .workspace-menu-trigger,
+  .group-toggle,
+  .thread-folder-menu-trigger,
+  .thread-menu-trigger,
+  .worktree-toggle,
+  .worktree-menu-trigger {
+    opacity: 1;
+    pointer-events: auto;
+  }
 }
 
 .sidebar-footer {

@@ -93,6 +93,50 @@ function normalizePath(rawPath: string): string {
   return normalized;
 }
 
+function normalizePathForWorkspace(workspacePath: string, rawPath: string): string {
+  let normalized = normalizePath(rawPath);
+  if (!normalized) {
+    return "";
+  }
+  if (!path.isAbsolute(normalized)) {
+    return normalized;
+  }
+  const root = path.resolve(workspacePath);
+  const absolute = path.resolve(normalized);
+  const relative = path.relative(root, absolute).replace(/\\/g, "/");
+  if (!relative || relative.startsWith("..") || path.isAbsolute(relative)) {
+    return normalized;
+  }
+  normalized = normalizePath(relative);
+  return normalized;
+}
+
+function ensureDiffHasFileHeaders(diff: string, filePath: string, kind: string | null): string {
+  const normalizedDiff = diff.replace(/\r\n/g, "\n");
+  const hasHeaders =
+    /^diff --git /m.test(normalizedDiff) || /^--- /m.test(normalizedDiff) || /^\+\+\+ /m.test(normalizedDiff);
+  if (hasHeaders) {
+    return normalizedDiff;
+  }
+
+  const normalizedPath = normalizePath(filePath).replace(/^\/+/, "");
+  if (!normalizedPath) {
+    return normalizedDiff;
+  }
+
+  const normalizedKind = String(kind ?? "").trim().toLowerCase();
+  const oldHeader =
+    normalizedKind === "create" || normalizedKind === "add"
+      ? "--- /dev/null"
+      : `--- a/${normalizedPath}`;
+  const newHeader =
+    normalizedKind === "delete" || normalizedKind === "remove"
+      ? "+++ /dev/null"
+      : `+++ b/${normalizedPath}`;
+  const body = normalizedDiff.endsWith("\n") ? normalizedDiff : `${normalizedDiff}\n`;
+  return `diff --git a/${normalizedPath} b/${normalizedPath}\n${oldHeader}\n${newHeader}\n${body}`;
+}
+
 function extractPathFromDiff(diff: string): string | null {
   if (!diff.trim()) {
     return null;
@@ -382,7 +426,9 @@ async function simulateReversePatchSequence(
     const trackedPaths = Array.from(
       new Set(
         patches
-          .map((patch) => normalizePath(extractPathFromDiff(patch.diff) ?? patch.path))
+          .map((patch) =>
+            normalizePathForWorkspace(workspacePath, extractPathFromDiff(patch.diff) ?? patch.path),
+          )
           .filter(Boolean),
       ),
     );
@@ -395,7 +441,9 @@ async function simulateReversePatchSequence(
       try {
         await applyPatchReverse(simulationRoot, patch.diff);
       } catch (error) {
-        const failedPath = normalizePath(extractPathFromDiff(patch.diff) ?? patch.path) || null;
+        const failedPath =
+          normalizePathForWorkspace(workspacePath, extractPathFromDiff(patch.diff) ?? patch.path) ||
+          null;
         return {
           ok: false,
           failedPath,
@@ -471,18 +519,23 @@ export class UndoCheckpointService {
     }
 
     const cleanedPatches = input.patches
-      .map((patch) => ({
-        path: normalizePath(patch.path),
-        kind: patch.kind ?? null,
-        diff: String(patch.diff ?? ""),
-      }))
+      .map((patch) => {
+        const pathValue = normalizePathForWorkspace(input.workspacePath, String(patch.path ?? ""));
+        const kind = patch.kind ?? null;
+        const rawDiff = String(patch.diff ?? "");
+        return {
+          path: pathValue,
+          kind,
+          diff: ensureDiffHasFileHeaders(rawDiff, pathValue, kind),
+        };
+      })
       .filter((patch) => patch.path && patch.diff.trim().length > 0);
     const files = summarizePatches(cleanedPatches);
     const filePathSet = new Set(files.map((file) => normalizePath(file.path)).filter(Boolean));
     const outOfBandFiles = Array.from(
       new Set(
         (input.additionalChangedFiles ?? [])
-          .map((filePath) => normalizePath(String(filePath ?? "")))
+          .map((filePath) => normalizePathForWorkspace(input.workspacePath, String(filePath ?? "")))
           .filter((filePath) => filePath && !filePathSet.has(filePath)),
       ),
     ).sort((left, right) => left.localeCompare(right));

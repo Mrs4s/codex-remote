@@ -76,6 +76,18 @@ export function WorktreeCard({
               >
                 <span className="worktree-toggle-icon">›</span>
               </button>
+              <button
+                type="button"
+                className="ghost worktree-menu-trigger"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onShowWorktreeMenu(event, worktree);
+                }}
+                data-tauri-drag-region="false"
+                aria-label="Worktree options"
+              >
+                ⋯
+              </button>
               {!worktree.connected && (
                 <span
                   className="connect"

@@ -97,6 +97,18 @@ export function WorkspaceCard({
             >
               +
             </button>
+            <button
+              type="button"
+              className="ghost workspace-menu-trigger"
+              onClick={(event) => {
+                event.stopPropagation();
+                onShowWorkspaceMenu(event, workspace.id);
+              }}
+              data-tauri-drag-region="false"
+              aria-label="Workspace options"
+            >
+              ⋯
+            </button>
           </div>
         </div>
         {!workspace.connected && (

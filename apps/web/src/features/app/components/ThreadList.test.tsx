@@ -72,6 +72,14 @@ describe("ThreadList", () => {
       "thread-1",
       true,
     );
+
+    fireEvent.click(screen.getByRole("button", { name: "Thread options" }));
+    expect(onShowThreadMenu).toHaveBeenCalledWith(
+      expect.anything(),
+      "ws-1",
+      "thread-1",
+      true,
+    );
   });
 
   it("shows the more button and toggles expanded", () => {

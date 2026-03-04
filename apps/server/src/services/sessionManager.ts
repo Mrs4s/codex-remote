@@ -1,6 +1,7 @@
 import type { EventBus } from "../events/eventBus.js";
 import type { WorkspaceEntry } from "../types/domain.js";
 import { execFile } from "node:child_process";
+import path from "node:path";
 import { promisify } from "node:util";
 import { CodexSession } from "./codexSession.js";
 import type { UndoCheckpointService } from "./undoCheckpointService.js";
@@ -143,12 +144,20 @@ function extractTurnErrorMessage(message: Record<string, unknown>): string {
   return "Unknown error during background prompt";
 }
 
-function normalizeTrackedPath(rawPath: string): string {
+function normalizeTrackedPath(rawPath: string, workspacePath?: string): string {
   let normalized = rawPath.trim().replace(/\\/g, "/");
   normalized = normalized.replace(/^\.\/+/, "");
   normalized = normalized.replace(/^a\//, "");
   normalized = normalized.replace(/^b\//, "");
   normalized = normalized.replace(/\/+/g, "/");
+  if (workspacePath && normalized && path.isAbsolute(normalized)) {
+    const root = path.resolve(workspacePath);
+    const absolute = path.resolve(normalized);
+    const relative = path.relative(root, absolute).replace(/\\/g, "/");
+    if (relative && !relative.startsWith("..") && !path.isAbsolute(relative)) {
+      normalized = relative;
+    }
+  }
   return normalized;
 }
 
@@ -654,7 +663,8 @@ export class SessionManager {
         const changeRecord = change as Record<string, unknown>;
         const pathRaw = String(changeRecord.path ?? "").trim();
         const diffRaw = String(changeRecord.diff ?? "");
-        if (!pathRaw || !diffRaw.trim()) {
+        const normalizedPath = normalizeTrackedPath(pathRaw, tracker.workspacePath);
+        if (!normalizedPath || !diffRaw.trim()) {
           continue;
         }
         const kindRaw = changeRecord.kind;
@@ -665,7 +675,7 @@ export class SessionManager {
               ? String((kindRaw as Record<string, unknown>).type ?? "").trim() || null
               : null;
         tracker.patches.push({
-          path: pathRaw,
+          path: normalizedPath,
           kind,
           diff: diffRaw,
         });
@@ -845,7 +855,7 @@ export class SessionManager {
     }
     const patchPathSet = new Set(
       input.patchPaths
-        .map((filePath) => normalizeTrackedPath(filePath))
+        .map((filePath) => normalizeTrackedPath(filePath, input.workspacePath))
         .filter(Boolean),
     );
     const outOfBand: string[] = [];

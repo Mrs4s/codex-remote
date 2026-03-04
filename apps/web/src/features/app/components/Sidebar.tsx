@@ -782,24 +782,39 @@ export const Sidebar = memo(function Sidebar({
                     aria-expanded={isSectionToggleable ? !isCollapsed : undefined}
                   >
                     <div className="thread-folder-label">{section.name}</div>
-                    {isSectionToggleable && (
-                      <button
-                        className={`group-toggle ${isCollapsed ? "" : "expanded"}`}
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          toggleThreadFolderCollapse(collapseKey);
-                        }}
-                        aria-label={
-                          isCollapsed
-                            ? `Expand ${toggleLabel}`
-                            : `Collapse ${toggleLabel}`
-                        }
-                        aria-expanded={!isCollapsed}
-                        type="button"
-                      >
-                        <span className="group-toggle-icon">›</span>
-                      </button>
-                    )}
+                    <div className="thread-folder-actions">
+                      {section.folderId && (
+                        <button
+                          type="button"
+                          className="thread-folder-menu-trigger"
+                          aria-label="Folder options"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            showThreadFolderMenu(event, workspaceId, section.folderId as string);
+                          }}
+                        >
+                          ⋯
+                        </button>
+                      )}
+                      {isSectionToggleable && (
+                        <button
+                          className={`group-toggle ${isCollapsed ? "" : "expanded"}`}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            toggleThreadFolderCollapse(collapseKey);
+                          }}
+                          aria-label={
+                            isCollapsed
+                              ? `Expand ${toggleLabel}`
+                              : `Collapse ${toggleLabel}`
+                          }
+                          aria-expanded={!isCollapsed}
+                          type="button"
+                        >
+                          <span className="group-toggle-icon">›</span>
+                        </button>
+                      )}
+                    </div>
                   </div>
                 )}
                 {!isCollapsed && (
