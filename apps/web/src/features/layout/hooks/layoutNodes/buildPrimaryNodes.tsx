@@ -108,6 +108,10 @@ export function buildPrimaryNodes(options: LayoutNodesOptions): PrimaryLayoutNod
       threadId={options.activeThreadId ?? null}
       workspaceId={options.activeWorkspace?.id ?? null}
       workspacePath={options.activeWorkspace?.path ?? null}
+      undoCheckpoints={options.activeUndoCheckpoints}
+      undoCheckpointsError={options.undoCheckpointsError}
+      undoingCheckpointId={options.undoingCheckpointId}
+      onUndoCheckpoint={options.onUndoCheckpoint}
       openTargets={options.openAppTargets}
       selectedOpenAppId={options.selectedOpenAppId}
       codeBlockCopyUseModifier={options.codeBlockCopyUseModifier}

@@ -1,4 +1,10 @@
-import type { BranchInfo, GitHubIssue, GitHubPullRequest, GitLogEntry } from "../../../types";
+import type {
+  BranchInfo,
+  GitHubIssue,
+  GitHubPullRequest,
+  GitLogEntry,
+  UndoCheckpointSummary,
+} from "../../../types";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { Menu, MenuItem } from "@tauri-apps/api/menu";
 import { LogicalPosition } from "@tauri-apps/api/dpi";
@@ -67,6 +73,11 @@ type GitDiffPanelProps = {
   totalDeletions: number;
   fileStatus: string;
   perFileDiffGroups?: PerFileDiffGroup[];
+  undoCheckpoints?: UndoCheckpointSummary[];
+  undoCheckpointsLoading?: boolean;
+  undoCheckpointsError?: string | null;
+  undoingCheckpointId?: string | null;
+  onUndoCheckpoint?: (checkpointId: string) => void | Promise<void>;
   error?: string | null;
   logError?: string | null;
   logLoading?: boolean;
@@ -170,6 +181,11 @@ export function GitDiffPanel({
   totalDeletions,
   fileStatus,
   perFileDiffGroups = [],
+  undoCheckpoints = [],
+  undoCheckpointsLoading = false,
+  undoCheckpointsError = null,
+  undoingCheckpointId = null,
+  onUndoCheckpoint,
   error,
   logError,
   logLoading = false,
@@ -759,6 +775,11 @@ export function GitDiffPanel({
       ) : mode === "perFile" ? (
         <GitPerFileModeContent
           groups={perFileDiffGroups}
+          undoCheckpoints={undoCheckpoints}
+          undoLoading={undoCheckpointsLoading}
+          undoError={undoCheckpointsError}
+          undoingCheckpointId={undoingCheckpointId}
+          onUndoCheckpoint={onUndoCheckpoint}
           selectedPath={selectedPath}
           onSelectFile={onSelectFile}
         />

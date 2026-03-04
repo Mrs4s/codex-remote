@@ -14,6 +14,7 @@ import type {
   OpenAppTarget,
   RequestUserInputRequest,
   RequestUserInputResponse,
+  UndoCheckpointSummary,
 } from "../../../types";
 import { isPlanReadyTaggedMessage } from "../../../utils/internalPlanReadyMessages";
 import { PlanReadyFollowupMessage } from "../../app/components/PlanReadyFollowupMessage";
@@ -48,6 +49,10 @@ type MessagesProps = {
   showPollingFetchStatus?: boolean;
   pollingIntervalMs?: number;
   workspacePath?: string | null;
+  undoCheckpoints?: UndoCheckpointSummary[];
+  undoCheckpointsError?: string | null;
+  undoingCheckpointId?: string | null;
+  onUndoCheckpoint?: (checkpointId: string) => void | Promise<void>;
   openTargets: OpenAppTarget[];
   selectedOpenAppId: string;
   codeBlockCopyUseModifier?: boolean;
@@ -75,6 +80,46 @@ function toMarkdownQuote(text: string): string {
     .concat("\n\n");
 }
 
+function formatUndoLineRange(range: { kind: "add" | "del"; start: number; end: number }) {
+  const prefix = range.kind === "add" ? "+" : "-";
+  if (range.start === range.end) {
+    return `${prefix}${range.start}`;
+  }
+  return `${prefix}${range.start}-${range.end}`;
+}
+
+function formatUndoLineRanges(
+  lineRanges: Array<{ kind: "add" | "del"; start: number; end: number }>,
+): string | null {
+  if (lineRanges.length === 0) {
+    return null;
+  }
+  const preview = lineRanges.slice(0, 6).map(formatUndoLineRange).join(", ");
+  if (lineRanges.length <= 6) {
+    return preview;
+  }
+  return `${preview}, …`;
+}
+
+function checkpointStatusLabel(checkpoint: UndoCheckpointSummary): string {
+  if (checkpoint.status === "undone") {
+    return "Undone";
+  }
+  if (checkpoint.status === "failed") {
+    return "Failed";
+  }
+  if (checkpoint.status === "ready" && checkpoint.undoable) {
+    return "Undo available";
+  }
+  if (checkpoint.status === "ready" && checkpoint.files.length === 0) {
+    return "No file edits";
+  }
+  if (checkpoint.status === "ready") {
+    return "Undo blocked";
+  }
+  return "Recording";
+}
+
 export const Messages = memo(function Messages({
   items,
   threadId,
@@ -86,6 +131,10 @@ export const Messages = memo(function Messages({
   showPollingFetchStatus = false,
   pollingIntervalMs = 12000,
   workspacePath = null,
+  undoCheckpoints = [],
+  undoCheckpointsError = null,
+  undoingCheckpointId = null,
+  onUndoCheckpoint,
   openTargets,
   selectedOpenAppId,
   codeBlockCopyUseModifier = false,
@@ -204,6 +253,19 @@ export const Messages = memo(function Messages({
     }
     return null;
   }, [items, reasoningMetaById]);
+
+  const latestUndoCheckpoint = useMemo(
+    () => (undoCheckpoints.length > 0 ? undoCheckpoints[0] : null),
+    [undoCheckpoints],
+  );
+  const canUndoLatestCheckpoint = Boolean(
+    latestUndoCheckpoint &&
+      latestUndoCheckpoint.status === "ready" &&
+      latestUndoCheckpoint.undoable &&
+      onUndoCheckpoint,
+  );
+  const isUndoingLatestCheckpoint =
+    latestUndoCheckpoint !== null && undoingCheckpointId === latestUndoCheckpoint.id;
 
   const visibleItems = useMemo(
     () =>
@@ -508,6 +570,76 @@ export const Messages = memo(function Messages({
         showPollingFetchStatus={showPollingFetchStatus}
         pollingIntervalMs={pollingIntervalMs}
       />
+      {latestUndoCheckpoint && (
+        <div className="undo-checkpoint-card">
+          <div className="undo-checkpoint-header">
+            <span className="undo-checkpoint-title">Latest checkpoint</span>
+            <span className="undo-checkpoint-time">
+              {new Date(latestUndoCheckpoint.createdAt).toLocaleTimeString()}
+            </span>
+          </div>
+          <div className="undo-checkpoint-file-list">
+            {latestUndoCheckpoint.files.length > 0 ? (
+              latestUndoCheckpoint.files.map((file) => {
+                const lineRanges = formatUndoLineRanges(file.lineRanges);
+                return (
+                  <div key={`${latestUndoCheckpoint.id}:${file.path}`} className="undo-checkpoint-file">
+                    <span className="undo-checkpoint-file-path" title={file.path}>
+                      {file.path}
+                    </span>
+                    <span className="undo-checkpoint-file-meta">
+                      {lineRanges ?? `+${file.additions} / -${file.deletions}`}
+                    </span>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="undo-checkpoint-empty">No file edits captured.</div>
+            )}
+          </div>
+          {latestUndoCheckpoint.outOfBandFiles.length > 0 && (
+            <div className="undo-checkpoint-extra-files">
+              <div className="undo-checkpoint-extra-title">Additional changed files</div>
+              {latestUndoCheckpoint.outOfBandFiles.slice(0, 4).map((filePath) => (
+                <div key={`${latestUndoCheckpoint.id}:extra:${filePath}`} className="undo-checkpoint-file">
+                  <span className="undo-checkpoint-file-path" title={filePath}>
+                    {filePath}
+                  </span>
+                </div>
+              ))}
+              {latestUndoCheckpoint.outOfBandFiles.length > 4 && (
+                <div className="undo-checkpoint-extra-more">
+                  +{latestUndoCheckpoint.outOfBandFiles.length - 4} more file
+                  {latestUndoCheckpoint.outOfBandFiles.length - 4 === 1 ? "" : "s"}
+                </div>
+              )}
+            </div>
+          )}
+          <div className="undo-checkpoint-footer">
+            <span className="undo-checkpoint-status" data-status={latestUndoCheckpoint.status}>
+              {checkpointStatusLabel(latestUndoCheckpoint)}
+            </span>
+            {canUndoLatestCheckpoint && (
+              <button
+                type="button"
+                className="ghost undo-checkpoint-button"
+                onClick={() => onUndoCheckpoint?.(latestUndoCheckpoint.id)}
+                disabled={isUndoingLatestCheckpoint}
+              >
+                {isUndoingLatestCheckpoint ? "Undoing..." : "Undo this turn"}
+              </button>
+            )}
+          </div>
+          {(latestUndoCheckpoint.failureMessage || undoCheckpointsError) && (
+            <div className="diff-error undo-checkpoint-error">
+              {latestUndoCheckpoint.failureMessage || undoCheckpointsError}
+            </div>
+          )}
+        </div>
+      )}
+      {!latestUndoCheckpoint && undoCheckpointsError && (
+        <div className="diff-error undo-checkpoint-error">{undoCheckpointsError}</div>
+      )}
       {!items.length && !userInputNode && !isThinking && !isLoadingMessages && (
         <div className="empty messages-empty">
           {threadId ? "Send a prompt to the agent." : "Send a prompt to start a new agent."}

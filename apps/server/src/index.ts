@@ -12,6 +12,7 @@ import { TerminalService } from "./services/terminalService.js";
 import { PromptService } from "./services/promptService.js";
 import { DictationService } from "./services/dictationService.js";
 import { LiteLLMPricingService } from "./services/litellmPricingService.js";
+import { UndoCheckpointService } from "./services/undoCheckpointService.js";
 import { dispatchRpc } from "./rpc/dispatcher.js";
 
 const app = Fastify({ logger: true });
@@ -19,7 +20,8 @@ const app = Fastify({ logger: true });
 const store = new JsonStore(env.dataDir);
 const eventBus = new EventBus();
 const workspaceService = new WorkspaceService(store);
-const sessionManager = new SessionManager(eventBus, env.codexBin);
+const undoCheckpointService = new UndoCheckpointService(env.dataDir);
+const sessionManager = new SessionManager(eventBus, env.codexBin, undoCheckpointService);
 const terminalService = new TerminalService(eventBus);
 const promptService = new PromptService(env.dataDir);
 const dictationService = new DictationService(eventBus);
@@ -48,6 +50,7 @@ await app.register(cors, {
 await store.init();
 await workspaceService.load();
 await litellmPricingService.init();
+await undoCheckpointService.init();
 
 app.addHook("onRequest", async (request, reply) => {
   if (request.url === "/health" || !request.url.startsWith("/api/v1/")) {
@@ -85,6 +88,7 @@ app.post("/api/v1/rpc/:method", async (request, reply) => {
         promptService,
         dictationService,
         litellmPricingService,
+        undoCheckpointService,
         store,
       },
       method,
@@ -93,8 +97,22 @@ app.post("/api/v1/rpc/:method", async (request, reply) => {
     return { result };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
+    const code =
+      error && typeof error === "object" && typeof (error as { code?: unknown }).code === "string"
+        ? (error as { code: string }).code
+        : undefined;
+    const details =
+      error && typeof error === "object" && "details" in error
+        ? (error as { details?: unknown }).details
+        : undefined;
     reply.code(400);
-    return { error: { message } };
+    return {
+      error: {
+        message,
+        ...(code ? { code } : {}),
+        ...(details !== undefined ? { details } : {}),
+      },
+    };
   }
 });
 

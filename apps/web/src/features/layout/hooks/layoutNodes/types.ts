@@ -35,6 +35,7 @@ import type {
   ThreadListOrganizeMode,
   ThreadListSortKey,
   ThreadSummary,
+  UndoCheckpointSummary,
   ThreadTokenUsage,
   TurnPlan,
   WorkspaceInfo,
@@ -124,6 +125,11 @@ export type LayoutNodesOptions = {
   activeWorkspaceId: string | null;
   activeThreadId: string | null;
   activeItems: ConversationItem[];
+  activeUndoCheckpoints?: UndoCheckpointSummary[];
+  undoCheckpointsLoading?: boolean;
+  undoCheckpointsError?: string | null;
+  undoingCheckpointId?: string | null;
+  onUndoCheckpoint?: (checkpointId: string) => void | Promise<void>;
   showPollingFetchStatus?: boolean;
   pollingIntervalMs?: number;
   activeRateLimits: RateLimitSnapshot | null;

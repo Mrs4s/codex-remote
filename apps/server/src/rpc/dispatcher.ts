@@ -50,6 +50,7 @@ import {
   writeAgentConfigToml,
 } from "../services/codexCompatService.js";
 import type { DictationService } from "../services/dictationService.js";
+import type { UndoCheckpointService } from "../services/undoCheckpointService.js";
 
 export type DispatcherDeps = {
   workspaceService: WorkspaceService;
@@ -58,6 +59,7 @@ export type DispatcherDeps = {
   promptService: PromptService;
   dictationService: DictationService;
   litellmPricingService: LiteLLMPricingService;
+  undoCheckpointService: UndoCheckpointService;
   store: JsonStore;
 };
 
@@ -487,6 +489,18 @@ export async function dispatchRpc(
         collaborationMode:
           (params.collaborationMode as Record<string, unknown> | null | undefined) ?? null,
       });
+    }
+    case "list_undo_checkpoints": {
+      const workspace = workspaceFromParams();
+      return deps.undoCheckpointService.listCheckpoints(workspace.id, {
+        threadId: optionalString(params, "threadId"),
+        limit: optionalNumber(params, "limit"),
+      });
+    }
+    case "undo_checkpoint": {
+      const workspace = workspaceFromParams();
+      const checkpointId = requireString(params, "checkpointId");
+      return deps.undoCheckpointService.undoCheckpoint(workspace, checkpointId);
     }
     case "turn_steer": {
       const workspace = workspaceFromParams();

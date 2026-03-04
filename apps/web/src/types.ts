@@ -122,6 +122,37 @@ export type ThreadSummary = {
   isSubagent?: boolean;
 };
 
+export type UndoCheckpointStatus = "created" | "ready" | "undone" | "failed";
+
+export type UndoLineRange = {
+  kind: "add" | "del";
+  start: number;
+  end: number;
+};
+
+export type UndoEditedFileSummary = {
+  path: string;
+  additions: number;
+  deletions: number;
+  lineRanges: UndoLineRange[];
+};
+
+export type UndoCheckpointSummary = {
+  id: string;
+  workspaceId: string;
+  threadId: string;
+  turnId: string;
+  status: UndoCheckpointStatus;
+  createdAt: number;
+  completedAt: number | null;
+  undoneAt: number | null;
+  failedAt: number | null;
+  failureMessage: string | null;
+  undoable: boolean;
+  files: UndoEditedFileSummary[];
+  outOfBandFiles: string[];
+};
+
 export type ThreadFolder = {
   id: string;
   name: string;

@@ -459,6 +459,151 @@
   gap: 4px;
 }
 
+.per-file-mode {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+  height: 100%;
+}
+
+.per-file-undo-panel {
+  border: 1px solid var(--border-muted);
+  border-radius: 10px;
+  background: var(--surface-item);
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.per-file-undo-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.per-file-undo-title {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+}
+
+.per-file-undo-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.per-file-undo-entry {
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  background: var(--surface-card);
+}
+
+.per-file-undo-entry-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.per-file-undo-time {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.per-file-undo-status {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.per-file-undo-status[data-status="ready"] {
+  color: #47d488;
+}
+
+.per-file-undo-status[data-status="undone"] {
+  color: #76b4ff;
+}
+
+.per-file-undo-status[data-status="failed"] {
+  color: #ff7f7f;
+}
+
+.per-file-undo-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.per-file-undo-file {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.per-file-undo-file-path {
+  font-size: 11px;
+  color: var(--text-emphasis);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.per-file-undo-file-meta {
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.per-file-undo-more {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.per-file-undo-extra {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.per-file-undo-extra-title {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.per-file-undo-button {
+  align-self: flex-end;
+  font-size: 11px;
+  padding: 3px 8px;
+  border-radius: 7px;
+}
+
+.per-file-undo-empty {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.per-file-undo-error {
+  margin: 0;
+}
+
 .per-file-tree {
   display: flex;
   flex-direction: column;

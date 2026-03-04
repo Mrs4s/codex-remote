@@ -118,6 +118,126 @@
   white-space: nowrap;
 }
 
+.undo-checkpoint-card {
+  margin: 6px 24px 12px;
+  border: 1px solid var(--border-muted);
+  border-radius: 10px;
+  background: var(--surface-item);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.undo-checkpoint-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.undo-checkpoint-title {
+  font-size: 11px;
+  color: var(--text-emphasis);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.undo-checkpoint-time {
+  font-size: 10px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.undo-checkpoint-file-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.undo-checkpoint-file {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.undo-checkpoint-file-path {
+  font-size: 12px;
+  color: var(--text-emphasis);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.undo-checkpoint-file-meta {
+  font-size: 11px;
+  color: var(--text-faint);
+  white-space: nowrap;
+}
+
+.undo-checkpoint-empty {
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+.undo-checkpoint-extra-files {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.undo-checkpoint-extra-title {
+  font-size: 10px;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.undo-checkpoint-extra-more {
+  font-size: 10px;
+  color: var(--text-faint);
+}
+
+.undo-checkpoint-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.undo-checkpoint-status {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.undo-checkpoint-status[data-status="ready"] {
+  color: #47d488;
+}
+
+.undo-checkpoint-status[data-status="undone"] {
+  color: #76b4ff;
+}
+
+.undo-checkpoint-status[data-status="failed"] {
+  color: #ff7f7f;
+}
+
+.undo-checkpoint-button {
+  padding: 4px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+
+.undo-checkpoint-error {
+  margin: 0;
+}
+
 @keyframes working-spin {
   to {
     transform: rotate(360deg);

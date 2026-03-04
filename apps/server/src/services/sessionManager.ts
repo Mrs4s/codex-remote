@@ -1,6 +1,12 @@
 import type { EventBus } from "../events/eventBus.js";
 import type { WorkspaceEntry } from "../types/domain.js";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { CodexSession } from "./codexSession.js";
+import type { UndoCheckpointService } from "./undoCheckpointService.js";
+
+const execFileAsync = promisify(execFile);
+const MAX_EXEC_BUFFER_BYTES = 10 * 1024 * 1024;
 
 type AccessMode = "read-only" | "current" | "full-access";
 type ApprovalPolicy = "untrusted" | "on-request" | "never";
@@ -88,6 +94,30 @@ function extractThreadId(value: unknown): string | null {
   return null;
 }
 
+function extractTurnId(value: unknown): string | null {
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const record = value as Record<string, unknown>;
+  const direct = record.turnId ?? record.turn_id;
+  if (typeof direct === "string" && direct.trim()) {
+    return direct;
+  }
+  const turn = record.turn as Record<string, unknown> | undefined;
+  if (turn && typeof turn.id === "string" && turn.id.trim()) {
+    return turn.id;
+  }
+  const params = record.params as Record<string, unknown> | undefined;
+  if (params) {
+    return extractTurnId(params);
+  }
+  const result = record.result as Record<string, unknown> | undefined;
+  if (result) {
+    return extractTurnId(result);
+  }
+  return null;
+}
+
 function extractTurnErrorMessage(message: Record<string, unknown>): string {
   const params =
     message.params && typeof message.params === "object"
@@ -100,6 +130,10 @@ function extractTurnErrorMessage(message: Record<string, unknown>): string {
   if (typeof rawError === "string" && rawError.trim()) {
     return rawError;
   }
+  const fallbackMessage = params.message;
+  if (typeof fallbackMessage === "string" && fallbackMessage.trim()) {
+    return fallbackMessage;
+  }
   if (rawError && typeof rawError === "object") {
     const nested = (rawError as Record<string, unknown>).message;
     if (typeof nested === "string" && nested.trim()) {
@@ -109,11 +143,44 @@ function extractTurnErrorMessage(message: Record<string, unknown>): string {
   return "Unknown error during background prompt";
 }
 
+function normalizeTrackedPath(rawPath: string): string {
+  let normalized = rawPath.trim().replace(/\\/g, "/");
+  normalized = normalized.replace(/^\.\/+/, "");
+  normalized = normalized.replace(/^a\//, "");
+  normalized = normalized.replace(/^b\//, "");
+  normalized = normalized.replace(/\/+/g, "/");
+  return normalized;
+}
+
+type TurnFilePatch = {
+  path: string;
+  kind: string | null;
+  diff: string;
+};
+
+type TurnUndoTracker = {
+  key: string;
+  checkpointIdPromise: Promise<string>;
+  workspaceId: string;
+  workspacePath: string;
+  threadId: string;
+  turnId: string;
+  patches: TurnFilePatch[];
+  baselineGitDirtyFilesPromise: Promise<Set<string> | null>;
+  unlisten: () => void;
+};
+
 export class SessionManager {
   private sessions = new Map<string, CodexSession>();
   private loginIds = new Map<string, string>();
+  private turnUndoTrackers = new Map<string, TurnUndoTracker>();
+  private turnTrackerKeysByThread = new Map<string, Set<string>>();
 
-  constructor(private readonly eventBus: EventBus, private readonly codexBin: string) {}
+  constructor(
+    private readonly eventBus: EventBus,
+    private readonly codexBin: string,
+    private readonly undoCheckpointService?: UndoCheckpointService,
+  ) {}
 
   connectedWorkspaceIds(): Set<string> {
     return new Set(this.sessions.keys());
@@ -129,6 +196,7 @@ export class SessionManager {
   }
 
   disconnect(workspaceId: string): void {
+    void this.finalizeWorkspaceTrackersFailed(workspaceId, "Workspace disconnected");
     const session = this.sessions.get(workspaceId);
     if (session) {
       session.close();
@@ -281,7 +349,12 @@ export class SessionManager {
       request.collaborationMode = params.collaborationMode;
     }
 
-    return session.sendRequest(workspace.id, "turn/start", request);
+    const response = await session.sendRequest(workspace.id, "turn/start", request);
+    const turnId = extractTurnId(response);
+    if (turnId) {
+      this.startUndoTrackingTurn(session, workspace, params.threadId, turnId);
+    }
+    return response;
   }
 
   async steerTurn(
@@ -489,11 +562,304 @@ export class SessionManager {
   }
 
   async closeAll(): Promise<void> {
+    const workspaceIds = Array.from(this.sessions.keys());
+    for (const workspaceId of workspaceIds) {
+      await this.finalizeWorkspaceTrackersFailed(workspaceId, "Workspace session closed");
+    }
     for (const session of this.sessions.values()) {
       session.close();
     }
     this.sessions.clear();
     this.loginIds.clear();
+  }
+
+  private startUndoTrackingTurn(
+    session: CodexSession,
+    workspace: WorkspaceEntry,
+    threadId: string,
+    turnId: string,
+  ): void {
+    if (!this.undoCheckpointService || !threadId || !turnId) {
+      return;
+    }
+
+    const trackerKey = this.buildTrackerKey(workspace.id, threadId, turnId);
+    if (this.turnUndoTrackers.has(trackerKey)) {
+      this.finalizeTrackerFailed(trackerKey, "Checkpoint tracking restarted").catch(() => undefined);
+    }
+
+    const baselineGitDirtyFilesPromise = this.captureGitDirtyFiles(workspace.path);
+    const checkpointIdPromise = this.undoCheckpointService
+      .createCheckpoint({
+        workspaceId: workspace.id,
+        threadId,
+        turnId,
+      })
+      .then((checkpoint) => checkpoint.id);
+    checkpointIdPromise.catch(() => undefined);
+    const patches: TurnFilePatch[] = [];
+    const unlisten = session.subscribeThreadEvents(threadId, (message) => {
+      this.onUndoTrackerEvent(trackerKey, message);
+    });
+    const tracker: TurnUndoTracker = {
+      key: trackerKey,
+      checkpointIdPromise,
+      workspaceId: workspace.id,
+      workspacePath: workspace.path,
+      threadId,
+      turnId,
+      patches,
+      baselineGitDirtyFilesPromise,
+      unlisten,
+    };
+    this.turnUndoTrackers.set(trackerKey, tracker);
+    this.addTrackerKeyForThread(workspace.id, threadId, trackerKey);
+  }
+
+  private onUndoTrackerEvent(trackerKey: string, message: Record<string, unknown>): void {
+    const tracker = this.turnUndoTrackers.get(trackerKey);
+    if (!tracker) {
+      return;
+    }
+    const method = typeof message.method === "string" ? message.method : "";
+    if (!method) {
+      return;
+    }
+    const params =
+      message.params && typeof message.params === "object"
+        ? (message.params as Record<string, unknown>)
+        : {};
+    const eventThreadId = extractThreadId(params) ?? extractThreadId(message);
+    if (eventThreadId && eventThreadId !== tracker.threadId) {
+      return;
+    }
+    const eventTurnId = extractTurnId(params) ?? extractTurnId(message);
+    if (eventTurnId && eventTurnId !== tracker.turnId) {
+      return;
+    }
+
+    if (method === "item/completed") {
+      const item =
+        params.item && typeof params.item === "object"
+          ? (params.item as Record<string, unknown>)
+          : null;
+      if (!item || String(item.type ?? "") !== "fileChange") {
+        return;
+      }
+      const changes = Array.isArray(item.changes) ? item.changes : [];
+      for (const change of changes) {
+        if (!change || typeof change !== "object") {
+          continue;
+        }
+        const changeRecord = change as Record<string, unknown>;
+        const pathRaw = String(changeRecord.path ?? "").trim();
+        const diffRaw = String(changeRecord.diff ?? "");
+        if (!pathRaw || !diffRaw.trim()) {
+          continue;
+        }
+        const kindRaw = changeRecord.kind;
+        const kind =
+          typeof kindRaw === "string"
+            ? kindRaw.trim() || null
+            : kindRaw && typeof kindRaw === "object"
+              ? String((kindRaw as Record<string, unknown>).type ?? "").trim() || null
+              : null;
+        tracker.patches.push({
+          path: pathRaw,
+          kind,
+          diff: diffRaw,
+        });
+      }
+      return;
+    }
+
+    if (method === "turn/completed") {
+      this.finalizeTrackerReady(trackerKey).catch(() => undefined);
+      return;
+    }
+
+    if (method === "turn/error" || method === "error") {
+      const failureMessage = extractTurnErrorMessage(message);
+      this.finalizeTrackerFailed(trackerKey, failureMessage).catch(() => undefined);
+      return;
+    }
+
+    if (method === "thread/closed" || method === "thread/archived") {
+      this.finalizeTrackerFailed(trackerKey, "Thread closed before turn completed").catch(
+        () => undefined,
+      );
+    }
+  }
+
+  private addTrackerKeyForThread(workspaceId: string, threadId: string, trackerKey: string): void {
+    const threadKey = this.buildThreadKey(workspaceId, threadId);
+    const existing = this.turnTrackerKeysByThread.get(threadKey) ?? new Set<string>();
+    existing.add(trackerKey);
+    this.turnTrackerKeysByThread.set(threadKey, existing);
+  }
+
+  private removeTrackerKeyForThread(workspaceId: string, threadId: string, trackerKey: string): void {
+    const threadKey = this.buildThreadKey(workspaceId, threadId);
+    const existing = this.turnTrackerKeysByThread.get(threadKey);
+    if (!existing) {
+      return;
+    }
+    existing.delete(trackerKey);
+    if (existing.size === 0) {
+      this.turnTrackerKeysByThread.delete(threadKey);
+    }
+  }
+
+  private takeTracker(trackerKey: string): TurnUndoTracker | null {
+    const tracker = this.turnUndoTrackers.get(trackerKey);
+    if (!tracker) {
+      return null;
+    }
+    this.turnUndoTrackers.delete(trackerKey);
+    this.removeTrackerKeyForThread(tracker.workspaceId, tracker.threadId, trackerKey);
+    tracker.unlisten();
+    return tracker;
+  }
+
+  private async finalizeTrackerReady(trackerKey: string): Promise<void> {
+    const tracker = this.takeTracker(trackerKey);
+    if (!tracker || !this.undoCheckpointService) {
+      return;
+    }
+    let checkpointId: string;
+    try {
+      checkpointId = await tracker.checkpointIdPromise;
+    } catch {
+      return;
+    }
+    const additionalChangedFiles = await this.detectOutOfBandChangedFiles({
+      workspacePath: tracker.workspacePath,
+      baselineGitDirtyFilesPromise: tracker.baselineGitDirtyFilesPromise,
+      patchPaths: tracker.patches.map((patch) => patch.path),
+    });
+    await this.undoCheckpointService
+      .finalizeCheckpointReady({
+        checkpointId,
+        workspacePath: tracker.workspacePath,
+        patches: tracker.patches,
+        additionalChangedFiles,
+      })
+      .catch(() => undefined);
+  }
+
+  private async finalizeTrackerFailed(trackerKey: string, failureMessage: string): Promise<void> {
+    const tracker = this.takeTracker(trackerKey);
+    if (!tracker || !this.undoCheckpointService) {
+      return;
+    }
+    let checkpointId: string;
+    try {
+      checkpointId = await tracker.checkpointIdPromise;
+    } catch {
+      return;
+    }
+    await this.undoCheckpointService
+      .finalizeCheckpointFailed(checkpointId, failureMessage)
+      .catch(() => undefined);
+  }
+
+  private async finalizeWorkspaceTrackersFailed(
+    workspaceId: string,
+    failureMessage: string,
+  ): Promise<void> {
+    const trackerKeys: string[] = [];
+    for (const [trackerKey, tracker] of this.turnUndoTrackers.entries()) {
+      if (tracker.workspaceId === workspaceId) {
+        trackerKeys.push(trackerKey);
+      }
+    }
+    await Promise.all(
+      trackerKeys.map((trackerKey) =>
+        this.finalizeTrackerFailed(trackerKey, failureMessage).catch(() => undefined),
+      ),
+    );
+  }
+
+  private buildTrackerKey(workspaceId: string, threadId: string, turnId: string): string {
+    return `${workspaceId}:${threadId}:${turnId}`;
+  }
+
+  private buildThreadKey(workspaceId: string, threadId: string): string {
+    return `${workspaceId}:${threadId}`;
+  }
+
+  private async captureGitDirtyFiles(workspacePath: string): Promise<Set<string> | null> {
+    try {
+      const { stdout } = await execFileAsync(
+        "git",
+        ["status", "--porcelain", "--untracked-files=all"],
+        {
+          cwd: workspacePath,
+          env: process.env,
+          maxBuffer: MAX_EXEC_BUFFER_BYTES,
+        },
+      );
+      return this.parseGitStatusPaths(stdout);
+    } catch {
+      return null;
+    }
+  }
+
+  private parseGitStatusPaths(output: string): Set<string> {
+    const paths = new Set<string>();
+    for (const line of output.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.length < 3) {
+        continue;
+      }
+      let pathPart = line.slice(3).trim();
+      if (!pathPart) {
+        continue;
+      }
+      if (pathPart.includes(" -> ")) {
+        pathPart = pathPart.split(" -> ").pop() ?? pathPart;
+      }
+      if (pathPart.startsWith('"') && pathPart.endsWith('"') && pathPart.length > 1) {
+        pathPart = pathPart.slice(1, -1);
+      }
+      const normalized = normalizeTrackedPath(pathPart);
+      if (normalized) {
+        paths.add(normalized);
+      }
+    }
+    return paths;
+  }
+
+  private async detectOutOfBandChangedFiles(input: {
+    workspacePath: string;
+    baselineGitDirtyFilesPromise: Promise<Set<string> | null>;
+    patchPaths: string[];
+  }): Promise<string[]> {
+    const baseline = await input.baselineGitDirtyFilesPromise.catch(() => null);
+    if (!baseline) {
+      return [];
+    }
+    const after = await this.captureGitDirtyFiles(input.workspacePath);
+    if (!after) {
+      return [];
+    }
+    const patchPathSet = new Set(
+      input.patchPaths
+        .map((filePath) => normalizeTrackedPath(filePath))
+        .filter(Boolean),
+    );
+    const outOfBand: string[] = [];
+    for (const currentPath of after.values()) {
+      if (baseline.has(currentPath)) {
+        continue;
+      }
+      if (patchPathSet.has(currentPath)) {
+        continue;
+      }
+      outOfBand.push(currentPath);
+    }
+    outOfBand.sort((left, right) => left.localeCompare(right));
+    return outOfBand;
   }
 
   private async ensureSession(workspace: WorkspaceEntry): Promise<CodexSession> {

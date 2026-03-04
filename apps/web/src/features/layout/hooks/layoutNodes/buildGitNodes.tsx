@@ -91,6 +91,11 @@ export function buildGitNodes(options: LayoutNodesOptions): GitLayoutNodes {
         totalDeletions={options.gitStatus.totalDeletions}
         fileStatus={options.fileStatus}
         perFileDiffGroups={options.perFileDiffGroups}
+        undoCheckpoints={options.activeUndoCheckpoints}
+        undoCheckpointsLoading={options.undoCheckpointsLoading}
+        undoCheckpointsError={options.undoCheckpointsError}
+        undoingCheckpointId={options.undoingCheckpointId}
+        onUndoCheckpoint={options.onUndoCheckpoint}
         error={options.gitStatus.error}
         logError={options.gitLogError}
         logLoading={options.gitLogLoading}

@@ -119,6 +119,7 @@ import { WorkspaceHome } from "@/features/workspaces/components/WorkspaceHome";
 import { useMobileServerSetup } from "@/features/mobile/hooks/useMobileServerSetup";
 import { useWorkspaceHome } from "@/features/workspaces/hooks/useWorkspaceHome";
 import { useWorkspaceAgentMd } from "@/features/workspaces/hooks/useWorkspaceAgentMd";
+import { useUndoCheckpoints } from "@/features/undo/hooks/useUndoCheckpoints";
 import type {
   ComposerEditorSettings,
   WorkspaceInfo,
@@ -696,6 +697,17 @@ function MainApp() {
     onMessageActivity: handleThreadMessageActivity,
     threadSortKey: threadListSortKey,
     onThreadCodexMetadataDetected: handleThreadCodexMetadataDetected,
+  });
+  const {
+    checkpoints: activeUndoCheckpoints,
+    isLoading: undoCheckpointsLoading,
+    error: undoCheckpointsError,
+    undoingCheckpointId,
+    runUndo: runUndoCheckpoint,
+  } = useUndoCheckpoints({
+    workspaceId: activeWorkspaceId,
+    threadId: activeThreadId,
+    limit: 10,
   });
   const { connectionState: remoteThreadConnectionState, reconnectLive } =
     useRemoteThreadLiveConnection({
@@ -2151,6 +2163,11 @@ function MainApp() {
     activeWorkspaceId,
     activeThreadId,
     activeItems,
+    activeUndoCheckpoints,
+    undoCheckpointsLoading,
+    undoCheckpointsError,
+    undoingCheckpointId,
+    onUndoCheckpoint: runUndoCheckpoint,
     showPollingFetchStatus: showMobilePollingFetchStatus,
     pollingIntervalMs: REMOTE_THREAD_POLL_INTERVAL_MS,
     activeRateLimits,

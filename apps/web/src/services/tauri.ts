@@ -10,6 +10,7 @@ import type {
   DictationSessionState,
   LocalUsageCostSnapshot,
   LocalUsageSnapshot,
+  UndoCheckpointSummary,
   TcpDaemonStatus,
   TailscaleDaemonCommandPreview,
   TailscaleStatus,
@@ -474,6 +475,27 @@ export async function sendUserMessage(
     payload.appMentions = options.appMentions;
   }
   return invoke("send_user_message", payload);
+}
+
+export async function listUndoCheckpoints(
+  workspaceId: string,
+  options?: { threadId?: string | null; limit?: number | null },
+): Promise<{ entries: UndoCheckpointSummary[] }> {
+  return invoke<{ entries: UndoCheckpointSummary[] }>("list_undo_checkpoints", {
+    workspaceId,
+    threadId: options?.threadId ?? null,
+    limit: options?.limit ?? null,
+  });
+}
+
+export async function undoCheckpoint(
+  workspaceId: string,
+  checkpointId: string,
+): Promise<UndoCheckpointSummary> {
+  return invoke<UndoCheckpointSummary>("undo_checkpoint", {
+    workspaceId,
+    checkpointId,
+  });
 }
 
 export async function interruptTurn(

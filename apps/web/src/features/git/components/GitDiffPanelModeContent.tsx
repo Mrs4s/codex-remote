@@ -1,4 +1,10 @@
-import type { BranchInfo, GitHubIssue, GitHubPullRequest, GitLogEntry } from "../../../types";
+import type {
+  BranchInfo,
+  GitHubIssue,
+  GitHubPullRequest,
+  GitLogEntry,
+  UndoCheckpointSummary,
+} from "../../../types";
 import type { MouseEvent as ReactMouseEvent } from "react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { openUrl } from "@tauri-apps/plugin-opener";
@@ -567,12 +573,62 @@ export function GitRootCurrentPath({
 
 type GitPerFileModeContentProps = {
   groups: PerFileDiffGroup[];
+  undoCheckpoints?: UndoCheckpointSummary[];
+  undoLoading?: boolean;
+  undoError?: string | null;
+  undoingCheckpointId?: string | null;
+  onUndoCheckpoint?: (checkpointId: string) => void | Promise<void>;
   selectedPath: string | null;
   onSelectFile?: (path: string) => void;
 };
 
+function formatUndoCheckpointLineRange(range: { kind: "add" | "del"; start: number; end: number }) {
+  const prefix = range.kind === "add" ? "+" : "-";
+  if (range.start === range.end) {
+    return `${prefix}${range.start}`;
+  }
+  return `${prefix}${range.start}-${range.end}`;
+}
+
+function formatUndoCheckpointRanges(
+  lineRanges: Array<{ kind: "add" | "del"; start: number; end: number }>,
+): string | null {
+  if (lineRanges.length === 0) {
+    return null;
+  }
+  const preview = lineRanges.slice(0, 4).map(formatUndoCheckpointLineRange).join(", ");
+  if (lineRanges.length <= 4) {
+    return preview;
+  }
+  return `${preview}, …`;
+}
+
+function undoCheckpointStatusLabel(checkpoint: UndoCheckpointSummary): string {
+  if (checkpoint.status === "undone") {
+    return "Undone";
+  }
+  if (checkpoint.status === "failed") {
+    return "Failed";
+  }
+  if (checkpoint.status === "ready" && checkpoint.undoable) {
+    return "Undo available";
+  }
+  if (checkpoint.status === "ready" && checkpoint.files.length === 0) {
+    return "No file edits";
+  }
+  if (checkpoint.status === "ready") {
+    return "Undo blocked";
+  }
+  return "Recording";
+}
+
 export function GitPerFileModeContent({
   groups,
+  undoCheckpoints = [],
+  undoLoading = false,
+  undoError = null,
+  undoingCheckpointId = null,
+  onUndoCheckpoint,
   selectedPath,
   onSelectFile,
 }: GitPerFileModeContentProps) {
@@ -616,70 +672,156 @@ export function GitPerFileModeContent({
     });
   }, []);
 
-  if (groups.length === 0) {
-    return <div className="diff-empty">No agent edits in this thread yet.</div>;
-  }
-
   return (
-    <div className="per-file-tree">
-      {groups.map((group) => {
-        const isExpanded = !collapsedPaths.has(group.path);
-        const { name: fileName } = splitPath(group.path);
-        return (
-          <div key={group.path} className="per-file-group">
-            <button
-              type="button"
-              className="per-file-group-row"
-              onClick={() => toggleGroup(group.path)}
-            >
-              <span className="per-file-group-chevron" aria-hidden>
-                {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-              </span>
-              <span className="per-file-group-path" title={group.path}>
-                {fileName || group.path}
-              </span>
-              <span className="per-file-group-count">
-                {group.edits.length} edit{group.edits.length === 1 ? "" : "s"}
-              </span>
-            </button>
-            {isExpanded && (
-              <div className="per-file-edit-list">
-                {group.edits.map((edit) => {
-                  const isActive = selectedPath === edit.id;
-                  return (
-                    <button
-                      key={edit.id}
-                      type="button"
-                      className={`per-file-edit-row ${isActive ? "active" : ""}`}
-                      onClick={() => onSelectFile?.(edit.id)}
+    <div className="per-file-mode">
+      <div className="per-file-undo-panel">
+        <div className="per-file-undo-header">
+          <span className="per-file-undo-title">Recent checkpoints</span>
+          {undoLoading && <span className="git-panel-spinner" aria-hidden />}
+        </div>
+        {undoError && <div className="diff-error per-file-undo-error">{undoError}</div>}
+        {undoCheckpoints.length === 0 ? (
+          <div className="per-file-undo-empty">No checkpoints in this thread yet.</div>
+        ) : (
+          <div className="per-file-undo-list">
+            {undoCheckpoints.map((checkpoint) => {
+              const isUndoable = checkpoint.status === "ready" && checkpoint.undoable;
+              const isUndoing = undoingCheckpointId === checkpoint.id;
+              return (
+                <div key={checkpoint.id} className="per-file-undo-entry">
+                  <div className="per-file-undo-entry-header">
+                    <span className="per-file-undo-time">
+                      {formatRelativeTime(checkpoint.createdAt)}
+                    </span>
+                    <span
+                      className="per-file-undo-status"
+                      data-status={checkpoint.status}
                     >
-                      <span className="per-file-edit-status" data-status={edit.status}>
-                        {edit.status}
-                      </span>
-                      <span className="per-file-edit-label">{edit.label}</span>
-                      <span className="per-file-edit-stats">
-                        {edit.additions > 0 && (
-                          <span className="per-file-edit-stat per-file-edit-stat-add">
-                            +{edit.additions}
+                      {undoCheckpointStatusLabel(checkpoint)}
+                    </span>
+                  </div>
+                  <div className="per-file-undo-file-list">
+                    {checkpoint.files.length > 0 ? (
+                      checkpoint.files.slice(0, 3).map((file) => (
+                        <div key={`${checkpoint.id}:${file.path}`} className="per-file-undo-file">
+                          <span className="per-file-undo-file-path" title={file.path}>
+                            {file.path}
                           </span>
-                        )}
-                        {edit.deletions > 0 && (
-                          <span className="per-file-edit-stat per-file-edit-stat-del">
-                            -{edit.deletions}
+                          <span className="per-file-undo-file-meta">
+                            {formatUndoCheckpointRanges(file.lineRanges) ??
+                              `+${file.additions} / -${file.deletions}`}
                           </span>
-                        )}
-                        {edit.additions === 0 && edit.deletions === 0 && (
-                          <span className="per-file-edit-stat">0</span>
-                        )}
-                      </span>
+                        </div>
+                      ))
+                    ) : (
+                      <span className="per-file-undo-file-meta">No file edits</span>
+                    )}
+                  </div>
+                  {checkpoint.outOfBandFiles.length > 0 && (
+                    <div className="per-file-undo-extra">
+                      <span className="per-file-undo-extra-title">Additional changed files</span>
+                      {checkpoint.outOfBandFiles.slice(0, 3).map((filePath) => (
+                        <span key={`${checkpoint.id}:extra:${filePath}`} className="per-file-undo-file-meta">
+                          {filePath}
+                        </span>
+                      ))}
+                      {checkpoint.outOfBandFiles.length > 3 && (
+                        <span className="per-file-undo-more">
+                          +{checkpoint.outOfBandFiles.length - 3} more file
+                          {checkpoint.outOfBandFiles.length - 3 === 1 ? "" : "s"}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {checkpoint.files.length > 3 && (
+                    <div className="per-file-undo-more">
+                      +{checkpoint.files.length - 3} more file
+                      {checkpoint.files.length - 3 === 1 ? "" : "s"}
+                    </div>
+                  )}
+                  {isUndoable && (
+                    <button
+                      type="button"
+                      className="ghost per-file-undo-button"
+                      onClick={() => onUndoCheckpoint?.(checkpoint.id)}
+                      disabled={isUndoing}
+                    >
+                      {isUndoing ? "Undoing..." : "Undo"}
                     </button>
-                  );
-                })}
-              </div>
-            )}
+                  )}
+                  {checkpoint.failureMessage && (
+                    <div className="diff-error per-file-undo-error">{checkpoint.failureMessage}</div>
+                  )}
+                </div>
+              );
+            })}
           </div>
-        );
-      })}
+        )}
+      </div>
+      {groups.length === 0 ? (
+        <div className="diff-empty">No agent edits in this thread yet.</div>
+      ) : (
+        <div className="per-file-tree">
+          {groups.map((group) => {
+            const isExpanded = !collapsedPaths.has(group.path);
+            const { name: fileName } = splitPath(group.path);
+            return (
+              <div key={group.path} className="per-file-group">
+                <button
+                  type="button"
+                  className="per-file-group-row"
+                  onClick={() => toggleGroup(group.path)}
+                >
+                  <span className="per-file-group-chevron" aria-hidden>
+                    {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                  </span>
+                  <span className="per-file-group-path" title={group.path}>
+                    {fileName || group.path}
+                  </span>
+                  <span className="per-file-group-count">
+                    {group.edits.length} edit{group.edits.length === 1 ? "" : "s"}
+                  </span>
+                </button>
+                {isExpanded && (
+                  <div className="per-file-edit-list">
+                    {group.edits.map((edit) => {
+                      const isActive = selectedPath === edit.id;
+                      return (
+                        <button
+                          key={edit.id}
+                          type="button"
+                          className={`per-file-edit-row ${isActive ? "active" : ""}`}
+                          onClick={() => onSelectFile?.(edit.id)}
+                        >
+                          <span className="per-file-edit-status" data-status={edit.status}>
+                            {edit.status}
+                          </span>
+                          <span className="per-file-edit-label">{edit.label}</span>
+                          <span className="per-file-edit-stats">
+                            {edit.additions > 0 && (
+                              <span className="per-file-edit-stat per-file-edit-stat-add">
+                                +{edit.additions}
+                              </span>
+                            )}
+                            {edit.deletions > 0 && (
+                              <span className="per-file-edit-stat per-file-edit-stat-del">
+                                -{edit.deletions}
+                              </span>
+                            )}
+                            {edit.additions === 0 && edit.deletions === 0 && (
+                              <span className="per-file-edit-stat">0</span>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
