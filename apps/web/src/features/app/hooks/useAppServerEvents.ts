@@ -69,11 +69,22 @@ type AppServerEventHandlers = {
   ) => void;
   onItemStarted?: (workspaceId: string, threadId: string, item: Record<string, unknown>) => void;
   onItemCompleted?: (workspaceId: string, threadId: string, item: Record<string, unknown>) => void;
+  onRawResponseItemCompleted?: (
+    workspaceId: string,
+    threadId: string,
+    item: Record<string, unknown>,
+  ) => void;
   onReasoningSummaryDelta?: (workspaceId: string, threadId: string, itemId: string, delta: string) => void;
   onReasoningSummaryBoundary?: (workspaceId: string, threadId: string, itemId: string) => void;
   onReasoningTextDelta?: (workspaceId: string, threadId: string, itemId: string, delta: string) => void;
   onPlanDelta?: (workspaceId: string, threadId: string, itemId: string, delta: string) => void;
   onCommandOutputDelta?: (workspaceId: string, threadId: string, itemId: string, delta: string) => void;
+  onMcpToolCallProgress?: (
+    workspaceId: string,
+    threadId: string,
+    itemId: string,
+    delta: string,
+  ) => void;
   onTerminalInteraction?: (
     workspaceId: string,
     threadId: string,
@@ -110,12 +121,14 @@ export const METHODS_ROUTED_IN_USE_APP_SERVER_EVENTS = [
   "item/commandExecution/terminalInteraction",
   "item/completed",
   "item/fileChange/outputDelta",
+  "item/mcpToolCall/progress",
   "item/plan/delta",
   "item/reasoning/summaryPartAdded",
   "item/reasoning/summaryTextDelta",
   "item/reasoning/textDelta",
   "item/started",
   "item/tool/requestUserInput",
+  "rawResponseItem/completed",
   "thread/archived",
   "thread/closed",
   "thread/name/updated",
@@ -442,6 +455,15 @@ export function useAppServerEvents(handlers: AppServerEventHandlers) {
         return;
       }
 
+      if (method === "rawResponseItem/completed") {
+        const threadId = String(params.threadId ?? params.thread_id ?? "");
+        const item = params.item as Record<string, unknown> | undefined;
+        if (threadId && item) {
+          currentHandlers.onRawResponseItemCompleted?.(workspace_id, threadId, item);
+        }
+        return;
+      }
+
       if (method === "item/reasoning/summaryTextDelta") {
         const threadId = String(params.threadId ?? params.thread_id ?? "");
         const itemId = String(params.itemId ?? params.item_id ?? "");
@@ -507,6 +529,16 @@ export function useAppServerEvents(handlers: AppServerEventHandlers) {
         const delta = String(params.delta ?? "");
         if (threadId && itemId && delta) {
           currentHandlers.onFileChangeOutputDelta?.(workspace_id, threadId, itemId, delta);
+        }
+        return;
+      }
+
+      if (method === "item/mcpToolCall/progress") {
+        const threadId = String(params.threadId ?? params.thread_id ?? "");
+        const itemId = String(params.itemId ?? params.item_id ?? "");
+        const delta = String(params.message ?? "");
+        if (threadId && itemId && delta) {
+          currentHandlers.onMcpToolCallProgress?.(workspace_id, threadId, itemId, delta);
         }
         return;
       }

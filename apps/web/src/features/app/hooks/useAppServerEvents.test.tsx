@@ -60,6 +60,8 @@ describe("useAppServerEvents", () => {
       onApprovalRequest: vi.fn(),
       onRequestUserInput: vi.fn(),
       onItemCompleted: vi.fn(),
+      onRawResponseItemCompleted: vi.fn(),
+      onMcpToolCallProgress: vi.fn(),
       onAgentMessageCompleted: vi.fn(),
       onAccountRateLimitsUpdated: vi.fn(),
       onAccountUpdated: vi.fn(),
@@ -299,6 +301,51 @@ describe("useAppServerEvents", () => {
       itemId: "item-2",
       text: "Done",
     });
+
+    act(() => {
+      listener?.({
+        workspace_id: "ws-1",
+        message: {
+          method: "rawResponseItem/completed",
+          params: {
+            threadId: "thread-1",
+            turnId: "turn-1",
+            item: {
+              type: "local_shell_call",
+              call_id: "call-raw-1",
+            },
+          },
+        },
+      });
+    });
+    expect(handlers.onRawResponseItemCompleted).toHaveBeenCalledWith(
+      "ws-1",
+      "thread-1",
+      {
+        type: "local_shell_call",
+        call_id: "call-raw-1",
+      },
+    );
+
+    act(() => {
+      listener?.({
+        workspace_id: "ws-1",
+        message: {
+          method: "item/mcpToolCall/progress",
+          params: {
+            threadId: "thread-1",
+            itemId: "mcp-1",
+            message: "Looking up resource",
+          },
+        },
+      });
+    });
+    expect(handlers.onMcpToolCallProgress).toHaveBeenCalledWith(
+      "ws-1",
+      "thread-1",
+      "mcp-1",
+      "Looking up resource",
+    );
 
     act(() => {
       listener?.({

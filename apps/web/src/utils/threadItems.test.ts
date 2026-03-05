@@ -240,6 +240,42 @@ describe("threadItems", () => {
     }
   });
 
+  it("prefers structured command actions when summarizing exploration", () => {
+    const items: ConversationItem[] = [
+      {
+        id: "cmd-actions-1",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: python tool.py",
+        detail: "/repo",
+        status: "completed",
+        output: "",
+        commandActions: [
+          {
+            type: "read",
+            command: "python tool.py",
+            name: "README.md",
+            path: "README.md",
+          },
+          {
+            type: "unknown",
+            command: "python tool.py --summarize",
+          },
+        ],
+      },
+    ];
+
+    const prepared = prepareThreadItems(items);
+    expect(prepared).toHaveLength(1);
+    expect(prepared[0].kind).toBe("explore");
+    if (prepared[0].kind === "explore") {
+      expect(prepared[0].entries).toEqual([
+        { kind: "read", label: "README.md" },
+        { kind: "run", label: "python tool.py --summarize" },
+      ]);
+    }
+  });
+
   it("deduplicates explore entries when consecutive summaries merge", () => {
     const items: ConversationItem[] = [
       {
@@ -523,6 +559,67 @@ describe("threadItems", () => {
       expect(item.detail).toBe("A foo.txt");
       expect(item.output).toContain("diff --git a/foo.txt b/foo.txt");
       expect(item.changes?.[0]?.path).toBe("foo.txt");
+    }
+  });
+
+  it("builds dynamic exec_command tool calls as command executions", () => {
+    const item = buildConversationItem({
+      type: "dynamicToolCall",
+      id: "tool-exec-1",
+      tool: "exec_command",
+      status: "completed",
+      arguments: {
+        cmd: "rg buildConversationItem apps/web/src",
+        workdir: "/repo",
+      },
+      contentItems: [{ type: "inputText", text: "matched lines" }],
+    });
+
+    expect(item).not.toBeNull();
+    if (item && item.kind === "tool") {
+      expect(item.toolType).toBe("commandExecution");
+      expect(item.title).toContain("rg buildConversationItem");
+      expect(item.detail).toBe("/repo");
+      expect(item.output).toBe("matched lines");
+    }
+  });
+
+  it("builds raw local shell calls as command executions", () => {
+    const item = buildConversationItem({
+      type: "local_shell_call",
+      call_id: "call-shell-1",
+      status: "completed",
+      action: {
+        type: "exec",
+        command: ["sed", "-n", "1,40p", "README.md"],
+        working_directory: "/repo",
+      },
+    });
+
+    expect(item).not.toBeNull();
+    if (item && item.kind === "tool") {
+      expect(item.id).toBe("call-shell-1");
+      expect(item.toolType).toBe("commandExecution");
+      expect(item.title).toContain("sed -n 1,40p README.md");
+      expect(item.detail).toBe("/repo");
+    }
+  });
+
+  it("builds raw custom tool calls as dynamic tool items", () => {
+    const item = buildConversationItem({
+      type: "custom_tool_call",
+      call_id: "call-tool-1",
+      status: "completed",
+      name: "exec_command",
+      input: "{\"cmd\":\"cat docs/architecture.md\",\"workdir\":\"/repo\"}",
+    });
+
+    expect(item).not.toBeNull();
+    if (item && item.kind === "tool") {
+      expect(item.id).toBe("call-tool-1");
+      expect(item.toolType).toBe("commandExecution");
+      expect(item.title).toContain("cat docs/architecture.md");
+      expect(item.detail).toBe("/repo");
     }
   });
 

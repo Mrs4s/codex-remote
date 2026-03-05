@@ -361,6 +361,26 @@ export function useThreadItemEvents({
     [handleItemUpdate],
   );
 
+  const onRawResponseItemCompleted = useCallback(
+    (workspaceId: string, threadId: string, item: Record<string, unknown>) => {
+      flushPendingDeltas();
+      const converted = buildConversationItem(item);
+      if (!converted) {
+        return;
+      }
+      dispatch({ type: "ensureThread", workspaceId, threadId });
+      dispatch({
+        type: "upsertItem",
+        workspaceId,
+        threadId,
+        item: converted,
+        hasCustomName: Boolean(getCustomName(workspaceId, threadId)),
+      });
+      safeMessageActivity();
+    },
+    [dispatch, flushPendingDeltas, getCustomName, safeMessageActivity],
+  );
+
   const onReasoningSummaryDelta = useCallback(
     (_workspaceId: string, threadId: string, itemId: string, delta: string) => {
       if (!delta) {
@@ -441,11 +461,23 @@ export function useThreadItemEvents({
     [handleToolOutputDelta],
   );
 
+  const onMcpToolCallProgress = useCallback(
+    (_workspaceId: string, threadId: string, itemId: string, delta: string) => {
+      if (!delta) {
+        return;
+      }
+      const normalized = delta.endsWith("\n") ? delta : `${delta}\n`;
+      handleToolOutputDelta(threadId, itemId, normalized);
+    },
+    [handleToolOutputDelta],
+  );
+
   return {
     onAgentMessageDelta,
     onAgentMessageCompleted,
     onItemStarted,
     onItemCompleted,
+    onRawResponseItemCompleted,
     onReasoningSummaryDelta,
     onReasoningSummaryBoundary,
     onReasoningTextDelta,
@@ -453,5 +485,6 @@ export function useThreadItemEvents({
     onCommandOutputDelta,
     onTerminalInteraction,
     onFileChangeOutputDelta,
+    onMcpToolCallProgress,
   };
 }

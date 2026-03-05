@@ -213,6 +213,30 @@ describe("useThreadItemEvents", () => {
     );
   });
 
+  it("upserts converted raw response items", () => {
+    const { result, dispatch, safeMessageActivity } = makeOptions();
+    const rawItem: ItemPayload = { type: "custom_tool_call", call_id: "call-1" };
+
+    act(() => {
+      result.current.onRawResponseItemCompleted("ws-1", "thread-1", rawItem);
+    });
+
+    expect(buildConversationItem).toHaveBeenCalledWith(rawItem);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "ensureThread",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+    });
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "upsertItem",
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      item: convertedItem,
+      hasCustomName: false,
+    });
+    expect(safeMessageActivity).toHaveBeenCalled();
+  });
+
   it("marks processing and appends agent deltas", () => {
     const { result, dispatch, markProcessing } = makeOptions();
 
@@ -238,6 +262,22 @@ describe("useThreadItemEvents", () => {
       itemId: "assistant-1",
       delta: "Hello",
       hasCustomName: false,
+    });
+  });
+
+  it("appends MCP tool progress to tool output", () => {
+    const { result, dispatch, markProcessing } = makeOptions();
+
+    act(() => {
+      result.current.onMcpToolCallProgress("ws-1", "thread-1", "mcp-1", "Listing resources");
+    });
+
+    expect(markProcessing).toHaveBeenCalledWith("thread-1", true);
+    expect(dispatch).toHaveBeenCalledWith({
+      type: "appendToolOutput",
+      threadId: "thread-1",
+      itemId: "mcp-1",
+      delta: "Listing resources\n",
     });
   });
 

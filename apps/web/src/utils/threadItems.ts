@@ -1,6 +1,7 @@
 import type {
   CollabAgentRef,
   CollabAgentStatus,
+  ConversationCommandAction,
   ConversationItem,
 } from "../types";
 import { CHAT_SCROLLBACK_DEFAULT } from "./chatScrollback";
@@ -53,6 +54,256 @@ function asNumber(value: unknown) {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return null;
+  }
+  return value as Record<string, unknown>;
+}
+
+function stringifyJsonValue(value: unknown) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  if (typeof value === "string") {
+    return value;
+  }
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return asString(value);
+  }
+}
+
+function parseJsonStringValue(value: string): unknown {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return "";
+  }
+  try {
+    return JSON.parse(trimmed);
+  } catch {
+    return trimmed;
+  }
+}
+
+function normalizeToolStatus(value: unknown, successValue?: unknown) {
+  const status = asString(value).trim();
+  if (status) {
+    return status;
+  }
+  if (successValue === false) {
+    return "failed";
+  }
+  if (successValue === true) {
+    return "completed";
+  }
+  return "";
+}
+
+function normalizeCommandActions(value: unknown): ConversationCommandAction[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const normalized = value
+    .map((entry) => {
+      const record = asRecord(entry);
+      if (!record) {
+        return null;
+      }
+      const type = asString(record.type).trim();
+      const command = asString(record.command ?? "").trim();
+      if (type === "read") {
+        const path = asString(record.path ?? "").trim();
+        const name = asString(record.name ?? "").trim();
+        if (!command && !path && !name) {
+          return null;
+        }
+        return {
+          type: "read",
+          command,
+          name: name || path.split(/[\\/]/g).filter(Boolean).pop() || path,
+          path,
+        } satisfies ConversationCommandAction;
+      }
+      if (type === "listFiles") {
+        return {
+          type: "listFiles",
+          command,
+          path: asString(record.path ?? "").trim() || null,
+        } satisfies ConversationCommandAction;
+      }
+      if (type === "search") {
+        return {
+          type: "search",
+          command,
+          query: asString(record.query ?? "").trim() || null,
+          path: asString(record.path ?? "").trim() || null,
+        } satisfies ConversationCommandAction;
+      }
+      if (!type || type === "unknown") {
+        if (!command) {
+          return null;
+        }
+        return {
+          type: "unknown",
+          command,
+        } satisfies ConversationCommandAction;
+      }
+      if (!command) {
+        return null;
+      }
+      return {
+        type: "unknown",
+        command,
+      } satisfies ConversationCommandAction;
+    })
+    .filter((entry): entry is ConversationCommandAction => Boolean(entry));
+  return normalized.length > 0 ? normalized : undefined;
+}
+
+function commandTextFromValue(value: unknown) {
+  if (Array.isArray(value)) {
+    return value.map((entry) => asString(entry)).filter(Boolean).join(" ").trim();
+  }
+  return asString(value).trim();
+}
+
+function extractTextContentItems(value: unknown) {
+  if (!Array.isArray(value)) {
+    return "";
+  }
+  return value
+    .map((entry) => {
+      const record = asRecord(entry);
+      if (!record) {
+        return "";
+      }
+      const type = asString(record.type ?? "").trim();
+      if (type === "inputText" || type === "text" || type === "outputText") {
+        return asString(record.text ?? record.value ?? "");
+      }
+      return "";
+    })
+    .filter(Boolean)
+    .join("\n\n");
+}
+
+function buildCommandExecutionToolItem(
+  id: string,
+  params: {
+    command: string;
+    cwd?: string;
+    status?: string;
+    output?: string;
+    durationMs?: number | null;
+    commandActions?: ConversationCommandAction[];
+  },
+): Extract<ConversationItem, { kind: "tool" }> {
+  const tool: Extract<ConversationItem, { kind: "tool" }> = {
+    id,
+    kind: "tool",
+    toolType: "commandExecution",
+    title: params.command ? `Command: ${params.command}` : "Command",
+    detail: params.cwd ?? "",
+    status: params.status ?? "",
+    output: params.output ?? "",
+    durationMs: params.durationMs ?? null,
+  };
+  if (params.commandActions && params.commandActions.length > 0) {
+    tool.commandActions = params.commandActions;
+  }
+  return tool;
+}
+
+function resolveConversationItemId(type: string, item: Record<string, unknown>) {
+  const explicitId = asString(item.id ?? "").trim();
+  if (explicitId) {
+    return explicitId;
+  }
+  const callId = asString(item.call_id ?? item.callId ?? "").trim();
+  if (callId) {
+    return callId;
+  }
+  if (type === "local_shell_call") {
+    const action = asRecord(item.action);
+    const command = commandTextFromValue(action?.command ?? "");
+    return command ? `raw-local-shell:${Date.now()}:${command}` : "";
+  }
+  if (type === "web_search_call") {
+    const action = asRecord(item.action);
+    const query =
+      normalizeStringList(action?.queries ?? action?.query)[0] ||
+      asString(action?.pattern ?? action?.url ?? "").trim();
+    return query ? `raw-web-search:${Date.now()}:${query}` : "";
+  }
+  if (type === "custom_tool_call" || type === "function_call") {
+    const toolName = asString(item.name ?? "").trim();
+    return toolName ? `raw-tool:${Date.now()}:${toolName}` : "";
+  }
+  return "";
+}
+
+function buildDynamicToolCallConversationItem(
+  id: string,
+  item: Record<string, unknown>,
+): ConversationItem | null {
+  const tool = asString(item.tool ?? item.name ?? "").trim();
+  if (!tool) {
+    return null;
+  }
+
+  const argumentsValue = item.arguments ?? item.input ?? null;
+  const argsRecord = asRecord(argumentsValue);
+  const status = normalizeToolStatus(item.status, item.success);
+  const durationMs = asNumber(item.durationMs ?? item.duration_ms);
+  const output = extractTextContentItems(item.contentItems ?? item.content_items);
+
+  if (tool === "exec_command") {
+    const command =
+      commandTextFromValue(argsRecord?.cmd ?? argsRecord?.command ?? argsRecord?.commandLine) ||
+      stringifyJsonValue(argumentsValue);
+    const cwd = asString(
+      argsRecord?.workdir ??
+        argsRecord?.cwd ??
+        argsRecord?.working_directory ??
+        argsRecord?.workingDirectory ??
+        "",
+    ).trim();
+    return buildCommandExecutionToolItem(id, {
+      command,
+      cwd,
+      status,
+      output,
+      durationMs,
+    });
+  }
+
+  if (tool === "view_image") {
+    return {
+      id,
+      kind: "tool",
+      toolType: "imageView",
+      title: "Image view",
+      detail: asString(argsRecord?.path ?? "").trim(),
+      status,
+      output: output || "",
+      durationMs,
+    };
+  }
+
+  return {
+    id,
+    kind: "tool",
+    toolType: "dynamicToolCall",
+    title: `Tool: ${tool}`,
+    detail: stringifyJsonValue(argumentsValue),
+    status,
+    output,
+    durationMs,
+  };
 }
 
 function exploreItemIdForToolId(toolId: string) {
@@ -473,6 +724,47 @@ function mergeToolCalls(existing: ToolItem[] | undefined, incoming: ToolItem[] |
   return merged.length > 0 ? merged : undefined;
 }
 
+function summarizeCommandActions(actions: ConversationCommandAction[]) {
+  const entries: ExploreEntry[] = [];
+  actions.forEach((action) => {
+    if (action.type === "read") {
+      const path = action.path.trim();
+      const name = action.name.trim();
+      if (!path && !name) {
+        return;
+      }
+      entries.push(
+        name && path && name !== path
+          ? { kind: "read", label: name, detail: path }
+          : { kind: "read", label: path || name },
+      );
+      return;
+    }
+    if (action.type === "listFiles") {
+      entries.push({
+        kind: "list",
+        label: action.path?.trim() || cleanCommandText(action.command) || "files",
+      });
+      return;
+    }
+    if (action.type === "search") {
+      const query = action.query?.trim() || "";
+      const path = action.path?.trim() || "";
+      const label = query ? (path ? `${query} in ${path}` : query) : path;
+      entries.push({
+        kind: "search",
+        label: label || cleanCommandText(action.command) || "search",
+      });
+      return;
+    }
+    const cleaned = cleanCommandText(action.command);
+    if (cleaned) {
+      entries.push({ kind: "run", label: cleaned });
+    }
+  });
+  return entries;
+}
+
 function parseSearch(tokens: string[]): ExploreEntry | null {
   const commandName = tokens[0]?.toLowerCase() ?? "";
   const hasFilesFlag = tokens.some((token) => token === "--files");
@@ -579,6 +871,19 @@ function mergeExploreEntries(base: ExploreEntry[], next: ExploreEntry[]) {
 function summarizeCommandExecution(item: Extract<ConversationItem, { kind: "tool" }>) {
   if (isFailedStatus(item.status)) {
     return null;
+  }
+  const commandActionEntries = item.commandActions
+    ? summarizeCommandActions(item.commandActions)
+    : [];
+  if (commandActionEntries.length > 0) {
+    const summary: ExploreItem = {
+      id: exploreItemIdForToolId(item.id),
+      kind: "explore",
+      status: normalizeCommandStatus(item.status),
+      entries: coalesceReadEntries(commandActionEntries),
+      toolCalls: [item],
+    };
+    return summary;
   }
   const rawCommand = item.title.replace(/^Command:\s*/i, "").trim();
   const cleaned = cleanCommandText(rawCommand);
@@ -915,7 +1220,7 @@ export function buildConversationItem(
   item: Record<string, unknown>,
 ): ConversationItem | null {
   const type = asString(item.type);
-  const id = asString(item.id);
+  const id = resolveConversationItemId(type, item);
   if (!id || !type) {
     return null;
   }
@@ -952,19 +1257,75 @@ export function buildConversationItem(
     };
   }
   if (type === "commandExecution") {
-    const command = Array.isArray(item.command)
-      ? item.command.map((part) => asString(part)).join(" ")
-      : asString(item.command ?? "");
+    const command = commandTextFromValue(item.command ?? "");
     const durationMs = asNumber(item.durationMs ?? item.duration_ms);
-    return {
-      id,
-      kind: "tool",
-      toolType: type,
-      title: command ? `Command: ${command}` : "Command",
-      detail: asString(item.cwd ?? ""),
+    return buildCommandExecutionToolItem(id, {
+      command,
+      cwd: asString(item.cwd ?? "").trim(),
       status: asString(item.status ?? ""),
       output: asString(item.aggregatedOutput ?? ""),
       durationMs,
+      commandActions: normalizeCommandActions(
+        item.commandActions ?? item.command_actions,
+      ),
+    });
+  }
+  if (type === "dynamicToolCall") {
+    return buildDynamicToolCallConversationItem(id, item);
+  }
+  if (type === "local_shell_call") {
+    const action = asRecord(item.action);
+    const command = commandTextFromValue(action?.command ?? "");
+    const cwd = asString(
+      action?.working_directory ?? action?.workingDirectory ?? "",
+    ).trim();
+    return buildCommandExecutionToolItem(id, {
+      command,
+      cwd,
+      status: normalizeToolStatus(item.status),
+      output: "",
+    });
+  }
+  if (type === "custom_tool_call" || type === "function_call") {
+    const toolName = asString(item.name ?? "").trim();
+    const rawArguments = type === "custom_tool_call" ? item.input : item.arguments;
+    const parsedArguments =
+      typeof rawArguments === "string"
+        ? parseJsonStringValue(rawArguments)
+        : rawArguments;
+    return buildDynamicToolCallConversationItem(id, {
+      type: "dynamicToolCall",
+      id,
+      tool: toolName,
+      arguments: parsedArguments,
+      status:
+        type === "custom_tool_call"
+          ? item.status ?? "completed"
+          : "completed",
+      success: true,
+    });
+  }
+  if (type === "web_search_call") {
+    const action = asRecord(item.action);
+    const actionType = asString(action?.type ?? "").trim().toLowerCase();
+    const searchQueries = normalizeStringList(action?.queries ?? action?.query);
+    const primaryQuery =
+      searchQueries[0] ||
+      asString(action?.pattern ?? action?.url ?? "").trim();
+    const detail =
+      actionType === "openpage" || actionType === "open_page"
+        ? primaryQuery || "Open page"
+        : actionType === "findinpage" || actionType === "find_in_page"
+          ? primaryQuery || "Find in page"
+          : primaryQuery;
+    return {
+      id,
+      kind: "tool",
+      toolType: "webSearch",
+      title: "Web search",
+      detail,
+      status: normalizeToolStatus(item.status, true) || "completed",
+      output: "",
     };
   }
   if (type === "fileChange") {

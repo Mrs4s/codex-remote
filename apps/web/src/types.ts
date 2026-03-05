@@ -99,6 +99,12 @@ export type ConversationExploreEntry = {
   detail?: string;
 };
 
+export type ConversationCommandAction =
+  | { type: "read"; command: string; name: string; path: string }
+  | { type: "listFiles"; command: string; path: string | null }
+  | { type: "search"; command: string; query: string | null; path: string | null }
+  | { type: "unknown"; command: string };
+
 export type ConversationToolItem = {
   id: string;
   kind: "tool";
@@ -108,6 +114,7 @@ export type ConversationToolItem = {
   status?: string;
   output?: string;
   durationMs?: number | null;
+  commandActions?: ConversationCommandAction[];
   changes?: { path: string; kind?: string; diff?: string }[];
   collabSender?: CollabAgentRef;
   collabReceiver?: CollabAgentRef;
