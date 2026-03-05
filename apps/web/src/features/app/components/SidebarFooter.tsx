@@ -17,6 +17,8 @@ type SidebarFooterProps = {
 
 type UsageHistoryMode = "day" | "week" | "month";
 
+type UsageHistoryNumberFormat = "raw" | "compact";
+
 type UsageHistoryRow = {
   key: string;
   label: string;
@@ -31,11 +33,29 @@ const HISTORY_DAYS = 365;
 
 type UsageHistoryCountingMode = LocalUsageCountingMode;
 
-function formatCount(value: number): string {
+function formatCount(value: number, mode: UsageHistoryNumberFormat): string {
   if (!Number.isFinite(value) || value <= 0) {
     return "0";
   }
-  return Math.round(value).toLocaleString();
+  const rounded = Math.round(value);
+  if (mode === "raw") {
+    return rounded.toLocaleString();
+  }
+
+  if (rounded >= 1_000_000_000) {
+    const scaled = rounded / 1_000_000_000;
+    return `${scaled.toFixed(scaled >= 10 ? 0 : 1)}B`;
+  }
+  if (rounded >= 1_000_000) {
+    const scaled = rounded / 1_000_000;
+    return `${scaled.toFixed(scaled >= 10 ? 0 : 1)}M`;
+  }
+  if (rounded >= 1_000) {
+    const scaled = rounded / 1_000;
+    return `${scaled.toFixed(scaled >= 10 ? 0 : 1)}K`;
+  }
+
+  return String(rounded);
 }
 
 function formatUsd(value: number): string {
@@ -155,6 +175,8 @@ export function SidebarFooter({
   const [historyMode, setHistoryMode] = useState<UsageHistoryMode>("day");
   const [historyCountingMode, setHistoryCountingMode] =
     useState<UsageHistoryCountingMode>("ccusage");
+  const [historyNumberFormat, setHistoryNumberFormat] =
+    useState<UsageHistoryNumberFormat>("raw");
   const [historySnapshot, setHistorySnapshot] = useState<LocalUsageCostSnapshot | null>(
     null,
   );
@@ -359,6 +381,32 @@ export function SidebarFooter({
                   ccusage
                 </button>
               </div>
+              <div className="usage-history-toggle" role="group" aria-label="Number format">
+                <button
+                  type="button"
+                  className={
+                    historyNumberFormat === "raw"
+                      ? "usage-history-toggle-button is-active"
+                      : "usage-history-toggle-button"
+                  }
+                  onClick={() => setHistoryNumberFormat("raw")}
+                  aria-pressed={historyNumberFormat === "raw"}
+                >
+                  Raw
+                </button>
+                <button
+                  type="button"
+                  className={
+                    historyNumberFormat === "compact"
+                      ? "usage-history-toggle-button is-active"
+                      : "usage-history-toggle-button"
+                  }
+                  onClick={() => setHistoryNumberFormat("compact")}
+                  aria-pressed={historyNumberFormat === "compact"}
+                >
+                  Compact
+                </button>
+              </div>
             </div>
             <button
               type="button"
@@ -398,10 +446,15 @@ export function SidebarFooter({
                     groupedRows.map((row) => (
                       <tr key={row.key}>
                         <td>{row.label}</td>
-                        <td>{formatCount(row.totalTokens)}</td>
-                        <td>{formatCount(Math.max(row.inputTokens - row.cachedInputTokens, 0))}</td>
-                        <td>{formatCount(row.cachedInputTokens)}</td>
-                        <td>{formatCount(row.outputTokens)}</td>
+                        <td>{formatCount(row.totalTokens, historyNumberFormat)}</td>
+                        <td>
+                          {formatCount(
+                            Math.max(row.inputTokens - row.cachedInputTokens, 0),
+                            historyNumberFormat,
+                          )}
+                        </td>
+                        <td>{formatCount(row.cachedInputTokens, historyNumberFormat)}</td>
+                        <td>{formatCount(row.outputTokens, historyNumberFormat)}</td>
                         <td>{formatUsd(row.totalCostUsd)}</td>
                       </tr>
                     ))
