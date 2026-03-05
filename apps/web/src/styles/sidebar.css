@@ -1739,6 +1739,13 @@
   flex-wrap: wrap;
 }
 
+.usage-history-control-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .usage-history-toggle {
   display: inline-flex;
   align-items: center;

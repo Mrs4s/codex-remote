@@ -596,6 +596,8 @@ export type LocalUsageCostSnapshot = {
   missingPricingModels: string[];
 };
 
+export type LocalUsageCountingMode = "deduped" | "ccusage";
+
 export type TurnPlanStepStatus = "pending" | "inProgress" | "completed";
 
 export type TurnPlanStep = {

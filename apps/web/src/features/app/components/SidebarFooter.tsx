@@ -4,6 +4,7 @@ import type { LocalUsageCostDay, LocalUsageCostSnapshot } from "../../../types";
 import { localUsageCostSnapshot } from "../../../services/tauri";
 import { formatRelativeTimeShort } from "../../../utils/time";
 import { ModalShell } from "../../design-system/components/modal/ModalShell";
+import type { LocalUsageCountingMode } from "../../../types";
 
 type SidebarFooterProps = {
   sessionPercent: number | null;
@@ -27,6 +28,8 @@ type UsageHistoryRow = {
 };
 
 const HISTORY_DAYS = 365;
+
+type UsageHistoryCountingMode = LocalUsageCountingMode;
 
 function formatCount(value: number): string {
   if (!Number.isFinite(value) || value <= 0) {
@@ -150,17 +153,20 @@ export function SidebarFooter({
 }: SidebarFooterProps) {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [historyMode, setHistoryMode] = useState<UsageHistoryMode>("day");
+  const [historyCountingMode, setHistoryCountingMode] =
+    useState<UsageHistoryCountingMode>("ccusage");
   const [historySnapshot, setHistorySnapshot] = useState<LocalUsageCostSnapshot | null>(
     null,
   );
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
 
-  const loadHistory = useCallback(async () => {
+  const loadHistory = useCallback(async (countingMode: UsageHistoryCountingMode) => {
     setHistoryLoading(true);
     setHistoryError(null);
+    setHistorySnapshot(null);
     try {
-      const snapshot = await localUsageCostSnapshot(HISTORY_DAYS);
+      const snapshot = await localUsageCostSnapshot(HISTORY_DAYS, undefined, countingMode);
       setHistorySnapshot(snapshot);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -174,8 +180,8 @@ export function SidebarFooter({
     if (!isHistoryOpen || historySnapshot || historyLoading) {
       return;
     }
-    loadHistory().catch(() => undefined);
-  }, [historyLoading, historySnapshot, isHistoryOpen, loadHistory]);
+    loadHistory(historyCountingMode).catch(() => undefined);
+  }, [historyLoading, historySnapshot, historyCountingMode, isHistoryOpen, loadHistory]);
 
   useEffect(() => {
     if (!isHistoryOpen) {
@@ -196,6 +202,9 @@ export function SidebarFooter({
     () => buildHistoryRows(historySnapshot?.days ?? [], historyMode),
     [historyMode, historySnapshot?.days],
   );
+
+  const historyCountingLabel =
+    historyCountingMode === "ccusage" ? "ccusage-compatible" : "deduplicated";
 
   return (
     <div className="sidebar-footer">
@@ -269,54 +278,94 @@ export function SidebarFooter({
           </div>
           <div className="usage-history-subtitle">
             {historySnapshot
-              ? `Updated ${formatRelativeTimeShort(historySnapshot.updatedAt)}`
-              : "Usage from local Codex sessions"}
+              ? `Updated ${formatRelativeTimeShort(historySnapshot.updatedAt)} · ${historyCountingLabel}`
+              : `Usage from local Codex sessions · ${historyCountingLabel}`}
           </div>
           <div className="usage-history-controls">
-            <div className="usage-history-toggle" role="group" aria-label="Usage period">
-              <button
-                type="button"
-                className={
-                  historyMode === "day"
-                    ? "usage-history-toggle-button is-active"
-                    : "usage-history-toggle-button"
-                }
-                onClick={() => setHistoryMode("day")}
-                aria-pressed={historyMode === "day"}
+            <div className="usage-history-control-group">
+              <div className="usage-history-toggle" role="group" aria-label="Usage period">
+                <button
+                  type="button"
+                  className={
+                    historyMode === "day"
+                      ? "usage-history-toggle-button is-active"
+                      : "usage-history-toggle-button"
+                  }
+                  onClick={() => setHistoryMode("day")}
+                  aria-pressed={historyMode === "day"}
+                >
+                  Day
+                </button>
+                <button
+                  type="button"
+                  className={
+                    historyMode === "week"
+                      ? "usage-history-toggle-button is-active"
+                      : "usage-history-toggle-button"
+                  }
+                  onClick={() => setHistoryMode("week")}
+                  aria-pressed={historyMode === "week"}
+                >
+                  Week
+                </button>
+                <button
+                  type="button"
+                  className={
+                    historyMode === "month"
+                      ? "usage-history-toggle-button is-active"
+                      : "usage-history-toggle-button"
+                  }
+                  onClick={() => setHistoryMode("month")}
+                  aria-pressed={historyMode === "month"}
+                >
+                  Month
+                </button>
+              </div>
+              <div
+                className="usage-history-toggle"
+                role="group"
+                aria-label="Token counting mode"
               >
-                Day
-              </button>
-              <button
-                type="button"
-                className={
-                  historyMode === "week"
-                    ? "usage-history-toggle-button is-active"
-                    : "usage-history-toggle-button"
-                }
-                onClick={() => setHistoryMode("week")}
-                aria-pressed={historyMode === "week"}
-              >
-                Week
-              </button>
-              <button
-                type="button"
-                className={
-                  historyMode === "month"
-                    ? "usage-history-toggle-button is-active"
-                    : "usage-history-toggle-button"
-                }
-                onClick={() => setHistoryMode("month")}
-                aria-pressed={historyMode === "month"}
-              >
-                Month
-              </button>
+                <button
+                  type="button"
+                  className={
+                    historyCountingMode === "deduped"
+                      ? "usage-history-toggle-button is-active"
+                      : "usage-history-toggle-button"
+                  }
+                  onClick={() => {
+                    const mode: UsageHistoryCountingMode = "deduped";
+                    setHistoryCountingMode(mode);
+                    loadHistory(mode).catch(() => undefined);
+                  }}
+                  aria-pressed={historyCountingMode === "deduped"}
+                >
+                  Deduped
+                </button>
+                <button
+                  type="button"
+                  className={
+                    historyCountingMode === "ccusage"
+                      ? "usage-history-toggle-button is-active"
+                      : "usage-history-toggle-button"
+                  }
+                  onClick={() => {
+                    const mode: UsageHistoryCountingMode = "ccusage";
+                    setHistoryCountingMode(mode);
+                    loadHistory(mode).catch(() => undefined);
+                  }}
+                  aria-pressed={historyCountingMode === "ccusage"}
+                >
+                  ccusage
+                </button>
+              </div>
             </div>
             <button
               type="button"
               className="ghost usage-history-refresh"
               disabled={historyLoading}
               onClick={() => {
-                loadHistory().catch(() => undefined);
+                loadHistory(historyCountingMode).catch(() => undefined);
               }}
             >
               {historyLoading ? "Refreshing..." : "Refresh"}
@@ -333,7 +382,7 @@ export function SidebarFooter({
                     <th>Period</th>
                     <th>Total</th>
                     <th>Input</th>
-                    <th>Cached</th>
+                    <th>Cache Read</th>
                     <th>Output</th>
                     <th>Cost</th>
                   </tr>
@@ -350,7 +399,7 @@ export function SidebarFooter({
                       <tr key={row.key}>
                         <td>{row.label}</td>
                         <td>{formatCount(row.totalTokens)}</td>
-                        <td>{formatCount(row.inputTokens)}</td>
+                        <td>{formatCount(Math.max(row.inputTokens - row.cachedInputTokens, 0))}</td>
                         <td>{formatCount(row.cachedInputTokens)}</td>
                         <td>{formatCount(row.outputTokens)}</td>
                         <td>{formatUsd(row.totalCostUsd)}</td>

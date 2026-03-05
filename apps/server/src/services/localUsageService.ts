@@ -82,6 +82,8 @@ type ScanUsageResult = {
   dailyModelTotals: Map<string, Map<string, UsageTotals>> | null;
 };
 
+export type LocalUsageCountingMode = "deduped" | "ccusage";
+
 const CODEX_MODEL_ALIASES_MAP = new Map<string, string>([
   ["gpt-5-codex", "gpt-5"],
   ["gpt-5.3-codex", "gpt-5.2-codex"],
@@ -152,6 +154,14 @@ function resolveDefaultCodexHome(): string {
 function resolveSessionsRoots(workspacePath: string | null): string[] {
   void workspacePath;
   return [path.join(resolveDefaultCodexHome(), "sessions")];
+}
+
+function normalizeCountingMode(value?: string | null): LocalUsageCountingMode {
+  const raw = value?.trim();
+  if (raw === "ccusage" || raw === "deduped") {
+    return raw;
+  }
+  return "deduped";
 }
 
 function formatDayKey(date: Date): string {
@@ -320,6 +330,7 @@ async function scanFile(
   modelTotals: Map<string, number>,
   workspacePath: string | null,
   dailyModelTotals: Map<string, Map<string, UsageTotals>> | null,
+  countingMode: LocalUsageCountingMode,
 ): Promise<void> {
   const stream = createReadStream(filePath, { encoding: "utf8" });
   const reader = readline.createInterface({
@@ -414,55 +425,84 @@ async function scanFile(
         }
 
         const info = asRecord(payload?.info);
-        let usageMap = findUsageMap(info, ["total_token_usage", "totalTokenUsage"]);
-        const usedTotal = Boolean(usageMap);
-        if (!usageMap) {
-          usageMap = findUsageMap(info, ["last_token_usage", "lastTokenUsage"]);
+        const totalUsageMap = findUsageMap(info, ["total_token_usage", "totalTokenUsage"]);
+        const lastUsageMap = findUsageMap(info, ["last_token_usage", "lastTokenUsage"]);
+
+        const readUsageTotals = (usageMap: Record<string, unknown>): UsageTotals => ({
+          inputTokens: readI64(usageMap, ["input_tokens", "inputTokens"]),
+          cachedInputTokens: readI64(usageMap, [
+            "cached_input_tokens",
+            "cache_read_input_tokens",
+            "cachedInputTokens",
+            "cacheReadInputTokens",
+          ]),
+          outputTokens: readI64(usageMap, ["output_tokens", "outputTokens"]),
+        });
+
+        const totalTotals = totalUsageMap ? readUsageTotals(totalUsageMap) : null;
+        const lastTotals = lastUsageMap ? readUsageTotals(lastUsageMap) : null;
+
+        let delta: UsageTotals | null = null;
+
+        if (countingMode === "ccusage") {
+          // ccusage compatibility: always prefer last_token_usage when present.
+          if (lastTotals) {
+            delta = lastTotals;
+          } else if (totalTotals) {
+            const previous = previousTotals ?? defaultUsageTotals();
+            delta = {
+              inputTokens: Math.max(totalTotals.inputTokens - previous.inputTokens, 0),
+              cachedInputTokens: Math.max(
+                totalTotals.cachedInputTokens - previous.cachedInputTokens,
+                0,
+              ),
+              outputTokens: Math.max(totalTotals.outputTokens - previous.outputTokens, 0),
+            };
+          }
+
+          // Keep a baseline for any later total-only events.
+          if (totalTotals) {
+            previousTotals = totalTotals;
+          } else if (delta) {
+            const nextTotals: UsageTotals = previousTotals ?? defaultUsageTotals();
+            addUsageTotals(nextTotals, delta);
+            previousTotals = nextTotals;
+          }
+        } else {
+          // Deduped mode: prefer total_token_usage (stable monotonic counter) and derive a delta.
+          if (totalTotals) {
+            const previous = previousTotals ?? defaultUsageTotals();
+            delta = {
+              inputTokens: Math.max(totalTotals.inputTokens - previous.inputTokens, 0),
+              cachedInputTokens: Math.max(
+                totalTotals.cachedInputTokens - previous.cachedInputTokens,
+                0,
+              ),
+              outputTokens: Math.max(totalTotals.outputTokens - previous.outputTokens, 0),
+            };
+            previousTotals = totalTotals;
+          } else if (lastTotals) {
+            delta = lastTotals;
+            const nextTotals: UsageTotals = previousTotals ?? defaultUsageTotals();
+            addUsageTotals(nextTotals, delta);
+            previousTotals = nextTotals;
+          }
         }
-        if (!usageMap) {
+
+        if (!delta) {
           continue;
         }
 
-        const inputTokens = readI64(usageMap, ["input_tokens", "inputTokens"]);
-        const cachedInputTokens = readI64(usageMap, [
-          "cached_input_tokens",
-          "cache_read_input_tokens",
-          "cachedInputTokens",
-          "cacheReadInputTokens",
-        ]);
-        const outputTokens = readI64(usageMap, ["output_tokens", "outputTokens"]);
+        const inputTokens = delta.inputTokens;
+        const cachedInputTokens = delta.cachedInputTokens;
+        const outputTokens = delta.outputTokens;
 
-        let delta: UsageTotals = {
-          inputTokens,
-          cachedInputTokens,
-          outputTokens,
-        };
+        // Clamp cached tokens to prompt tokens. When Codex repeats the same usage with different
+        // rate-limit envelopes, cached can appear larger than the prompt delta if we’re in
+        // ccusage mode (since it sums raw last_token_usage payloads).
+        const cached = Math.min(cachedInputTokens, inputTokens);
 
-        if (usedTotal) {
-          const previous = previousTotals ?? defaultUsageTotals();
-          delta = {
-            inputTokens: Math.max(inputTokens - previous.inputTokens, 0),
-            cachedInputTokens: Math.max(cachedInputTokens - previous.cachedInputTokens, 0),
-            outputTokens: Math.max(outputTokens - previous.outputTokens, 0),
-          };
-          previousTotals = {
-            inputTokens,
-            cachedInputTokens,
-            outputTokens,
-          };
-        } else {
-          const next: UsageTotals = previousTotals ?? defaultUsageTotals();
-          next.inputTokens += delta.inputTokens;
-          next.cachedInputTokens += delta.cachedInputTokens;
-          next.outputTokens += delta.outputTokens;
-          previousTotals = next;
-        }
-
-        if (
-          delta.inputTokens === 0 &&
-          delta.cachedInputTokens === 0 &&
-          delta.outputTokens === 0
-        ) {
+        if (inputTokens === 0 && cached === 0 && outputTokens === 0) {
           continue;
         }
 
@@ -472,15 +512,14 @@ async function scanFile(
           if (dayKey) {
             const day = daily.get(dayKey);
             if (day) {
-              const cached = Math.min(delta.cachedInputTokens, delta.inputTokens);
               const model = currentModel ?? extractModelFromTokenCount(value) ?? "unknown";
-              day.inputTokens += delta.inputTokens;
+              day.inputTokens += inputTokens;
               day.cachedInputTokens += cached;
-              day.outputTokens += delta.outputTokens;
+              day.outputTokens += outputTokens;
 
               modelTotals.set(
                 model,
-                (modelTotals.get(model) ?? 0) + delta.inputTokens + delta.outputTokens,
+                (modelTotals.get(model) ?? 0) + inputTokens + outputTokens,
               );
 
               if (dailyModelTotals) {
@@ -488,9 +527,9 @@ async function scanFile(
                   dailyModelTotals.get(dayKey) ?? new Map<string, UsageTotals>();
                 const modelUsage = dayModels.get(model) ?? defaultUsageTotals();
                 addUsageTotals(modelUsage, {
-                  inputTokens: delta.inputTokens,
+                  inputTokens,
                   cachedInputTokens: cached,
-                  outputTokens: delta.outputTokens,
+                  outputTokens,
                 });
                 dayModels.set(model, modelUsage);
                 dailyModelTotals.set(dayKey, dayModels);
@@ -601,7 +640,7 @@ function buildSnapshot(
 async function scanUsage(
   days: number,
   workspacePath: string | null,
-  options?: { includeDailyModelTotals?: boolean },
+  options?: { includeDailyModelTotals?: boolean; countingMode?: LocalUsageCountingMode },
 ): Promise<ScanUsageResult> {
   const updatedAt = Date.now();
   const dayKeys = makeDayKeys(days);
@@ -612,6 +651,7 @@ async function scanUsage(
   const dailyModelTotals = options?.includeDailyModelTotals
     ? new Map<string, Map<string, UsageTotals>>()
     : null;
+  const countingMode = normalizeCountingMode(options?.countingMode);
   const sessionsRoots = resolveSessionsRoots(workspacePath);
 
   for (const root of sessionsRoots) {
@@ -634,6 +674,7 @@ async function scanUsage(
           modelTotals,
           workspacePath,
           dailyModelTotals,
+          countingMode,
         );
       }
     }
@@ -714,10 +755,13 @@ function roundUsd(value: number): number {
 export async function localUsageSnapshot(
   days?: number | null,
   workspacePath?: string | null,
+  countingMode?: string | null,
 ): Promise<LocalUsageSnapshot> {
   const safeDays = Math.min(Math.max(Math.trunc(days ?? 30), 1), 90);
   const normalizedWorkspacePath = normalizeWorkspacePath(workspacePath);
-  const scanned = await scanUsage(safeDays, normalizedWorkspacePath);
+  const scanned = await scanUsage(safeDays, normalizedWorkspacePath, {
+    countingMode: normalizeCountingMode(countingMode),
+  });
   return buildSnapshot(
     scanned.updatedAt,
     scanned.dayKeys,
@@ -730,11 +774,13 @@ export async function localUsageCostSnapshot(
   pricingService: LiteLLMPricingService,
   days?: number | null,
   workspacePath?: string | null,
+  countingMode?: string | null,
 ): Promise<LocalUsageCostSnapshot> {
   const safeDays = Math.min(Math.max(Math.trunc(days ?? 365), 1), 365);
   const normalizedWorkspacePath = normalizeWorkspacePath(workspacePath);
   const scanned = await scanUsage(safeDays, normalizedWorkspacePath, {
     includeDailyModelTotals: true,
+    countingMode: normalizeCountingMode(countingMode),
   });
   const dailyModelTotals = scanned.dailyModelTotals ?? new Map<string, Map<string, UsageTotals>>();
   const uniqueModels = new Set<string>();

@@ -8,6 +8,7 @@ import type {
   CodexDoctorResult,
   DictationModelStatus,
   DictationSessionState,
+  LocalUsageCountingMode,
   LocalUsageCostSnapshot,
   LocalUsageSnapshot,
   UndoCheckpointSummary,
@@ -739,10 +740,16 @@ export async function checkoutGitHubPullRequest(
 export async function localUsageSnapshot(
   days?: number,
   workspacePath?: string | null,
+  countingMode?: LocalUsageCountingMode | null,
 ): Promise<LocalUsageSnapshot> {
-  const payload: { days: number; workspacePath?: string } = { days: days ?? 30 };
+  const payload: { days: number; workspacePath?: string; countingMode?: LocalUsageCountingMode } = {
+    days: days ?? 30,
+  };
   if (workspacePath) {
     payload.workspacePath = workspacePath;
+  }
+  if (countingMode) {
+    payload.countingMode = countingMode;
   }
   return invoke("local_usage_snapshot", payload);
 }
@@ -750,10 +757,16 @@ export async function localUsageSnapshot(
 export async function localUsageCostSnapshot(
   days?: number,
   workspacePath?: string | null,
+  countingMode?: LocalUsageCountingMode | null,
 ): Promise<LocalUsageCostSnapshot> {
-  const payload: { days: number; workspacePath?: string } = { days: days ?? 365 };
+  const payload: { days: number; workspacePath?: string; countingMode?: LocalUsageCountingMode } = {
+    days: days ?? 365,
+  };
   if (workspacePath) {
     payload.workspacePath = workspacePath;
+  }
+  if (countingMode) {
+    payload.countingMode = countingMode;
   }
   return invoke("local_usage_cost_snapshot", payload);
 }

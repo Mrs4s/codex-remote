@@ -227,6 +227,8 @@ export type LocalUsageCostSnapshot = {
   missingPricingModels: string[];
 };
 
+export type LocalUsageCountingMode = "deduped" | "ccusage";
+
 export type LiteLLMPricingLookup = {
   model: string;
   matchedModel: string | null;
@@ -509,11 +511,19 @@ export type RpcMethodMap = {
     result: { ok: true };
   };
   local_usage_snapshot: {
-    params: { days?: number | null; workspacePath?: string | null };
+    params: {
+      days?: number | null;
+      workspacePath?: string | null;
+      countingMode?: LocalUsageCountingMode | null;
+    };
     result: LocalUsageSnapshot;
   };
   local_usage_cost_snapshot: {
-    params: { days?: number | null; workspacePath?: string | null };
+    params: {
+      days?: number | null;
+      workspacePath?: string | null;
+      countingMode?: LocalUsageCountingMode | null;
+    };
     result: LocalUsageCostSnapshot;
   };
   litellm_pricing_lookup: {

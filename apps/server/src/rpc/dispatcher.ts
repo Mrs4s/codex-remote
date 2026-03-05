@@ -765,13 +765,18 @@ export async function dispatchRpc(
       return { ok: true };
     }
     case "local_usage_snapshot": {
-      return localUsageSnapshot(optionalNumber(params, "days"), optionalString(params, "workspacePath"));
+      return localUsageSnapshot(
+        optionalNumber(params, "days"),
+        optionalString(params, "workspacePath"),
+        optionalString(params, "countingMode"),
+      );
     }
     case "local_usage_cost_snapshot": {
       return localUsageCostSnapshot(
         deps.litellmPricingService,
         optionalNumber(params, "days"),
         optionalString(params, "workspacePath"),
+        optionalString(params, "countingMode"),
       );
     }
     case "litellm_pricing_lookup": {
