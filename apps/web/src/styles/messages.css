@@ -734,7 +734,7 @@
   color: var(--text-faint);
 }
 
-.explore-inline .tool-inline-bar-toggle {
+.explore-inline.explore-inline-static .tool-inline-bar-toggle {
   cursor: default;
   pointer-events: none;
 }
@@ -787,6 +787,19 @@
   flex: 1 1 auto;
   overflow-wrap: anywhere;
   word-break: break-word;
+}
+
+.explore-inline-toolcalls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.explore-inline-toolcalls .tool-inline {
+  margin: 0;
 }
 
 .tool-inline-clamp {

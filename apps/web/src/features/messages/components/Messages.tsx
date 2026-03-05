@@ -505,7 +505,22 @@ export const Messages = memo(function Messages({
       );
     }
     if (item.kind === "explore") {
-      return <ExploreRow key={item.id} item={item} />;
+      const isExpanded = expandedItems.has(item.id);
+      return (
+        <ExploreRow
+          key={item.id}
+          item={item}
+          isExpanded={isExpanded}
+          onToggle={toggleExpanded}
+          expandedItemIds={expandedItems}
+          onRequestAutoScroll={requestAutoScroll}
+          showMessageFilePath={showMessageFilePath}
+          workspacePath={workspacePath}
+          onOpenFileLink={openFileLink}
+          onOpenFileLinkMenu={showFileLinkMenu}
+          onOpenThreadLink={onOpenThreadLink}
+        />
+      );
     }
     return null;
   };

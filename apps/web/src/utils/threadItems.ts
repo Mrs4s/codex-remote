@@ -13,6 +13,9 @@ const DEFAULT_MAX_ITEMS_PER_THREAD = CHAT_SCROLLBACK_DEFAULT;
 const MAX_ITEM_TEXT = 20000;
 const MAX_LARGE_TOOL_TEXT = 200000;
 const TOOL_OUTPUT_RECENT_ITEMS = 40;
+// Keep this prefix CSS-selector-friendly (avoid ":"), since item ids are reused
+// inside DOM ids (e.g. aria-controls targets).
+const EXPLORE_ITEM_ID_PREFIX = "explore__";
 const LARGE_TOOL_TYPES = new Set(["fileChange", "commandExecution"]);
 const READ_COMMANDS = new Set(["cat", "sed", "head", "tail", "less", "more", "nl"]);
 const LIST_COMMANDS = new Set(["ls", "tree", "find", "fd"]);
@@ -50,6 +53,15 @@ function asNumber(value: unknown) {
     return Number.isFinite(parsed) ? parsed : null;
   }
   return null;
+}
+
+function exploreItemIdForToolId(toolId: string) {
+  if (!toolId) {
+    return `${EXPLORE_ITEM_ID_PREFIX}${Date.now()}`;
+  }
+  return toolId.startsWith(EXPLORE_ITEM_ID_PREFIX)
+    ? toolId
+    : `${EXPLORE_ITEM_ID_PREFIX}${toolId}`;
 }
 
 function truncateText(text: string, maxLength = MAX_ITEM_TEXT) {
@@ -278,7 +290,17 @@ export function normalizeItem(item: ConversationItem): ConversationItem {
     return { ...item, text: truncateText(item.text) };
   }
   if (item.kind === "explore") {
-    return item;
+    const toolCalls = item.toolCalls;
+    if (!toolCalls || toolCalls.length === 0) {
+      return item;
+    }
+    const normalizedCalls = toolCalls
+      .map((tool) => normalizeItem(tool))
+      .filter(
+        (entry): entry is Extract<ConversationItem, { kind: "tool" }> =>
+          entry.kind === "tool",
+      );
+    return { ...item, toolCalls: normalizedCalls };
   }
   if (item.kind === "reasoning") {
     return {
@@ -433,6 +455,23 @@ function isFailedStatus(status?: string) {
 
 type ExploreEntry = Extract<ConversationItem, { kind: "explore" }>["entries"][number];
 type ExploreItem = Extract<ConversationItem, { kind: "explore" }>;
+type ToolItem = Extract<ConversationItem, { kind: "tool" }>;
+
+function mergeToolCalls(existing: ToolItem[] | undefined, incoming: ToolItem[] | undefined) {
+  if ((!existing || existing.length === 0) && (!incoming || incoming.length === 0)) {
+    return undefined;
+  }
+  const merged: ToolItem[] = existing ? [...existing] : [];
+  (incoming ?? []).forEach((tool) => {
+    const index = merged.findIndex((entry) => entry.id === tool.id);
+    if (index >= 0) {
+      merged[index] = tool;
+    } else {
+      merged.push(tool);
+    }
+  });
+  return merged.length > 0 ? merged : undefined;
+}
 
 function parseSearch(tokens: string[]): ExploreEntry | null {
   const commandName = tokens[0]?.toLowerCase() ?? "";
@@ -564,10 +603,11 @@ function summarizeCommandExecution(item: Extract<ConversationItem, { kind: "tool
   const coalescedEntries = coalesceReadEntries(entries);
   const status: ExploreItem["status"] = normalizeCommandStatus(item.status);
   const summary: ExploreItem = {
-    id: item.id,
+    id: exploreItemIdForToolId(item.id),
     kind: "explore",
     status,
     entries: coalescedEntries,
+    toolCalls: [item],
   };
   return summary;
 }
@@ -582,6 +622,7 @@ function summarizeExploration(items: ConversationItem[]) {
         result[result.length - 1] = {
           ...last,
           entries: mergeExploreEntries(last.entries, item.entries),
+          toolCalls: mergeToolCalls(last.toolCalls, item.toolCalls),
         };
         continue;
       }
@@ -599,6 +640,7 @@ function summarizeExploration(items: ConversationItem[]) {
         result[result.length - 1] = {
           ...last,
           entries: mergeExploreEntries(last.entries, summary.entries),
+          toolCalls: mergeToolCalls(last.toolCalls, summary.toolCalls),
         };
         continue;
       }
@@ -644,26 +686,114 @@ export function prepareThreadItems(items: ConversationItem[], options?: PrepareT
   const summarized = summarizeExploration(limited);
   const cutoff = Math.max(0, summarized.length - TOOL_OUTPUT_RECENT_ITEMS);
   return summarized.map((item, index) => {
-    if (index >= cutoff || item.kind !== "tool") {
+    if (index >= cutoff) {
       return item;
     }
-    const output = item.output ? truncateText(item.output) : item.output;
-    const changes = item.changes
-      ? item.changes.map((change) => ({
-          ...change,
-          diff: change.diff ? truncateText(change.diff) : change.diff,
-        }))
-      : item.changes;
-    if (output === item.output && changes === item.changes) {
-      return item;
+
+    if (item.kind === "tool") {
+      const output = item.output ? truncateText(item.output) : item.output;
+      const changes = item.changes
+        ? item.changes.map((change) => ({
+            ...change,
+            diff: change.diff ? truncateText(change.diff) : change.diff,
+          }))
+        : item.changes;
+      if (output === item.output && changes === item.changes) {
+        return item;
+      }
+      return { ...item, output, changes };
     }
-    return { ...item, output, changes };
+
+    if (item.kind === "explore" && item.toolCalls && item.toolCalls.length > 0) {
+      let didChange = false;
+      const toolCalls = item.toolCalls.map((tool) => {
+        const output = tool.output ? truncateText(tool.output) : tool.output;
+        const changes = tool.changes
+          ? tool.changes.map((change) => ({
+              ...change,
+              diff: change.diff ? truncateText(change.diff) : change.diff,
+            }))
+          : tool.changes;
+        if (output === tool.output && changes === tool.changes) {
+          return tool;
+        }
+        didChange = true;
+        return { ...tool, output, changes };
+      });
+      return didChange ? { ...item, toolCalls } : item;
+    }
+
+    return item;
   });
+}
+
+function mergeToolUpdate(existing: ToolItem, incoming: ToolItem): ToolItem {
+  const existingOutput = existing.output ?? "";
+  const incomingOutput = incoming.output ?? "";
+  const hasIncomingOutput = incomingOutput.trim().length > 0;
+  const hasIncomingChanges = (incoming.changes?.length ?? 0) > 0;
+  return {
+    ...existing,
+    ...incoming,
+    title: incoming.title?.trim() ? incoming.title : existing.title,
+    detail: incoming.detail?.trim() ? incoming.detail : existing.detail,
+    status: incoming.status?.trim() ? incoming.status : existing.status,
+    output: hasIncomingOutput ? incomingOutput : existingOutput,
+    changes: hasIncomingChanges ? incoming.changes : existing.changes,
+    durationMs:
+      typeof incoming.durationMs === "number" ? incoming.durationMs : existing.durationMs,
+  };
+}
+
+function deriveExploreStatusFromToolCalls(
+  toolCalls: ToolItem[] | undefined,
+  fallback: ExploreItem["status"],
+) {
+  if (!toolCalls || toolCalls.length === 0) {
+    return fallback;
+  }
+  return toolCalls.some((tool) => normalizeCommandStatus(tool.status) === "exploring")
+    ? "exploring"
+    : "explored";
+}
+
+function upsertNestedToolCall(
+  list: ConversationItem[],
+  tool: ToolItem,
+): ConversationItem[] | null {
+  for (let index = list.length - 1; index >= 0; index -= 1) {
+    const entry = list[index];
+    if (entry.kind !== "explore") {
+      continue;
+    }
+    const calls = entry.toolCalls;
+    const callIndex = calls ? calls.findIndex((call) => call.id === tool.id) : -1;
+    if (!calls || callIndex < 0) {
+      continue;
+    }
+    const nextCalls = [...calls];
+    nextCalls[callIndex] = mergeToolUpdate(nextCalls[callIndex], tool);
+    const nextExplore: ExploreItem = {
+      ...entry,
+      status: deriveExploreStatusFromToolCalls(nextCalls, entry.status),
+      toolCalls: nextCalls,
+    };
+    const next = [...list];
+    next[index] = nextExplore;
+    return next;
+  }
+  return null;
 }
 
 export function upsertItem(list: ConversationItem[], item: ConversationItem) {
   const index = list.findIndex((entry) => entry.id === item.id);
   if (index === -1) {
+    if (item.kind === "tool") {
+      const nested = upsertNestedToolCall(list, item);
+      if (nested) {
+        return nested;
+      }
+    }
     return [...list, item];
   }
   const existing = list[index];
@@ -707,21 +837,7 @@ export function upsertItem(list: ConversationItem[], item: ConversationItem) {
   }
 
   if (existing.kind === "tool" && item.kind === "tool") {
-    const existingOutput = existing.output ?? "";
-    const incomingOutput = item.output ?? "";
-    const hasIncomingOutput = incomingOutput.trim().length > 0;
-    const hasIncomingChanges = (item.changes?.length ?? 0) > 0;
-    next[index] = {
-      ...existing,
-      ...item,
-      title: item.title?.trim() ? item.title : existing.title,
-      detail: item.detail?.trim() ? item.detail : existing.detail,
-      status: item.status?.trim() ? item.status : existing.status,
-      output: hasIncomingOutput ? incomingOutput : existingOutput,
-      changes: hasIncomingChanges ? item.changes : existing.changes,
-      durationMs:
-        typeof item.durationMs === "number" ? item.durationMs : existing.durationMs,
-    };
+    next[index] = mergeToolUpdate(existing, item);
     return next;
   }
 

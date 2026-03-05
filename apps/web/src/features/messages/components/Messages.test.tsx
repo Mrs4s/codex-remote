@@ -733,6 +733,68 @@ describe("Messages", () => {
     expect(exploreTitle?.textContent ?? "").toContain("Explored");
   });
 
+  it("can expand explore rows to reveal summarized tool call details", async () => {
+    const items: ConversationItem[] = [
+      {
+        id: "explore-1",
+        kind: "explore",
+        status: "explored",
+        entries: [{ kind: "read", label: "foo.ts" }],
+        toolCalls: [
+          {
+            id: "cmd-1",
+            kind: "tool",
+            toolType: "commandExecution",
+            title: "Command: cat src/foo.ts",
+            detail: "/repo",
+            status: "completed",
+            output: "line 1\nline 2",
+          },
+        ],
+      },
+    ];
+
+    const { container } = render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    await waitFor(() => {
+      expect(container.querySelector(".explore-inline")).toBeTruthy();
+    });
+    expect(screen.queryByText("cat src/foo.ts")).toBeNull();
+
+    const exploreSummaryButton = container.querySelector(
+      ".explore-inline .tool-inline-summary",
+    ) as HTMLButtonElement | null;
+    expect(exploreSummaryButton).toBeTruthy();
+    if (exploreSummaryButton) {
+      fireEvent.click(exploreSummaryButton);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText("cat src/foo.ts")).toBeTruthy();
+    });
+
+    const toolSummaryButton = container.querySelector(
+      ".explore-inline-toolcalls .tool-inline-summary",
+    ) as HTMLButtonElement | null;
+    expect(toolSummaryButton).toBeTruthy();
+    if (toolSummaryButton) {
+      fireEvent.click(toolSummaryButton);
+    }
+
+    await waitFor(() => {
+      expect(screen.getByText("line 1")).toBeTruthy();
+    });
+  });
+
   it("does not merge explore items across interleaved tools", async () => {
     const items: ConversationItem[] = [
       {

@@ -230,11 +230,25 @@ function mergeExploreItems(
   const last = items[items.length - 1];
   const status = last?.status ?? "explored";
   const entries = items.flatMap((item) => item.entries);
+  const mergedToolCalls: NonNullable<(typeof first)["toolCalls"]> = [];
+  const toolIndexById = new Map<string, number>();
+  items.forEach((item) => {
+    (item.toolCalls ?? []).forEach((tool) => {
+      const existingIndex = toolIndexById.get(tool.id);
+      if (existingIndex !== undefined) {
+        mergedToolCalls[existingIndex] = tool;
+        return;
+      }
+      toolIndexById.set(tool.id, mergedToolCalls.length);
+      mergedToolCalls.push(tool);
+    });
+  });
   return {
     id: first.id,
     kind: "explore",
     status,
     entries,
+    toolCalls: mergedToolCalls.length > 0 ? mergedToolCalls : undefined,
   };
 }
 
@@ -280,6 +294,9 @@ export function buildToolGroups(items: ConversationItem[]): MessageListEntry[] {
         return total + 1;
       }
       if (item.kind === "explore") {
+        if (item.toolCalls && item.toolCalls.length > 0) {
+          return total + item.toolCalls.length;
+        }
         return total + item.entries.length;
       }
       return total;
@@ -519,8 +536,14 @@ export function scrollKeyForItems(items: ConversationItem[]) {
       return `${last.id}-${last.text.length}`;
     case "reasoning":
       return `${last.id}-${last.summary.length}-${last.content.length}`;
-    case "explore":
-      return `${last.id}-${last.status}-${last.entries.length}`;
+    case "explore": {
+      const toolCalls = last.toolCalls ?? [];
+      const lastTool = toolCalls[toolCalls.length - 1];
+      const lastToolKey = lastTool
+        ? `${lastTool.id}-${lastTool.status ?? ""}-${lastTool.output?.length ?? 0}`
+        : "no-tools";
+      return `${last.id}-${last.status}-${last.entries.length}-${toolCalls.length}-${lastToolKey}`;
+    }
     case "tool":
       return `${last.id}-${last.status ?? ""}-${last.output?.length ?? 0}`;
     case "diff":

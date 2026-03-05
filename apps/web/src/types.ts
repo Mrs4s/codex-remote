@@ -79,38 +79,62 @@ export type CollabAgentStatus = CollabAgentRef & {
   status: string;
 };
 
+export type ConversationMessageItem = {
+  id: string;
+  kind: "message";
+  role: "user" | "assistant";
+  text: string;
+  images?: string[];
+};
+
+export type ConversationReasoningItem = { id: string; kind: "reasoning"; summary: string; content: string };
+
+export type ConversationDiffItem = { id: string; kind: "diff"; title: string; diff: string; status?: string };
+
+export type ConversationReviewItem = { id: string; kind: "review"; state: "started" | "completed"; text: string };
+
+export type ConversationExploreEntry = {
+  kind: "read" | "search" | "list" | "run";
+  label: string;
+  detail?: string;
+};
+
+export type ConversationToolItem = {
+  id: string;
+  kind: "tool";
+  toolType: string;
+  title: string;
+  detail: string;
+  status?: string;
+  output?: string;
+  durationMs?: number | null;
+  changes?: { path: string; kind?: string; diff?: string }[];
+  collabSender?: CollabAgentRef;
+  collabReceiver?: CollabAgentRef;
+  collabReceivers?: CollabAgentRef[];
+  collabStatuses?: CollabAgentStatus[];
+};
+
+export type ConversationExploreItem = {
+  id: string;
+  kind: "explore";
+  status: "exploring" | "explored";
+  entries: ConversationExploreEntry[];
+  /**
+   * When available, preserves the raw underlying tool calls that were summarized
+   * into this explore block. This allows the UI to expand and show full tool
+   * details for auditing.
+   */
+  toolCalls?: ConversationToolItem[];
+};
+
 export type ConversationItem =
-  | {
-      id: string;
-      kind: "message";
-      role: "user" | "assistant";
-      text: string;
-      images?: string[];
-    }
-  | { id: string; kind: "reasoning"; summary: string; content: string }
-  | { id: string; kind: "diff"; title: string; diff: string; status?: string }
-  | { id: string; kind: "review"; state: "started" | "completed"; text: string }
-  | {
-      id: string;
-      kind: "explore";
-      status: "exploring" | "explored";
-      entries: { kind: "read" | "search" | "list" | "run"; label: string; detail?: string }[];
-    }
-  | {
-      id: string;
-      kind: "tool";
-      toolType: string;
-      title: string;
-      detail: string;
-      status?: string;
-      output?: string;
-      durationMs?: number | null;
-      changes?: { path: string; kind?: string; diff?: string }[];
-      collabSender?: CollabAgentRef;
-      collabReceiver?: CollabAgentRef;
-      collabReceivers?: CollabAgentRef[];
-      collabStatuses?: CollabAgentStatus[];
-    };
+  | ConversationMessageItem
+  | ConversationReasoningItem
+  | ConversationDiffItem
+  | ConversationReviewItem
+  | ConversationExploreItem
+  | ConversationToolItem;
 
 export type ThreadSummary = {
   id: string;

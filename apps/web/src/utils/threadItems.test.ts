@@ -150,6 +150,74 @@ describe("threadItems", () => {
     expect(prepared.filter((item) => item.kind === "tool")).toHaveLength(0);
   });
 
+  it("preserves summarized command tool calls under explore items for auditing", () => {
+    const items: ConversationItem[] = [
+      {
+        id: "cmd-1",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: cat src/foo.ts",
+        detail: "/repo",
+        status: "completed",
+        output: "file contents",
+      },
+      {
+        id: "cmd-2",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: rg RouterDestination src",
+        detail: "/repo",
+        status: "completed",
+        output: "matches",
+      },
+    ];
+
+    const prepared = prepareThreadItems(items);
+    expect(prepared).toHaveLength(1);
+    expect(prepared[0].kind).toBe("explore");
+    if (prepared[0].kind === "explore") {
+      expect(prepared[0].toolCalls?.length).toBe(2);
+      expect(prepared[0].toolCalls?.[0]?.title).toContain("cat src/foo.ts");
+      expect(prepared[0].toolCalls?.[0]?.output).toBe("file contents");
+      expect(prepared[0].toolCalls?.[1]?.title).toContain("rg RouterDestination src");
+      expect(prepared[0].toolCalls?.[1]?.output).toBe("matches");
+    }
+  });
+
+  it("upserts tool updates into explore toolCalls instead of appending a new item", () => {
+    const initial: ConversationItem[] = prepareThreadItems([
+      {
+        id: "cmd-1",
+        kind: "tool",
+        toolType: "commandExecution",
+        title: "Command: rg foo src",
+        detail: "/repo",
+        status: "inProgress",
+        output: "partial",
+      },
+    ]);
+
+    expect(initial).toHaveLength(1);
+    expect(initial[0].kind).toBe("explore");
+
+    const updatedList = upsertItem(initial, {
+      id: "cmd-1",
+      kind: "tool",
+      toolType: "commandExecution",
+      title: "Command: rg foo src",
+      detail: "/repo",
+      status: "completed",
+      output: "final output",
+    });
+
+    expect(updatedList).toHaveLength(1);
+    expect(updatedList[0].kind).toBe("explore");
+    if (updatedList[0].kind === "explore") {
+      expect(updatedList[0].toolCalls?.[0]?.status).toBe("completed");
+      expect(updatedList[0].toolCalls?.[0]?.output).toBe("final output");
+    }
+  });
+
   it("treats inProgress command status as exploring", () => {
     const items: ConversationItem[] = [
       {

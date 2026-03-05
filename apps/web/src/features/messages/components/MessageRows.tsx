@@ -84,7 +84,11 @@ type ToolRowProps = MarkdownFileLinkProps & {
 
 type ExploreRowProps = {
   item: Extract<ConversationItem, { kind: "explore" }>;
-};
+  isExpanded: boolean;
+  onToggle: (id: string) => void;
+  expandedItemIds: Set<string>;
+  onRequestAutoScroll?: () => void;
+} & MarkdownFileLinkProps;
 
 type CommandOutputProps = {
   output: string;
@@ -756,22 +760,67 @@ export const ToolRow = memo(function ToolRow({
   );
 });
 
-export const ExploreRow = memo(function ExploreRow({ item }: ExploreRowProps) {
+export const ExploreRow = memo(function ExploreRow({
+  item,
+  isExpanded,
+  onToggle,
+  expandedItemIds,
+  onRequestAutoScroll,
+  showMessageFilePath,
+  workspacePath,
+  onOpenFileLink,
+  onOpenFileLinkMenu,
+  onOpenThreadLink,
+}: ExploreRowProps) {
   const title = item.status === "exploring" ? "Exploring" : "Explored";
+  const toolCalls = item.toolCalls ?? [];
+  const canExpand = toolCalls.length > 0;
   return (
-    <div className="tool-inline explore-inline">
-      <div className="tool-inline-bar-toggle" aria-hidden />
+    <div
+      className={`tool-inline explore-inline${
+        canExpand ? "" : " explore-inline-static"
+      }${isExpanded ? " tool-inline-expanded" : ""}`}
+    >
+      {canExpand ? (
+        <button
+          type="button"
+          className="tool-inline-bar-toggle"
+          onClick={() => onToggle(item.id)}
+          aria-expanded={isExpanded}
+          aria-label="Toggle exploration tool calls"
+        />
+      ) : (
+        <div className="tool-inline-bar-toggle" aria-hidden />
+      )}
       <div className="tool-inline-content">
-        <div className="explore-inline-header">
-          <Terminal
-            className={`tool-inline-icon ${
-              item.status === "exploring" ? "processing" : "completed"
-            }`}
-            size={14}
-            aria-hidden
-          />
-          <span className="explore-inline-title">{title}</span>
-        </div>
+        {canExpand ? (
+          <button
+            type="button"
+            className="tool-inline-summary tool-inline-toggle"
+            onClick={() => onToggle(item.id)}
+            aria-expanded={isExpanded}
+          >
+            <Terminal
+              className={`tool-inline-icon ${
+                item.status === "exploring" ? "processing" : "completed"
+              }`}
+              size={14}
+              aria-hidden
+            />
+            <span className="explore-inline-title">{title}</span>
+          </button>
+        ) : (
+          <div className="explore-inline-header">
+            <Terminal
+              className={`tool-inline-icon ${
+                item.status === "exploring" ? "processing" : "completed"
+              }`}
+              size={14}
+              aria-hidden
+            />
+            <span className="explore-inline-title">{title}</span>
+          </div>
+        )}
         <div className="explore-inline-list">
           {item.entries.map((entry, index) => (
             <div key={`${entry.kind}-${entry.label}-${index}`} className="explore-inline-item">
@@ -783,6 +832,24 @@ export const ExploreRow = memo(function ExploreRow({ item }: ExploreRowProps) {
             </div>
           ))}
         </div>
+        {isExpanded && toolCalls.length > 0 && (
+          <div className="explore-inline-toolcalls">
+            {toolCalls.map((tool) => (
+              <ToolRow
+                key={`explore-tool-${tool.id}`}
+                item={tool}
+                isExpanded={expandedItemIds.has(tool.id)}
+                onToggle={onToggle}
+                showMessageFilePath={showMessageFilePath}
+                workspacePath={workspacePath}
+                onOpenFileLink={onOpenFileLink}
+                onOpenFileLinkMenu={onOpenFileLinkMenu}
+                onOpenThreadLink={onOpenThreadLink}
+                onRequestAutoScroll={onRequestAutoScroll}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

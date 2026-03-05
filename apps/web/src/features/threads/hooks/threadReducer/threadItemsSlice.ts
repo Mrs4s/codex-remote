@@ -309,23 +309,55 @@ export function reduceThreadItems(state: ThreadState, action: ThreadAction): Thr
     case "appendToolOutput": {
       const list = state.itemsByThread[action.threadId] ?? [];
       const index = list.findIndex((entry) => entry.id === action.itemId);
-      if (index < 0 || list[index].kind !== "tool") {
-        return state;
+      if (index >= 0 && list[index].kind === "tool") {
+        const existing = list[index];
+        const updated: ConversationItem = {
+          ...existing,
+          output: mergeStreamingText(existing.output ?? "", action.delta),
+        } as ConversationItem;
+        const next = [...list];
+        next[index] = updated;
+        return {
+          ...state,
+          itemsByThread: {
+            ...state.itemsByThread,
+            [action.threadId]: prepareThreadItems(next, {
+              maxItemsPerThread: state.maxItemsPerThread,
+            }),
+          },
+        };
       }
-      const existing = list[index];
-      const updated: ConversationItem = {
-        ...existing,
-        output: mergeStreamingText(existing.output ?? "", action.delta),
-      } as ConversationItem;
-      const next = [...list];
-      next[index] = updated;
-      return {
-        ...state,
-        itemsByThread: {
-          ...state.itemsByThread,
-          [action.threadId]: prepareThreadItems(next, { maxItemsPerThread: state.maxItemsPerThread }),
-        },
-      };
+
+      for (let exploreIndex = list.length - 1; exploreIndex >= 0; exploreIndex -= 1) {
+        const entry = list[exploreIndex];
+        if (entry.kind !== "explore" || !entry.toolCalls || entry.toolCalls.length === 0) {
+          continue;
+        }
+        const callIndex = entry.toolCalls.findIndex((call) => call.id === action.itemId);
+        if (callIndex < 0) {
+          continue;
+        }
+        const existingCall = entry.toolCalls[callIndex];
+        const updatedCall = {
+          ...existingCall,
+          output: mergeStreamingText(existingCall.output ?? "", action.delta),
+        };
+        const toolCalls = [...entry.toolCalls];
+        toolCalls[callIndex] = updatedCall;
+        const next = [...list];
+        next[exploreIndex] = { ...entry, toolCalls };
+        return {
+          ...state,
+          itemsByThread: {
+            ...state.itemsByThread,
+            [action.threadId]: prepareThreadItems(next, {
+              maxItemsPerThread: state.maxItemsPerThread,
+            }),
+          },
+        };
+      }
+
+      return state;
     }
     default:
       return state;
