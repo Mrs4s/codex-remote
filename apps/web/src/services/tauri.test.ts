@@ -11,6 +11,12 @@ import {
   fetchGit,
   forkThread,
   getAppsList,
+  listMcpServers,
+  getMcpServer,
+  addMcpServer,
+  removeMcpServer,
+  logoutMcpServer,
+  mcpServerOauthLogin,
   getAgentsSettings,
   getExperimentalFeatureList,
   getSkillsRemoteList,
@@ -303,6 +309,84 @@ describe("tauri invoke wrappers", () => {
       workspaceId: "ws-10",
       cursor: "cursor-1",
       limit: 25,
+    });
+  });
+
+  it("maps payload for mcp_servers_list", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await listMcpServers();
+
+    expect(invokeMock).toHaveBeenCalledWith("mcp_servers_list", {});
+  });
+
+  it("maps payload for mcp_server_get", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await getMcpServer("sentry");
+
+    expect(invokeMock).toHaveBeenCalledWith("mcp_server_get", {
+      name: "sentry",
+    });
+  });
+
+  it("maps payload for mcp_server_add", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await addMcpServer({
+      name: "sentry",
+      transport: "streamable_http",
+      url: "https://mcp.sentry.dev/mcp",
+      bearerTokenEnvVar: "SENTRY_TOKEN",
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("mcp_server_add", {
+      name: "sentry",
+      transport: "streamable_http",
+      url: "https://mcp.sentry.dev/mcp",
+      bearerTokenEnvVar: "SENTRY_TOKEN",
+      command: null,
+      args: null,
+      env: null,
+    });
+  });
+
+  it("maps payload for mcp_server_remove", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await removeMcpServer("sentry");
+
+    expect(invokeMock).toHaveBeenCalledWith("mcp_server_remove", {
+      name: "sentry",
+    });
+  });
+
+  it("maps payload for mcp_server_logout", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await logoutMcpServer("sentry");
+
+    expect(invokeMock).toHaveBeenCalledWith("mcp_server_logout", {
+      name: "sentry",
+    });
+  });
+
+  it("maps payload for mcp_server_oauth_login", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await mcpServerOauthLogin("ws-10", "sentry", ["project:read"], 120);
+
+    expect(invokeMock).toHaveBeenCalledWith("mcp_server_oauth_login", {
+      workspaceId: "ws-10",
+      name: "sentry",
+      scopes: ["project:read"],
+      timeoutSecs: 120,
     });
   });
 

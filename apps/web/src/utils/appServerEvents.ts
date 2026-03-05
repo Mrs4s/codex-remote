@@ -18,6 +18,7 @@ export const SUPPORTED_APP_SERVER_METHODS = [
   "item/reasoning/summaryPartAdded",
   "item/reasoning/summaryTextDelta",
   "item/reasoning/textDelta",
+  "mcpServer/oauthLogin/completed",
   "item/started",
   "item/tool/requestUserInput",
   "thread/archived",
@@ -38,6 +39,7 @@ export type SupportedAppServerMethod = (typeof SUPPORTED_APP_SERVER_METHODS)[num
 export const METHODS_HANDLED_OUTSIDE_USE_APP_SERVER_EVENTS = [
   "app/list/updated",
   "codex/event/skills_update_available",
+  "mcpServer/oauthLogin/completed",
 ] as const satisfies readonly SupportedAppServerMethod[];
 
 const SUPPORTED_METHOD_SET = new Set<string>(SUPPORTED_APP_SERVER_METHODS);
@@ -108,4 +110,8 @@ export function isSkillsUpdateAvailableEvent(event: AppServerEvent): boolean {
 
 export function isAppListUpdatedEvent(event: AppServerEvent): boolean {
   return getAppServerRawMethod(event) === "app/list/updated";
+}
+
+export function isMcpServerOauthLoginCompletedEvent(event: AppServerEvent): boolean {
+  return getAppServerRawMethod(event) === "mcpServer/oauthLogin/completed";
 }

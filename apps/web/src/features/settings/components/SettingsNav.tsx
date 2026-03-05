@@ -8,6 +8,7 @@ import FlaskConical from "lucide-react/dist/esm/icons/flask-conical";
 import Layers from "lucide-react/dist/esm/icons/layers";
 import Bot from "lucide-react/dist/esm/icons/bot";
 import Wrench from "lucide-react/dist/esm/icons/wrench";
+import Plug from "lucide-react/dist/esm/icons/plug";
 import Info from "lucide-react/dist/esm/icons/info";
 import { PanelNavItem, PanelNavList } from "@/features/design-system/components/panel/PanelPrimitives";
 import type { CodexSection } from "./settingsTypes";
@@ -97,6 +98,15 @@ export function SettingsNav({
           onClick={() => onSelectSection("skills")}
         >
           Skills
+        </PanelNavItem>
+        <PanelNavItem
+          className="settings-nav"
+          icon={<Plug aria-hidden />}
+          active={activeSection === "mcp"}
+          showDisclosure={showDisclosure}
+          onClick={() => onSelectSection("mcp")}
+        >
+          MCP
         </PanelNavItem>
         <PanelNavItem
           className="settings-nav"

@@ -12,16 +12,24 @@ import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { AppSettings, WorkspaceInfo } from "@/types";
 import {
+  addMcpServer,
   connectWorkspace,
   exportRemoteSkill,
+  getMcpServer,
   getAgentsSettings,
   getConfigModel,
   getExperimentalFeatureList,
+  listMcpServers,
+  logoutMcpServer,
+  mcpServerOauthLogin,
+  removeMcpServer,
   getSkillsList,
   getSkillsRemoteList,
   getModelList,
   setSkillEnabled,
 } from "@services/tauri";
+import { subscribeAppServerEvents } from "@services/events";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { DEFAULT_COMMIT_MESSAGE_PROMPT } from "@utils/commitMessagePrompt";
 import { SettingsView } from "./SettingsView";
 
@@ -29,6 +37,18 @@ vi.mock("@tauri-apps/plugin-dialog", () => ({
   ask: vi.fn(),
   open: vi.fn(),
 }));
+
+vi.mock("@tauri-apps/plugin-opener", () => ({
+  openUrl: vi.fn(),
+}));
+
+vi.mock("@services/events", async () => {
+  const actual = await vi.importActual<typeof import("@services/events")>("@services/events");
+  return {
+    ...actual,
+    subscribeAppServerEvents: vi.fn(),
+  };
+});
 
 vi.mock("@services/tauri", async () => {
   const actual = await vi.importActual<typeof import("@services/tauri")>(
@@ -44,6 +64,12 @@ vi.mock("@services/tauri", async () => {
     getSkillsRemoteList: vi.fn(),
     exportRemoteSkill: vi.fn(),
     setSkillEnabled: vi.fn(),
+    listMcpServers: vi.fn(),
+    getMcpServer: vi.fn(),
+    addMcpServer: vi.fn(),
+    removeMcpServer: vi.fn(),
+    logoutMcpServer: vi.fn(),
+    mcpServerOauthLogin: vi.fn(),
     getAgentsSettings: vi.fn(),
     listWorkspaces: vi.fn(),
   };
@@ -57,6 +83,14 @@ const getSkillsListMock = vi.mocked(getSkillsList);
 const getSkillsRemoteListMock = vi.mocked(getSkillsRemoteList);
 const exportRemoteSkillMock = vi.mocked(exportRemoteSkill);
 const setSkillEnabledMock = vi.mocked(setSkillEnabled);
+const listMcpServersMock = vi.mocked(listMcpServers);
+const getMcpServerMock = vi.mocked(getMcpServer);
+const addMcpServerMock = vi.mocked(addMcpServer);
+const removeMcpServerMock = vi.mocked(removeMcpServer);
+const logoutMcpServerMock = vi.mocked(logoutMcpServer);
+const mcpServerOauthLoginMock = vi.mocked(mcpServerOauthLogin);
+const subscribeAppServerEventsMock = vi.mocked(subscribeAppServerEvents);
+const openUrlMock = vi.mocked(openUrl);
 const getAgentsSettingsMock = vi.mocked(getAgentsSettings);
 connectWorkspaceMock.mockResolvedValue(undefined);
 getConfigModelMock.mockResolvedValue(null);
@@ -75,6 +109,34 @@ getSkillsRemoteListMock.mockResolvedValue({
 });
 exportRemoteSkillMock.mockResolvedValue({});
 setSkillEnabledMock.mockResolvedValue({ effectiveEnabled: true });
+listMcpServersMock.mockResolvedValue({ data: [] });
+getMcpServerMock.mockResolvedValue({
+  name: "sentry",
+  enabled: true,
+  disabledReason: null,
+  transport: {
+    type: "streamable_http",
+    url: "https://mcp.sentry.dev/mcp",
+    bearerTokenEnvVar: null,
+    command: null,
+    args: null,
+    env: null,
+    httpHeaders: null,
+    envHttpHeaders: null,
+  },
+  startupTimeoutSec: null,
+  toolTimeoutSec: null,
+  authStatus: "unsupported",
+  enabledTools: null,
+  disabledTools: null,
+});
+addMcpServerMock.mockResolvedValue({ ok: true });
+removeMcpServerMock.mockResolvedValue({ ok: true });
+logoutMcpServerMock.mockResolvedValue({ ok: true });
+mcpServerOauthLoginMock.mockResolvedValue({
+  authorizationUrl: "https://example.com/mcp-login",
+});
+subscribeAppServerEventsMock.mockImplementation(() => () => {});
 getAgentsSettingsMock.mockResolvedValue({
   configPath: "/Users/me/.codex/config.toml",
   multiAgentEnabled: false,
@@ -445,6 +507,114 @@ const renderSkillsSection = (
     onCancelDictationDownload: vi.fn(),
     onRemoveDictationModel: vi.fn(),
     initialSection: "skills",
+  };
+
+  render(<SettingsView {...props} />);
+  return { onUpdateAppSettings };
+};
+
+const renderMcpSection = (
+  options: {
+    appSettings?: Partial<AppSettings>;
+    onUpdateAppSettings?: ComponentProps<typeof SettingsView>["onUpdateAppSettings"];
+    listResponse?: unknown;
+    detailResponse?: unknown;
+    groupedWorkspaces?: ComponentProps<typeof SettingsView>["groupedWorkspaces"];
+  } = {},
+) => {
+  cleanup();
+  const onUpdateAppSettings =
+    options.onUpdateAppSettings ?? vi.fn().mockResolvedValue(undefined);
+  listMcpServersMock.mockResolvedValue(
+    (options.listResponse as Record<string, unknown>) ?? {
+      data: [
+        {
+          name: "sentry",
+          enabled: true,
+          disabledReason: null,
+          transport: {
+            type: "streamable_http",
+            url: "https://mcp.sentry.dev/mcp",
+            bearerTokenEnvVar: null,
+            command: null,
+            args: null,
+            env: null,
+            httpHeaders: null,
+            envHttpHeaders: null,
+          },
+          startupTimeoutSec: null,
+          toolTimeoutSec: null,
+          authStatus: "unsupported",
+        },
+      ],
+    },
+  );
+  getMcpServerMock.mockResolvedValue(
+    (options.detailResponse as Record<string, unknown>) ?? {
+      name: "sentry",
+      enabled: true,
+      disabledReason: null,
+      transport: {
+        type: "streamable_http",
+        url: "https://mcp.sentry.dev/mcp",
+        bearerTokenEnvVar: null,
+        command: null,
+        args: null,
+        env: null,
+        httpHeaders: null,
+        envHttpHeaders: null,
+      },
+      startupTimeoutSec: null,
+      toolTimeoutSec: null,
+      authStatus: "unsupported",
+      enabledTools: ["issues.list"],
+      disabledTools: null,
+    },
+  );
+  addMcpServerMock.mockResolvedValue({ ok: true });
+  removeMcpServerMock.mockResolvedValue({ ok: true });
+  logoutMcpServerMock.mockResolvedValue({ ok: true });
+  mcpServerOauthLoginMock.mockResolvedValue({
+    authorizationUrl: "https://example.com/mcp-login",
+  });
+  openUrlMock.mockResolvedValue(undefined);
+
+  const props: ComponentProps<typeof SettingsView> = {
+    reduceTransparency: false,
+    onToggleTransparency: vi.fn(),
+    appSettings: { ...baseSettings, ...options.appSettings },
+    openAppIconById: {},
+    onUpdateAppSettings,
+    workspaceGroups: [],
+    groupedWorkspaces:
+      options.groupedWorkspaces ??
+      [
+        {
+          id: null,
+          name: "Ungrouped",
+          workspaces: [workspace({ id: "w-mcp", name: "MCP Workspace", connected: true })],
+        },
+      ],
+    ungroupedLabel: "Ungrouped",
+    onClose: vi.fn(),
+    onMoveWorkspace: vi.fn(),
+    onDeleteWorkspace: vi.fn(),
+    onCreateWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onRenameWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onMoveWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onDeleteWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onAssignWorkspaceGroup: vi.fn().mockResolvedValue(null),
+    onRunDoctor: vi.fn().mockResolvedValue(createDoctorResult()),
+    onUpdateWorkspaceSettings: vi.fn().mockResolvedValue(undefined),
+    scaleShortcutTitle: "Scale shortcut",
+    scaleShortcutText: "Use Command +/-",
+    onTestNotificationSound: vi.fn(),
+    onTestSystemNotification: vi.fn(),
+    dictationModelStatus: null,
+    onDownloadDictationModel: vi.fn(),
+    onCancelDictationDownload: vi.fn(),
+    onRemoveDictationModel: vi.fn(),
+    initialSection: "mcp",
   };
 
   render(<SettingsView {...props} />);
@@ -1255,6 +1425,125 @@ describe("SettingsView Skills", () => {
 
     await waitFor(() => {
       expect(exportRemoteSkillMock).toHaveBeenCalledWith("w-skills", "hz-manual-1");
+    });
+  });
+});
+
+describe("SettingsView MCP", () => {
+  it("renders configured MCP servers and loads details", async () => {
+    renderMcpSection();
+
+    const row = await screen.findByText("sentry");
+    const rowContainer = row.closest(".settings-toggle-row");
+    expect(rowContainer).not.toBeNull();
+
+    fireEvent.click(within(rowContainer as HTMLElement).getByRole("button", { name: "Details" }));
+
+    await waitFor(() => {
+      expect(getMcpServerMock).toHaveBeenCalledWith("sentry");
+    });
+    await screen.findByDisplayValue(/Transport: streamable_http/);
+  });
+
+  it("adds a streamable HTTP MCP server", async () => {
+    renderMcpSection();
+
+    fireEvent.change(screen.getByLabelText("Server name"), {
+      target: { value: "new-http" },
+    });
+    fireEvent.change(screen.getByLabelText("Server URL"), {
+      target: { value: "https://example.com/mcp" },
+    });
+    fireEvent.change(screen.getByLabelText("Bearer token env var"), {
+      target: { value: "EXAMPLE_TOKEN" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add server" }));
+
+    await waitFor(() => {
+      expect(addMcpServerMock).toHaveBeenCalledWith({
+        name: "new-http",
+        transport: "streamable_http",
+        url: "https://example.com/mcp",
+        bearerTokenEnvVar: "EXAMPLE_TOKEN",
+      });
+    });
+  });
+
+  it("adds a stdio MCP server", async () => {
+    renderMcpSection();
+
+    fireEvent.change(screen.getByLabelText("Server name"), {
+      target: { value: "local-filesystem" },
+    });
+    fireEvent.change(screen.getByLabelText("Transport"), {
+      target: { value: "stdio" },
+    });
+    fireEvent.change(screen.getByLabelText("Command"), {
+      target: { value: "npx" },
+    });
+    fireEvent.change(screen.getByLabelText("Args (one per line)"), {
+      target: { value: "@modelcontextprotocol/server-filesystem\n/Users/me/project" },
+    });
+    fireEvent.change(screen.getByLabelText("Env (KEY=VALUE per line)"), {
+      target: { value: "LOG_LEVEL=debug" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Add server" }));
+
+    await waitFor(() => {
+      expect(addMcpServerMock).toHaveBeenCalledWith({
+        name: "local-filesystem",
+        transport: "stdio",
+        command: "npx",
+        args: ["@modelcontextprotocol/server-filesystem", "/Users/me/project"],
+        env: {
+          LOG_LEVEL: "debug",
+        },
+      });
+    });
+  });
+
+  it("removes an MCP server after confirmation", async () => {
+    renderMcpSection();
+
+    const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
+    const row = await screen.findByText("sentry");
+    const rowContainer = row.closest(".settings-toggle-row");
+    expect(rowContainer).not.toBeNull();
+
+    fireEvent.click(within(rowContainer as HTMLElement).getByRole("button", { name: "Remove" }));
+
+    await waitFor(() => {
+      expect(removeMcpServerMock).toHaveBeenCalledWith("sentry");
+    });
+    confirmSpy.mockRestore();
+  });
+
+  it("logs out an MCP server", async () => {
+    renderMcpSection();
+
+    const row = await screen.findByText("sentry");
+    const rowContainer = row.closest(".settings-toggle-row");
+    expect(rowContainer).not.toBeNull();
+
+    fireEvent.click(within(rowContainer as HTMLElement).getByRole("button", { name: "Logout" }));
+
+    await waitFor(() => {
+      expect(logoutMcpServerMock).toHaveBeenCalledWith("sentry");
+    });
+  });
+
+  it("starts MCP OAuth login and opens authorization URL", async () => {
+    renderMcpSection();
+
+    const row = await screen.findByText("sentry");
+    const rowContainer = row.closest(".settings-toggle-row");
+    expect(rowContainer).not.toBeNull();
+
+    fireEvent.click(within(rowContainer as HTMLElement).getByRole("button", { name: "Login" }));
+
+    await waitFor(() => {
+      expect(mcpServerOauthLoginMock).toHaveBeenCalledWith("w-mcp", "sentry", null, null);
+      expect(openUrlMock).toHaveBeenCalledWith("https://example.com/mcp-login");
     });
   });
 });

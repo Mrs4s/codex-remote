@@ -13,6 +13,7 @@ import { PromptService } from "./services/promptService.js";
 import { DictationService } from "./services/dictationService.js";
 import { LiteLLMPricingService } from "./services/litellmPricingService.js";
 import { UndoCheckpointService } from "./services/undoCheckpointService.js";
+import { McpManagerService } from "./services/mcpManagerService.js";
 import { dispatchRpc } from "./rpc/dispatcher.js";
 
 const app = Fastify({ logger: true });
@@ -25,6 +26,7 @@ const sessionManager = new SessionManager(eventBus, env.codexBin, undoCheckpoint
 const terminalService = new TerminalService(eventBus);
 const promptService = new PromptService(env.dataDir);
 const dictationService = new DictationService(eventBus);
+const mcpManagerService = new McpManagerService(env.codexBin);
 const litellmPricingService = new LiteLLMPricingService({
   dataDir: env.dataDir,
   url: env.litellmPricingUrl,
@@ -87,6 +89,7 @@ app.post("/api/v1/rpc/:method", async (request, reply) => {
         terminalService,
         promptService,
         dictationService,
+        mcpManagerService,
         litellmPricingService,
         undoCheckpointService,
         store,

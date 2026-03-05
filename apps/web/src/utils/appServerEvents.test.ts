@@ -9,6 +9,7 @@ import {
   getAppServerRequestId,
   isApprovalRequestMethod,
   isAppListUpdatedEvent,
+  isMcpServerOauthLoginCompletedEvent,
   isSkillsUpdateAvailableEvent,
   isSupportedAppServerMethod,
 } from "./appServerEvents";
@@ -66,6 +67,20 @@ describe("appServerEvents", () => {
 
     expect(isAppListUpdatedEvent(canonicalEvent)).toBe(true);
     expect(isAppListUpdatedEvent(nonCanonicalMethod)).toBe(false);
+  });
+
+  it("matches canonical MCP OAuth completion event method only", () => {
+    const canonicalEvent = makeEvent({
+      method: "mcpServer/oauthLogin/completed",
+      params: { name: "sentry", success: true },
+    });
+    const nonCanonicalMethod = makeEvent({
+      method: "mcp_server/oauth_login_completed",
+      params: { name: "sentry", success: true },
+    });
+
+    expect(isMcpServerOauthLoginCompletedEvent(canonicalEvent)).toBe(true);
+    expect(isMcpServerOauthLoginCompletedEvent(nonCanonicalMethod)).toBe(false);
   });
 
   it("gracefully handles malformed event payloads", () => {

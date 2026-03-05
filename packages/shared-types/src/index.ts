@@ -241,6 +241,34 @@ export type LiteLLMPricingLookup = {
   source: "empty" | "disk" | "remote" | "free";
 };
 
+export type McpTransportType = "streamable_http" | "stdio";
+
+export type McpTransportConfig = {
+  type: string;
+  url: string | null;
+  bearerTokenEnvVar: string | null;
+  command: string | null;
+  args: string[] | null;
+  env: Record<string, string> | null;
+  httpHeaders: Record<string, string> | null;
+  envHttpHeaders: Record<string, string> | null;
+};
+
+export type McpServerConfigSummary = {
+  name: string;
+  enabled: boolean;
+  disabledReason: string | null;
+  transport: McpTransportConfig;
+  startupTimeoutSec: number | null;
+  toolTimeoutSec: number | null;
+  authStatus: string | null;
+};
+
+export type McpServerConfigDetail = McpServerConfigSummary & {
+  enabledTools: string[] | null;
+  disabledTools: string[] | null;
+};
+
 export type RpcMethodMap = {
   list_workspaces: {
     params: Record<string, never>;
@@ -323,6 +351,43 @@ export type RpcMethodMap = {
   list_mcp_server_status: {
     params: { workspaceId: string; cursor?: string | null; limit?: number | null };
     result: Record<string, unknown>;
+  };
+  mcp_servers_list: {
+    params: Record<string, never>;
+    result: { data: McpServerConfigSummary[] };
+  };
+  mcp_server_get: {
+    params: { name: string };
+    result: McpServerConfigDetail;
+  };
+  mcp_server_add: {
+    params: {
+      name: string;
+      transport: McpTransportType;
+      url?: string | null;
+      bearerTokenEnvVar?: string | null;
+      command?: string | null;
+      args?: string[] | null;
+      env?: Record<string, string> | null;
+    };
+    result: { ok: true };
+  };
+  mcp_server_remove: {
+    params: { name: string };
+    result: { ok: true };
+  };
+  mcp_server_logout: {
+    params: { name: string };
+    result: { ok: true };
+  };
+  mcp_server_oauth_login: {
+    params: {
+      workspaceId: string;
+      name: string;
+      scopes?: string[] | null;
+      timeoutSecs?: number | null;
+    };
+    result: { authorizationUrl: string };
   };
   send_user_message: {
     params: {

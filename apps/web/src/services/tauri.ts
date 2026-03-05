@@ -1142,6 +1142,56 @@ export async function listMcpServerStatus(
   return invoke<any>("list_mcp_server_status", { workspaceId, cursor, limit });
 }
 
+export async function listMcpServers() {
+  return invoke<any>("mcp_servers_list", {});
+}
+
+export async function getMcpServer(name: string) {
+  return invoke<any>("mcp_server_get", { name });
+}
+
+export async function addMcpServer(input: {
+  name: string;
+  transport: "streamable_http" | "stdio";
+  url?: string | null;
+  bearerTokenEnvVar?: string | null;
+  command?: string | null;
+  args?: string[] | null;
+  env?: Record<string, string> | null;
+}) {
+  return invoke<any>("mcp_server_add", {
+    name: input.name,
+    transport: input.transport,
+    url: input.url ?? null,
+    bearerTokenEnvVar: input.bearerTokenEnvVar ?? null,
+    command: input.command ?? null,
+    args: input.args ?? null,
+    env: input.env ?? null,
+  });
+}
+
+export async function removeMcpServer(name: string) {
+  return invoke<any>("mcp_server_remove", { name });
+}
+
+export async function logoutMcpServer(name: string) {
+  return invoke<any>("mcp_server_logout", { name });
+}
+
+export async function mcpServerOauthLogin(
+  workspaceId: string,
+  name: string,
+  scopes?: string[] | null,
+  timeoutSecs?: number | null,
+) {
+  return invoke<any>("mcp_server_oauth_login", {
+    workspaceId,
+    name,
+    scopes: scopes ?? null,
+    timeoutSecs: timeoutSecs ?? null,
+  });
+}
+
 export async function resumeThread(workspaceId: string, threadId: string) {
   return invoke<any>("resume_thread", { workspaceId, threadId });
 }

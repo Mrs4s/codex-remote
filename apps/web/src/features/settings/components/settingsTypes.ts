@@ -9,7 +9,8 @@ type SettingsSection =
   | "shortcuts"
   | "git"
   | "agents"
-  | "skills";
+  | "skills"
+  | "mcp";
 
 export type CodexSection = SettingsSection | "codex" | "features";
 

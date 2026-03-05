@@ -3,6 +3,7 @@ import type { PromptScope, PromptService } from "../services/promptService.js";
 import type { WorkspaceService } from "../services/workspaceService.js";
 import type { SessionManager } from "../services/sessionManager.js";
 import type { TerminalService } from "../services/terminalService.js";
+import type { AddMcpServerInput, McpManagerService } from "../services/mcpManagerService.js";
 import type {
   LiteLLMModelPricing,
   LiteLLMPricingService,
@@ -56,6 +57,7 @@ export type DispatcherDeps = {
   workspaceService: WorkspaceService;
   sessionManager: SessionManager;
   terminalService: TerminalService;
+  mcpManagerService: McpManagerService;
   promptService: PromptService;
   dictationService: DictationService;
   litellmPricingService: LiteLLMPricingService;
@@ -176,6 +178,44 @@ function optionalBoolean(params: Record<string, unknown>, key: string): boolean 
   return value;
 }
 
+function optionalStringArray(params: Record<string, unknown>, key: string): string[] | null {
+  const value = params[key];
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (!Array.isArray(value)) {
+    throw new Error(`${key} must be an array`);
+  }
+  return value
+    .map((entry) => String(entry).trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function optionalStringRecord(
+  params: Record<string, unknown>,
+  key: string,
+): Record<string, string> | null {
+  const value = params[key];
+  if (value === undefined || value === null) {
+    return null;
+  }
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${key} must be an object`);
+  }
+  const next: Record<string, string> = {};
+  for (const [rawEntryKey, rawEntryValue] of Object.entries(value as Record<string, unknown>)) {
+    const entryKey = rawEntryKey.trim();
+    if (!entryKey) {
+      continue;
+    }
+    if (rawEntryValue === undefined || rawEntryValue === null) {
+      continue;
+    }
+    next[entryKey] = String(rawEntryValue);
+  }
+  return next;
+}
+
 type AccessMode = "read-only" | "current" | "full-access";
 
 const ACCESS_MODES = new Set<AccessMode>(["read-only", "current", "full-access"]);
@@ -286,6 +326,18 @@ export async function dispatchRpc(
   const workspaceFromParams = (key = "workspaceId") => {
     const id = requireString(params, key);
     return workspaceById(id);
+  };
+
+  const reloadMcpConfigForConnectedWorkspaces = async () => {
+    const connectedWorkspaceIds = Array.from(deps.sessionManager.connectedWorkspaceIds());
+    for (const connectedWorkspaceId of connectedWorkspaceIds) {
+      try {
+        const workspace = workspaceById(connectedWorkspaceId);
+        await deps.sessionManager.callSessionMethod(workspace, "config/mcpServer/reload", undefined);
+      } catch {
+        // Best effort: one workspace reload failure should not fail the originating mutation.
+      }
+    }
   };
 
   switch (method) {
@@ -473,6 +525,69 @@ export async function dispatchRpc(
         optionalString(params, "cursor"),
         optionalNumber(params, "limit"),
       );
+    }
+    case "mcp_servers_list": {
+      return deps.mcpManagerService.listServers();
+    }
+    case "mcp_server_get": {
+      const name = requireString(params, "name");
+      return deps.mcpManagerService.getServer(name);
+    }
+    case "mcp_server_add": {
+      const name = requireString(params, "name");
+      const transport = requireString(params, "transport");
+      if (transport !== "streamable_http" && transport !== "stdio") {
+        throw new Error("transport must be 'streamable_http' or 'stdio'");
+      }
+
+      const payload: AddMcpServerInput = {
+        name,
+        transport,
+        url: optionalString(params, "url"),
+        bearerTokenEnvVar: optionalString(params, "bearerTokenEnvVar"),
+        command: optionalString(params, "command"),
+        args: optionalStringArray(params, "args"),
+        env: optionalStringRecord(params, "env"),
+      };
+
+      await deps.mcpManagerService.addServer(payload);
+      await reloadMcpConfigForConnectedWorkspaces();
+      return { ok: true };
+    }
+    case "mcp_server_remove": {
+      const name = requireString(params, "name");
+      await deps.mcpManagerService.removeServer(name);
+      await reloadMcpConfigForConnectedWorkspaces();
+      return { ok: true };
+    }
+    case "mcp_server_logout": {
+      const name = requireString(params, "name");
+      await deps.mcpManagerService.logoutServer(name);
+      await reloadMcpConfigForConnectedWorkspaces();
+      return { ok: true };
+    }
+    case "mcp_server_oauth_login": {
+      const workspace = workspaceFromParams();
+      const name = requireString(params, "name");
+      const scopes = optionalStringArray(params, "scopes");
+      const timeoutSecs = optionalNumber(params, "timeoutSecs");
+      const response = (await deps.sessionManager.callSessionMethod(
+        workspace,
+        "mcpServer/oauth/login",
+        {
+          name,
+          scopes: scopes ?? null,
+          timeoutSecs: timeoutSecs ?? null,
+        },
+      )) as Record<string, unknown> | null;
+      const authorizationUrlRaw =
+        response?.authorizationUrl ?? response?.authorization_url ?? response?.authUrl;
+      if (typeof authorizationUrlRaw !== "string" || authorizationUrlRaw.trim().length === 0) {
+        throw new Error("Missing authorizationUrl in mcpServer/oauth/login response");
+      }
+      return {
+        authorizationUrl: authorizationUrlRaw,
+      };
     }
     case "send_user_message": {
       const workspace = workspaceFromParams();

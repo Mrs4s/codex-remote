@@ -16,6 +16,7 @@ import { useSettingsGitSection } from "./useSettingsGitSection";
 import { useSettingsAgentsSection } from "./useSettingsAgentsSection";
 import { useSettingsProjectsSection } from "./useSettingsProjectsSection";
 import { useSettingsSkillsSection } from "./useSettingsSkillsSection";
+import { useSettingsMcpSection } from "./useSettingsMcpSection";
 import type { GroupedWorkspaces } from "./settingsSectionTypes";
 import {
   COMPOSER_PRESET_CONFIGS,
@@ -160,6 +161,9 @@ export function useSettingsViewOrchestration({
   const skillsSectionProps = useSettingsSkillsSection({
     skillsWorkspaceId: connectedWorkspaceId,
   });
+  const mcpSectionProps = useSettingsMcpSection({
+    mcpWorkspaceId: connectedWorkspaceId,
+  });
 
   const agentsSectionProps = useSettingsAgentsSection({ projects });
 
@@ -194,6 +198,7 @@ export function useSettingsViewOrchestration({
     codexSectionProps,
     featuresSectionProps,
     skillsSectionProps,
+    mcpSectionProps,
   };
 }
 
