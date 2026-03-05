@@ -4,6 +4,7 @@ import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import { CodexSession } from "./codexSession.js";
+import { enrichThreadResumeResultFromRollout } from "./threadHistoryService.js";
 import type { UndoCheckpointService } from "./undoCheckpointService.js";
 
 const execFileAsync = promisify(execFile);
@@ -252,7 +253,8 @@ export class SessionManager {
 
   async resumeThread(workspace: WorkspaceEntry, threadId: string): Promise<unknown> {
     const session = await this.ensureSession(workspace);
-    return session.sendRequest(workspace.id, "thread/resume", { threadId });
+    const result = await session.sendRequest(workspace.id, "thread/resume", { threadId });
+    return enrichThreadResumeResultFromRollout(result, workspace.path);
   }
 
   async forkThread(workspace: WorkspaceEntry, threadId: string): Promise<unknown> {

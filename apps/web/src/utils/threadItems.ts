@@ -191,6 +191,177 @@ function extractTextContentItems(value: unknown) {
     .join("\n\n");
 }
 
+function normalizeFileChanges(
+  value: unknown,
+): NonNullable<Extract<ConversationItem, { kind: "tool" }>["changes"]> {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  const normalized: Array<
+    NonNullable<Extract<ConversationItem, { kind: "tool" }>["changes"]>[number] | null
+  > = value
+    .map((change) => {
+      const record = asRecord(change);
+      if (!record) {
+        return null;
+      }
+      const path = asString(record.path ?? "").trim();
+      const kind = record.kind;
+      const kindType =
+        typeof kind === "string"
+          ? kind
+          : typeof kind === "object" && kind
+            ? asString((kind as Record<string, unknown>).type ?? "")
+            : "";
+      const normalizedKind = kindType ? kindType.toLowerCase() : "";
+      const diff = asString(record.diff ?? "");
+      if (!path) {
+        return null;
+      }
+      return {
+        path,
+        kind: normalizedKind || undefined,
+        diff: diff || undefined,
+      };
+    });
+  return normalized
+    .filter(
+      (
+        change,
+      ): change is NonNullable<Extract<ConversationItem, { kind: "tool" }>["changes"]>[number] =>
+        Boolean(change),
+    );
+}
+
+function formatFileChangeDetail(
+  changes: NonNullable<Extract<ConversationItem, { kind: "tool" }>["changes"]>,
+) {
+  return changes
+    .map((change) => {
+      const prefix =
+        change.kind === "add"
+          ? "A"
+          : change.kind === "delete"
+            ? "D"
+            : change.kind
+              ? "M"
+              : "";
+      return [prefix, change.path].filter(Boolean).join(" ");
+    })
+    .filter(Boolean)
+    .join(", ");
+}
+
+function buildFileChangeToolItem(
+  id: string,
+  params: {
+    title?: string;
+    status?: string;
+    changes?: NonNullable<Extract<ConversationItem, { kind: "tool" }>["changes"]>;
+    output?: string;
+  },
+): Extract<ConversationItem, { kind: "tool" }> {
+  const changes = params.changes ?? [];
+  const diffOutput = changes
+    .map((change) => change.diff ?? "")
+    .filter(Boolean)
+    .join("\n\n");
+  const extraOutput = asString(params.output ?? "").trim();
+  return {
+    id,
+    kind: "tool",
+    toolType: "fileChange",
+    title: params.title ?? "File changes",
+    detail: formatFileChangeDetail(changes) || "Pending changes",
+    status: params.status ?? "",
+    output: [diffOutput, extraOutput].filter(Boolean).join("\n\n"),
+    changes,
+  };
+}
+
+function parseApplyPatchChanges(
+  patchText: string,
+): NonNullable<Extract<ConversationItem, { kind: "tool" }>["changes"]> {
+  const trimmed = patchText.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  const lines = trimmed.split(/\r?\n/g);
+  const changes: NonNullable<Extract<ConversationItem, { kind: "tool" }>["changes"]> = [];
+  let current:
+    | {
+        path: string;
+        kind?: string;
+        diffLines: string[];
+      }
+    | null = null;
+
+  const flush = () => {
+    if (!current?.path) {
+      current = null;
+      return;
+    }
+    changes.push({
+      path: current.path,
+      kind: current.kind,
+      diff: current.diffLines.length > 0 ? current.diffLines.join("\n").trim() : undefined,
+    });
+    current = null;
+  };
+
+  lines.forEach((line) => {
+    if (line.startsWith("*** Add File: ")) {
+      flush();
+      current = {
+        path: line.slice("*** Add File: ".length).trim(),
+        kind: "add",
+        diffLines: [line],
+      };
+      return;
+    }
+    if (line.startsWith("*** Delete File: ")) {
+      flush();
+      current = {
+        path: line.slice("*** Delete File: ".length).trim(),
+        kind: "delete",
+        diffLines: [line],
+      };
+      return;
+    }
+    if (line.startsWith("*** Update File: ")) {
+      flush();
+      current = {
+        path: line.slice("*** Update File: ".length).trim(),
+        kind: "update",
+        diffLines: [line],
+      };
+      return;
+    }
+    if (line.startsWith("*** Move to: ")) {
+      if (current) {
+        current.path = line.slice("*** Move to: ".length).trim() || current.path;
+        current.kind = current.kind === "add" ? "add" : "move";
+        current.diffLines.push(line);
+      }
+      return;
+    }
+    if (line.startsWith("*** End Patch")) {
+      flush();
+      return;
+    }
+    if (line.startsWith("*** Begin Patch")) {
+      return;
+    }
+    if (current) {
+      current.diffLines.push(line);
+    }
+  });
+
+  flush();
+  return changes;
+}
+
 function buildCommandExecutionToolItem(
   id: string,
   params: {
@@ -290,6 +461,37 @@ function buildDynamicToolCallConversationItem(
       detail: asString(argsRecord?.path ?? "").trim(),
       status,
       output: output || "",
+      durationMs,
+    };
+  }
+
+  if (tool === "apply_patch") {
+    const patchText = typeof argumentsValue === "string" ? argumentsValue : stringifyJsonValue(argumentsValue);
+    const changes = parseApplyPatchChanges(patchText);
+    if (changes.length > 0) {
+      return buildFileChangeToolItem(id, {
+        title: "Apply patch",
+        status,
+        changes,
+        output,
+      });
+    }
+  }
+
+  if (tool === "write_stdin") {
+    const sessionId = asString(argsRecord?.session_id ?? argsRecord?.sessionId ?? "").trim();
+    const chars = asString(argsRecord?.chars ?? "").replace(/\r\n/g, "\n");
+    const stdinOutput = chars
+      ? `[stdin]\n${chars}${chars.endsWith("\n") ? "" : "\n"}`
+      : "";
+    return {
+      id,
+      kind: "tool",
+      toolType: "dynamicToolCall",
+      title: chars ? "Terminal input" : "Terminal session output",
+      detail: sessionId ? `Session ${sessionId}` : "Terminal session",
+      status,
+      output: [stdinOutput, output].filter(Boolean).join("\n"),
       durationMs,
     };
   }
@@ -1329,50 +1531,10 @@ export function buildConversationItem(
     };
   }
   if (type === "fileChange") {
-    const changes = Array.isArray(item.changes) ? item.changes : [];
-    const normalizedChanges = changes
-      .map((change) => {
-        const path = asString(change?.path ?? "");
-        const kind = change?.kind as Record<string, unknown> | string | undefined;
-        const kindType =
-          typeof kind === "string"
-            ? kind
-            : typeof kind === "object" && kind
-              ? asString((kind as Record<string, unknown>).type ?? "")
-              : "";
-        const normalizedKind = kindType ? kindType.toLowerCase() : "";
-        const diff = asString(change?.diff ?? "");
-        return { path, kind: normalizedKind || undefined, diff: diff || undefined };
-      })
-      .filter((change) => change.path);
-    const formattedChanges = normalizedChanges
-      .map((change) => {
-        const prefix =
-          change.kind === "add"
-            ? "A"
-            : change.kind === "delete"
-              ? "D"
-              : change.kind
-                ? "M"
-                : "";
-        return [prefix, change.path].filter(Boolean).join(" ");
-      })
-      .filter(Boolean);
-    const paths = formattedChanges.join(", ");
-    const diffOutput = normalizedChanges
-      .map((change) => change.diff ?? "")
-      .filter(Boolean)
-      .join("\n\n");
-    return {
-      id,
-      kind: "tool",
-      toolType: type,
-      title: "File changes",
-      detail: paths || "Pending changes",
+    return buildFileChangeToolItem(id, {
       status: asString(item.status ?? ""),
-      output: diffOutput,
-      changes: normalizedChanges,
-    };
+      changes: normalizeFileChanges(item.changes),
+    });
   }
   if (type === "mcpToolCall") {
     const server = asString(item.server ?? "");
@@ -1555,7 +1717,7 @@ export function buildConversationItemFromThreadItem(
   item: Record<string, unknown>,
 ): ConversationItem | null {
   const type = asString(item.type);
-  const id = asString(item.id);
+  const id = resolveConversationItemId(type, item);
   if (!id || !type) {
     return null;
   }

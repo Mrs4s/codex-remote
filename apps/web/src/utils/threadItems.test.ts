@@ -3,6 +3,7 @@ import type { ConversationItem } from "../types";
 import {
   buildConversationItem,
   buildConversationItemFromThreadItem,
+  buildItemsFromThread,
   getThreadCreatedTimestamp,
   getThreadTimestamp,
   mergeThreadItems,
@@ -623,6 +624,61 @@ describe("threadItems", () => {
     }
   });
 
+  it("parses apply_patch tool calls as file changes", () => {
+    const item = buildConversationItem({
+      type: "dynamicToolCall",
+      id: "tool-apply-patch-1",
+      tool: "apply_patch",
+      status: "completed",
+      arguments: [
+        "*** Begin Patch",
+        "*** Update File: apps/web/src/utils/threadItems.ts",
+        "@@",
+        "-old line",
+        "+new line",
+        "*** Add File: docs/notes.md",
+        "+hello",
+        "*** End Patch",
+      ].join("\n"),
+      contentItems: [{ type: "outputText", text: "Patch applied successfully." }],
+    });
+
+    expect(item).not.toBeNull();
+    if (item && item.kind === "tool") {
+      expect(item.toolType).toBe("fileChange");
+      expect(item.detail).toContain("apps/web/src/utils/threadItems.ts");
+      expect(item.detail).toContain("docs/notes.md");
+      expect(item.changes?.map((change) => change.path)).toEqual([
+        "apps/web/src/utils/threadItems.ts",
+        "docs/notes.md",
+      ]);
+      expect(item.output).toContain("+new line");
+    }
+  });
+
+  it("formats standalone write_stdin tool calls with session details", () => {
+    const item = buildConversationItem({
+      type: "dynamicToolCall",
+      id: "tool-write-stdin-1",
+      tool: "write_stdin",
+      status: "completed",
+      arguments: {
+        session_id: 12345,
+        chars: "y\n",
+      },
+      contentItems: [{ type: "outputText", text: "continued output" }],
+    });
+
+    expect(item).not.toBeNull();
+    if (item && item.kind === "tool") {
+      expect(item.toolType).toBe("dynamicToolCall");
+      expect(item.title).toBe("Terminal input");
+      expect(item.detail).toBe("Session 12345");
+      expect(item.output).toContain("[stdin]");
+      expect(item.output).toContain("continued output");
+    }
+  });
+
   it("defaults web search items to completed status", () => {
     const item = buildConversationItem({
       type: "webSearch",
@@ -828,6 +884,66 @@ describe("threadItems", () => {
       expect(item.role).toBe("user");
       expect(item.text).toBe("");
       expect(item.images).toEqual(["https://example.com/only.png"]);
+    }
+  });
+
+  it("falls back to call_id for thread history tool items", () => {
+    const item = buildConversationItemFromThreadItem({
+      type: "local_shell_call",
+      call_id: "call-shell-1",
+      status: "completed",
+      action: {
+        type: "exec",
+        command: ["sed", "-n", "1,40p", "README.md"],
+        working_directory: "/repo",
+      },
+    });
+    expect(item).not.toBeNull();
+    if (item && item.kind === "tool") {
+      expect(item.id).toBe("call-shell-1");
+      expect(item.toolType).toBe("commandExecution");
+      expect(item.title).toContain("sed -n 1,40p README.md");
+    }
+  });
+
+  it("preserves tool calls from thread history after refresh preparation", () => {
+    const items = prepareThreadItems(
+      buildItemsFromThread({
+        turns: [
+          {
+            items: [
+              {
+                type: "local_shell_call",
+                call_id: "call-shell-1",
+                status: "completed",
+                action: {
+                  type: "exec",
+                  command: ["sed", "-n", "1,40p", "README.md"],
+                  working_directory: "/repo",
+                },
+              },
+              {
+                type: "custom_tool_call",
+                call_id: "call-tool-1",
+                status: "completed",
+                name: "exec_command",
+                input:
+                  '{"cmd":"rg buildConversationItem apps/web/src","workdir":"/repo"}',
+              },
+            ],
+          },
+        ],
+      }),
+    );
+
+    expect(items).toHaveLength(1);
+    expect(items[0]?.kind).toBe("explore");
+    if (items[0]?.kind === "explore") {
+      expect(items[0].toolCalls?.map((tool) => tool.id)).toEqual([
+        "call-shell-1",
+        "call-tool-1",
+      ]);
+      expect(items[0].entries).toHaveLength(2);
     }
   });
 
