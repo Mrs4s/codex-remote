@@ -118,6 +118,18 @@ async function runGitUnit(workspace: WorkspaceEntry, args: string[]): Promise<vo
   });
 }
 
+function isUnknownPathspecError(error: unknown): boolean {
+  if (!error || typeof error !== "object") {
+    return false;
+  }
+  const stderr = (error as { stderr?: unknown }).stderr;
+  const message = (error as { message?: unknown }).message;
+  const text = [stderr, message]
+    .filter((value): value is string => typeof value === "string")
+    .join("\n");
+  return text.includes("did not match any file(s) known to git");
+}
+
 async function runGitByPath(cwd: string, args: string[]): Promise<string> {
   const { stdout } = await execFileAsync("git", args, {
     cwd,
@@ -413,11 +425,20 @@ export async function unstageGitFile(workspace: WorkspaceEntry, filePath: string
 }
 
 export async function revertGitFile(workspace: WorkspaceEntry, filePath: string): Promise<void> {
-  await runGitUnit(workspace, ["restore", "--", filePath]);
+  try {
+    await runGitUnit(workspace, ["restore", "--", filePath]);
+  } catch (error) {
+    if (!isUnknownPathspecError(error)) {
+      throw error;
+    }
+    // `git restore` fails for untracked paths, so remove them via clean instead.
+    await runGitUnit(workspace, ["clean", "-fd", "--", filePath]);
+  }
 }
 
 export async function revertGitAll(workspace: WorkspaceEntry): Promise<void> {
   await runGitUnit(workspace, ["restore", "."]);
+  await runGitUnit(workspace, ["clean", "-fd"]);
 }
 
 export async function commitGit(workspace: WorkspaceEntry, message: string): Promise<void> {
