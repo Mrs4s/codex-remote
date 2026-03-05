@@ -568,6 +568,12 @@ export type ThreadTokenUsage = {
   modelContextWindow: number | null;
 };
 
+export type ThreadTokenUsageSnapshot = {
+  threadId: string;
+  tokenUsage: ThreadTokenUsage | null;
+  updatedAt: number | null;
+};
+
 export type LocalUsageDay = {
   day: string;
   inputTokens: number;

@@ -175,6 +175,26 @@ export type TextFileResponse = {
   truncated: boolean;
 };
 
+export type TokenUsageBreakdown = {
+  totalTokens: number;
+  inputTokens: number;
+  cachedInputTokens: number;
+  outputTokens: number;
+  reasoningOutputTokens: number;
+};
+
+export type ThreadTokenUsage = {
+  total: TokenUsageBreakdown;
+  last: TokenUsageBreakdown;
+  modelContextWindow: number | null;
+};
+
+export type ThreadTokenUsageSnapshot = {
+  threadId: string;
+  tokenUsage: ThreadTokenUsage | null;
+  updatedAt: number | null;
+};
+
 export type LocalUsageDay = {
   day: string;
   inputTokens: number;
@@ -339,6 +359,10 @@ export type RpcMethodMap = {
   set_thread_name: {
     params: { workspaceId: string; threadId: string; name: string };
     result: Record<string, unknown>;
+  };
+  thread_token_usage_snapshot: {
+    params: { workspaceId: string; threadId: string };
+    result: ThreadTokenUsageSnapshot;
   };
   thread_live_subscribe: {
     params: { workspaceId: string; threadId: string };

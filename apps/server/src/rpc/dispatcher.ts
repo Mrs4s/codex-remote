@@ -44,6 +44,7 @@ import {
   localUsageCostSnapshot,
   localUsageSnapshot,
 } from "../services/localUsageService.js";
+import { threadTokenUsageSnapshot } from "../services/threadTokenUsageService.js";
 import {
   generateAgentDescription,
   generateCommitMessage,
@@ -507,6 +508,11 @@ export async function dispatchRpc(
       const threadId = requireString(params, "threadId");
       const name = requireString(params, "name");
       return deps.sessionManager.setThreadName(workspace, threadId, name);
+    }
+    case "thread_token_usage_snapshot": {
+      const workspace = workspaceFromParams();
+      const threadId = requireString(params, "threadId");
+      return threadTokenUsageSnapshot(threadId, workspace.path);
     }
     case "thread_live_subscribe": {
       const workspace = workspaceFromParams();

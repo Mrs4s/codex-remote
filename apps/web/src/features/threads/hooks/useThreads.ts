@@ -22,6 +22,7 @@ import { useThreadUserInput } from "./useThreadUserInput";
 import { useThreadTitleAutogeneration } from "./useThreadTitleAutogeneration";
 import {
   archiveThread as archiveThreadService,
+  getThreadTokenUsageSnapshot,
   setThreadName as setThreadNameService,
 } from "@services/tauri";
 import {
@@ -113,11 +114,13 @@ export function useThreads({
   const threadParentByIdRef = useRef(state.threadParentById);
   const cascadeArchiveSkipRef = useRef<Record<string, number>>({});
   const detachedReviewLinksByWorkspaceRef = useRef(loadDetachedReviewLinks());
+  const tokenUsageByThreadRef = useRef(state.tokenUsageByThread);
   planByThreadRef.current = state.planByThread;
   itemsByThreadRef.current = state.itemsByThread;
   threadsByWorkspaceRef.current = state.threadsByWorkspace;
   activeTurnIdByThreadRef.current = state.activeTurnIdByThread;
   threadParentByIdRef.current = state.threadParentById;
+  tokenUsageByThreadRef.current = state.tokenUsageByThread;
   const rateLimitsByWorkspaceRef = useRef(state.rateLimitsByWorkspace);
   rateLimitsByWorkspaceRef.current = state.rateLimitsByWorkspace;
   const { approvalAllowlistRef, handleApprovalDecision, handleApprovalRemember } =
@@ -141,6 +144,48 @@ export function useThreads({
     activeThreadIdByWorkspace: state.activeThreadIdByWorkspace,
     itemsByThread: state.itemsByThread,
   });
+
+  useEffect(() => {
+    if (!activeWorkspaceId || !activeThreadId) {
+      return;
+    }
+
+    let canceled = false;
+    const targetWorkspaceId = activeWorkspaceId;
+    const targetThreadId = activeThreadId;
+
+    void getThreadTokenUsageSnapshot(targetWorkspaceId, targetThreadId)
+      .then((snapshot) => {
+        if (canceled || !snapshot.tokenUsage || snapshot.threadId !== targetThreadId) {
+          return;
+        }
+        const currentUsage = tokenUsageByThreadRef.current[targetThreadId];
+        if (
+          currentUsage &&
+          currentUsage.total.totalTokens >= snapshot.tokenUsage.total.totalTokens
+        ) {
+          return;
+        }
+        dispatch({
+          type: "setThreadTokenUsage",
+          threadId: targetThreadId,
+          tokenUsage: snapshot.tokenUsage,
+        });
+      })
+      .catch((error) => {
+        onDebug?.({
+          id: `${Date.now()}-client-thread-token-usage-snapshot-error`,
+          timestamp: Date.now(),
+          source: "error",
+          label: "thread/tokenUsage/snapshot error",
+          payload: error instanceof Error ? error.message : String(error),
+        });
+      });
+
+    return () => {
+      canceled = true;
+    };
+  }, [activeWorkspaceId, activeThreadId, dispatch, onDebug]);
 
   const getCurrentRateLimits = useCallback(
     (workspaceId: string) => rateLimitsByWorkspaceRef.current[workspaceId] ?? null,

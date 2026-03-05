@@ -6,6 +6,7 @@ import type { useAppServerEvents } from "@app/hooks/useAppServerEvents";
 import { useThreadRows } from "@app/hooks/useThreadRows";
 import {
   archiveThread,
+  getThreadTokenUsageSnapshot,
   interruptTurn,
   listThreads,
   resumeThread,
@@ -40,6 +41,7 @@ vi.mock("@services/tauri", () => ({
   listThreads: vi.fn(),
   resumeThread: vi.fn(),
   archiveThread: vi.fn(),
+  getThreadTokenUsageSnapshot: vi.fn(),
   setThreadName: vi.fn(),
   getAccountRateLimits: vi.fn(),
   getAccountInfo: vi.fn(),
@@ -62,6 +64,11 @@ describe("useThreads UX integration", () => {
     handlers = null;
     localStorage.clear();
     vi.clearAllMocks();
+    vi.mocked(getThreadTokenUsageSnapshot).mockImplementation(async (_workspaceId, threadId) => ({
+      threadId,
+      tokenUsage: null,
+      updatedAt: null,
+    }));
     now = 1000;
     nowSpy = vi.spyOn(Date, "now").mockImplementation(() => now++);
   });

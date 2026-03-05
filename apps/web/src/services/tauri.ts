@@ -11,6 +11,7 @@ import type {
   LocalUsageCountingMode,
   LocalUsageCostSnapshot,
   LocalUsageSnapshot,
+  ThreadTokenUsageSnapshot,
   UndoCheckpointSummary,
   TcpDaemonStatus,
   TailscaleDaemonCommandPreview,
@@ -1194,6 +1195,16 @@ export async function mcpServerOauthLogin(
 
 export async function resumeThread(workspaceId: string, threadId: string) {
   return invoke<any>("resume_thread", { workspaceId, threadId });
+}
+
+export async function getThreadTokenUsageSnapshot(
+  workspaceId: string,
+  threadId: string,
+): Promise<ThreadTokenUsageSnapshot> {
+  return invoke<ThreadTokenUsageSnapshot>("thread_token_usage_snapshot", {
+    workspaceId,
+    threadId,
+  });
 }
 
 export async function threadLiveSubscribe(workspaceId: string, threadId: string) {
