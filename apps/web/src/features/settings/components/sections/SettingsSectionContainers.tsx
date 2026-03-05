@@ -5,7 +5,6 @@ import { SettingsEnvironmentsSection } from "./SettingsEnvironmentsSection";
 import { SettingsFeaturesSection } from "./SettingsFeaturesSection";
 import { SettingsGitSection } from "./SettingsGitSection";
 import { SettingsProjectsSection } from "./SettingsProjectsSection";
-import { SettingsServerSection } from "./SettingsServerSection";
 import { SettingsShortcutsSection } from "./SettingsShortcutsSection";
 import { SettingsAgentsSection } from "./SettingsAgentsSection";
 import { SettingsAboutSection } from "./SettingsAboutSection";
@@ -42,9 +41,6 @@ export function SettingsSectionContainers({
   }
   if (activeSection === "git") {
     return <SettingsGitSection {...orchestration.gitSectionProps} />;
-  }
-  if (activeSection === "server") {
-    return <SettingsServerSection {...orchestration.serverSectionProps} />;
   }
   if (activeSection === "agents") {
     return <SettingsAgentsSection {...orchestration.agentsSectionProps} />;

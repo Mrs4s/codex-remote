@@ -57,7 +57,6 @@ export type SettingsViewProps = {
   scaleShortcutText: string;
   onTestNotificationSound: () => void;
   onTestSystemNotification: () => void;
-  onMobileConnectSuccess?: () => Promise<void> | void;
   dictationModelStatus?: DictationModelStatus | null;
   onDownloadDictationModel?: () => void;
   onCancelDictationDownload?: () => void;
@@ -88,7 +87,6 @@ export function SettingsView({
   scaleShortcutText,
   onTestNotificationSound,
   onTestSystemNotification,
-  onMobileConnectSuccess,
   initialSection,
 }: SettingsViewProps) {
   const {
@@ -121,7 +119,6 @@ export function SettingsView({
     onMoveWorkspaceGroup,
     onDeleteWorkspaceGroup,
     onAssignWorkspaceGroup,
-    onMobileConnectSuccess,
   });
 
   useSettingsViewCloseShortcuts(onClose);

@@ -58,7 +58,6 @@ export const COMPOSER_PRESET_CONFIGS: Record<
 };
 
 export const SETTINGS_MOBILE_BREAKPOINT_PX = 720;
-export const DEFAULT_REMOTE_HOST = "127.0.0.1:4732";
 
 export const SETTINGS_SECTION_LABELS: Record<CodexSection, string> = {
   projects: "Projects",
@@ -68,7 +67,6 @@ export const SETTINGS_SECTION_LABELS: Record<CodexSection, string> = {
   composer: "Composer",
   shortcuts: "Shortcuts",
   git: "Git",
-  server: "Server",
   agents: "Agents",
   skills: "Skills",
   codex: "Codex",

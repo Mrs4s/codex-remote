@@ -8,7 +8,6 @@ type SettingsSection =
   | "composer"
   | "shortcuts"
   | "git"
-  | "server"
   | "agents"
   | "skills";
 

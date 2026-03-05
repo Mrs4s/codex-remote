@@ -6,7 +6,6 @@ import TerminalSquare from "lucide-react/dist/esm/icons/terminal-square";
 import FileText from "lucide-react/dist/esm/icons/file-text";
 import FlaskConical from "lucide-react/dist/esm/icons/flask-conical";
 import Layers from "lucide-react/dist/esm/icons/layers";
-import ServerCog from "lucide-react/dist/esm/icons/server-cog";
 import Bot from "lucide-react/dist/esm/icons/bot";
 import Wrench from "lucide-react/dist/esm/icons/wrench";
 import Info from "lucide-react/dist/esm/icons/info";
@@ -80,15 +79,6 @@ export function SettingsNav({
           onClick={() => onSelectSection("git")}
         >
           Git
-        </PanelNavItem>
-        <PanelNavItem
-          className="settings-nav"
-          icon={<ServerCog aria-hidden />}
-          active={activeSection === "server"}
-          showDisclosure={showDisclosure}
-          onClick={() => onSelectSection("server")}
-        >
-          Server
         </PanelNavItem>
         <PanelNavItem
           className="settings-nav"

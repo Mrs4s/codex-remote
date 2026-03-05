@@ -15,7 +15,6 @@ import { useSettingsFeaturesSection } from "./useSettingsFeaturesSection";
 import { useSettingsGitSection } from "./useSettingsGitSection";
 import { useSettingsAgentsSection } from "./useSettingsAgentsSection";
 import { useSettingsProjectsSection } from "./useSettingsProjectsSection";
-import { useSettingsServerSection } from "./useSettingsServerSection";
 import { useSettingsSkillsSection } from "./useSettingsSkillsSection";
 import type { GroupedWorkspaces } from "./settingsSectionTypes";
 import {
@@ -47,7 +46,6 @@ type UseSettingsViewOrchestrationArgs = {
   scaleShortcutText: string;
   onTestNotificationSound: () => void;
   onTestSystemNotification: () => void;
-  onMobileConnectSuccess?: () => Promise<void> | void;
   onMoveWorkspace: (id: string, direction: "up" | "down") => void;
   onDeleteWorkspace: (id: string) => void;
   onCreateWorkspaceGroup: (name: string) => Promise<WorkspaceGroup | null>;
@@ -75,7 +73,6 @@ export function useSettingsViewOrchestration({
   scaleShortcutText,
   onTestNotificationSound,
   onTestSystemNotification,
-  onMobileConnectSuccess,
   onMoveWorkspace,
   onDeleteWorkspace,
   onCreateWorkspaceGroup,
@@ -140,12 +137,6 @@ export function useSettingsViewOrchestration({
     onTestSystemNotification,
   });
 
-  const serverSectionProps = useSettingsServerSection({
-    appSettings,
-    onUpdateAppSettings,
-    onMobileConnectSuccess,
-  });
-
   const codexSectionProps = useSettingsCodexSection({
     appSettings,
     projects,
@@ -199,7 +190,6 @@ export function useSettingsViewOrchestration({
       onClearShortcut: clearShortcut,
     },
     gitSectionProps,
-    serverSectionProps,
     agentsSectionProps,
     codexSectionProps,
     featuresSectionProps,

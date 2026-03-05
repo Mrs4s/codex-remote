@@ -47,7 +47,7 @@ export function MobileServerSetupWizard({
         <h2 className="mobile-setup-wizard-title">Connect to your desktop backend</h2>
         <p className="mobile-setup-wizard-subtitle">
           Complete this setup before using the app. Use the same connection details configured on
-          your desktop codex-remote server settings.
+          your desktop codex-remote setup.
         </p>
       </div>
 
@@ -99,7 +99,8 @@ export function MobileServerSetupWizard({
         ) : null}
 
         <div className="mobile-setup-wizard-hint">
-          Use the Tailscale host from desktop Server settings and keep the desktop daemon running.
+          Use the Tailscale host from your desktop codex-remote setup and keep the desktop daemon
+          running.
         </div>
       </div>
     </ModalShell>

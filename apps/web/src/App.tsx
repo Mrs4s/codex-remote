@@ -257,10 +257,7 @@ function MainApp() {
     addDebugEntry,
     queueSaveSettings,
   });
-  const {
-    isMobileRuntime,
-    handleMobileConnectSuccess,
-  } = useMobileServerSetup({
+  const { isMobileRuntime } = useMobileServerSetup({
     appSettings,
     appSettingsLoading,
     queueSaveSettings,
@@ -2833,7 +2830,6 @@ function MainApp() {
           scaleShortcutText,
           onTestNotificationSound: handleTestNotificationSound,
           onTestSystemNotification: handleTestSystemNotification,
-          onMobileConnectSuccess: handleMobileConnectSuccess,
         }}
       />
     </div>
