@@ -1,8 +1,10 @@
-import { useCallback } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import type { Dispatch } from "react";
 import { buildConversationItem } from "@utils/threadItems";
 import { asString } from "@threads/utils/threadNormalize";
 import type { ThreadAction } from "./useThreadsReducer";
+
+const STREAM_FLUSH_INTERVAL_MS = 50;
 
 type UseThreadItemEventsOptions = {
   activeThreadId: string | null;
@@ -29,6 +31,19 @@ type UseThreadItemEventsOptions = {
   onReviewExited?: (workspaceId: string, threadId: string) => void;
 };
 
+type PendingAgentDelta = {
+  workspaceId: string;
+  threadId: string;
+  itemId: string;
+  parts: string[];
+};
+
+type PendingThreadDelta = {
+  threadId: string;
+  itemId: string;
+  parts: string[];
+};
+
 export function useThreadItemEvents({
   activeThreadId,
   dispatch,
@@ -41,6 +56,131 @@ export function useThreadItemEvents({
   onUserMessageCreated,
   onReviewExited,
 }: UseThreadItemEventsOptions) {
+  const pendingAgentDeltasRef = useRef<Map<string, PendingAgentDelta>>(new Map());
+  const pendingToolOutputDeltasRef = useRef<Map<string, PendingThreadDelta>>(new Map());
+  const pendingReasoningSummaryDeltasRef =
+    useRef<Map<string, PendingThreadDelta>>(new Map());
+  const pendingReasoningContentDeltasRef =
+    useRef<Map<string, PendingThreadDelta>>(new Map());
+  const pendingPlanDeltasRef = useRef<Map<string, PendingThreadDelta>>(new Map());
+  const flushTimerRef = useRef<number | null>(null);
+  const nextFlushAtRef = useRef(0);
+
+  const cancelScheduledFlush = useCallback(() => {
+    if (flushTimerRef.current !== null) {
+      window.clearTimeout(flushTimerRef.current);
+      flushTimerRef.current = null;
+    }
+  }, []);
+
+  const flushPendingDeltas = useCallback(() => {
+    cancelScheduledFlush();
+
+    const didHavePending =
+      pendingAgentDeltasRef.current.size > 0 ||
+      pendingToolOutputDeltasRef.current.size > 0 ||
+      pendingReasoningSummaryDeltasRef.current.size > 0 ||
+      pendingReasoningContentDeltasRef.current.size > 0 ||
+      pendingPlanDeltasRef.current.size > 0;
+
+    if (!didHavePending) {
+      return;
+    }
+
+    nextFlushAtRef.current = Date.now() + STREAM_FLUSH_INTERVAL_MS;
+
+    for (const entry of pendingAgentDeltasRef.current.values()) {
+      const delta = entry.parts.join("");
+      if (!delta) {
+        continue;
+      }
+      dispatch({ type: "ensureThread", workspaceId: entry.workspaceId, threadId: entry.threadId });
+      markProcessing(entry.threadId, true);
+      const hasCustomName = Boolean(getCustomName(entry.workspaceId, entry.threadId));
+      dispatch({
+        type: "appendAgentDelta",
+        workspaceId: entry.workspaceId,
+        threadId: entry.threadId,
+        itemId: entry.itemId,
+        delta,
+        hasCustomName,
+      });
+    }
+    pendingAgentDeltasRef.current.clear();
+
+    for (const entry of pendingReasoningSummaryDeltasRef.current.values()) {
+      const delta = entry.parts.join("");
+      if (!delta) {
+        continue;
+      }
+      dispatch({ type: "appendReasoningSummary", threadId: entry.threadId, itemId: entry.itemId, delta });
+    }
+    pendingReasoningSummaryDeltasRef.current.clear();
+
+    for (const entry of pendingReasoningContentDeltasRef.current.values()) {
+      const delta = entry.parts.join("");
+      if (!delta) {
+        continue;
+      }
+      dispatch({ type: "appendReasoningContent", threadId: entry.threadId, itemId: entry.itemId, delta });
+    }
+    pendingReasoningContentDeltasRef.current.clear();
+
+    for (const entry of pendingPlanDeltasRef.current.values()) {
+      const delta = entry.parts.join("");
+      if (!delta) {
+        continue;
+      }
+      dispatch({ type: "appendPlanDelta", threadId: entry.threadId, itemId: entry.itemId, delta });
+    }
+    pendingPlanDeltasRef.current.clear();
+
+    let didToolOutput = false;
+    for (const entry of pendingToolOutputDeltasRef.current.values()) {
+      const delta = entry.parts.join("");
+      if (!delta) {
+        continue;
+      }
+      didToolOutput = true;
+      markProcessing(entry.threadId, true);
+      dispatch({ type: "appendToolOutput", threadId: entry.threadId, itemId: entry.itemId, delta });
+    }
+    pendingToolOutputDeltasRef.current.clear();
+    if (didToolOutput) {
+      safeMessageActivity();
+    }
+  }, [cancelScheduledFlush, dispatch, getCustomName, markProcessing, safeMessageActivity]);
+
+  const scheduleFlush = useCallback(() => {
+    if (flushTimerRef.current !== null) {
+      return;
+    }
+    const delayMs = Math.max(0, nextFlushAtRef.current - Date.now());
+    flushTimerRef.current = window.setTimeout(() => {
+      flushTimerRef.current = null;
+      flushPendingDeltas();
+    }, delayMs);
+  }, [flushPendingDeltas]);
+
+  const enqueueOrFlush = useCallback(() => {
+    if (Date.now() >= nextFlushAtRef.current) {
+      flushPendingDeltas();
+      return;
+    }
+    scheduleFlush();
+  }, [flushPendingDeltas, scheduleFlush]);
+
+  useEffect(() => {
+    return () => {
+      cancelScheduledFlush();
+      pendingAgentDeltasRef.current.clear();
+      pendingToolOutputDeltasRef.current.clear();
+      pendingReasoningSummaryDeltasRef.current.clear();
+      pendingReasoningContentDeltasRef.current.clear();
+      pendingPlanDeltasRef.current.clear();
+    };
+  }, [cancelScheduledFlush]);
+
   const handleItemUpdate = useCallback(
     (
       workspaceId: string,
@@ -48,6 +188,7 @@ export function useThreadItemEvents({
       item: Record<string, unknown>,
       shouldMarkProcessing: boolean,
     ) => {
+      flushPendingDeltas();
       dispatch({ type: "ensureThread", workspaceId, threadId });
       if (shouldMarkProcessing) {
         markProcessing(threadId, true);
@@ -88,6 +229,7 @@ export function useThreadItemEvents({
     [
       applyCollabThreadLinks,
       dispatch,
+      flushPendingDeltas,
       getCustomName,
       markProcessing,
       markReviewing,
@@ -99,11 +241,19 @@ export function useThreadItemEvents({
 
   const handleToolOutputDelta = useCallback(
     (threadId: string, itemId: string, delta: string) => {
-      markProcessing(threadId, true);
-      dispatch({ type: "appendToolOutput", threadId, itemId, delta });
-      safeMessageActivity();
+      if (!delta) {
+        return;
+      }
+      const key = `${threadId}:${itemId}`;
+      const entry = pendingToolOutputDeltasRef.current.get(key);
+      if (entry) {
+        entry.parts.push(delta);
+      } else {
+        pendingToolOutputDeltasRef.current.set(key, { threadId, itemId, parts: [delta] });
+      }
+      enqueueOrFlush();
     },
-    [dispatch, markProcessing, safeMessageActivity],
+    [enqueueOrFlush],
   );
 
   const handleTerminalInteraction = useCallback(
@@ -130,19 +280,19 @@ export function useThreadItemEvents({
       itemId: string;
       delta: string;
     }) => {
-      dispatch({ type: "ensureThread", workspaceId, threadId });
-      markProcessing(threadId, true);
-      const hasCustomName = Boolean(getCustomName(workspaceId, threadId));
-      dispatch({
-        type: "appendAgentDelta",
-        workspaceId,
-        threadId,
-        itemId,
-        delta,
-        hasCustomName,
-      });
+      if (!delta) {
+        return;
+      }
+      const key = `${workspaceId}:${threadId}:${itemId}`;
+      const entry = pendingAgentDeltasRef.current.get(key);
+      if (entry) {
+        entry.parts.push(delta);
+      } else {
+        pendingAgentDeltasRef.current.set(key, { workspaceId, threadId, itemId, parts: [delta] });
+      }
+      enqueueOrFlush();
     },
-    [dispatch, getCustomName, markProcessing],
+    [enqueueOrFlush],
   );
 
   const onAgentMessageCompleted = useCallback(
@@ -157,6 +307,7 @@ export function useThreadItemEvents({
       itemId: string;
       text: string;
     }) => {
+      flushPendingDeltas();
       const timestamp = Date.now();
       dispatch({ type: "ensureThread", workspaceId, threadId });
       const hasCustomName = Boolean(getCustomName(workspaceId, threadId));
@@ -189,6 +340,7 @@ export function useThreadItemEvents({
     [
       activeThreadId,
       dispatch,
+      flushPendingDeltas,
       getCustomName,
       recordThreadActivity,
       safeMessageActivity,
@@ -211,30 +363,61 @@ export function useThreadItemEvents({
 
   const onReasoningSummaryDelta = useCallback(
     (_workspaceId: string, threadId: string, itemId: string, delta: string) => {
-      dispatch({ type: "appendReasoningSummary", threadId, itemId, delta });
+      if (!delta) {
+        return;
+      }
+      const key = `${threadId}:${itemId}`;
+      const entry = pendingReasoningSummaryDeltasRef.current.get(key);
+      if (entry) {
+        entry.parts.push(delta);
+      } else {
+        pendingReasoningSummaryDeltasRef.current.set(key, { threadId, itemId, parts: [delta] });
+      }
+      enqueueOrFlush();
     },
-    [dispatch],
+    [enqueueOrFlush],
   );
 
   const onReasoningSummaryBoundary = useCallback(
     (_workspaceId: string, threadId: string, itemId: string) => {
+      flushPendingDeltas();
       dispatch({ type: "appendReasoningSummaryBoundary", threadId, itemId });
     },
-    [dispatch],
+    [dispatch, flushPendingDeltas],
   );
 
   const onReasoningTextDelta = useCallback(
     (_workspaceId: string, threadId: string, itemId: string, delta: string) => {
-      dispatch({ type: "appendReasoningContent", threadId, itemId, delta });
+      if (!delta) {
+        return;
+      }
+      const key = `${threadId}:${itemId}`;
+      const entry = pendingReasoningContentDeltasRef.current.get(key);
+      if (entry) {
+        entry.parts.push(delta);
+      } else {
+        pendingReasoningContentDeltasRef.current.set(key, { threadId, itemId, parts: [delta] });
+      }
+      enqueueOrFlush();
     },
-    [dispatch],
+    [enqueueOrFlush],
   );
 
   const onPlanDelta = useCallback(
     (_workspaceId: string, threadId: string, itemId: string, delta: string) => {
-      dispatch({ type: "appendPlanDelta", threadId, itemId, delta });
+      if (!delta) {
+        return;
+      }
+      const key = `${threadId}:${itemId}`;
+      const entry = pendingPlanDeltasRef.current.get(key);
+      if (entry) {
+        entry.parts.push(delta);
+      } else {
+        pendingPlanDeltasRef.current.set(key, { threadId, itemId, parts: [delta] });
+      }
+      enqueueOrFlush();
     },
-    [dispatch],
+    [enqueueOrFlush],
   );
 
   const onCommandOutputDelta = useCallback(

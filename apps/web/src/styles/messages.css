@@ -71,29 +71,16 @@
 
 
 .working-text {
-  position: relative;
-  color: transparent;
-  background: linear-gradient(
-    90deg,
-    rgba(255, 255, 255, 0.3),
-    rgba(255, 255, 255, 0.95),
-    rgba(255, 255, 255, 0.3)
-  );
-  background-size: 200% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  animation: working-shimmer 2.2s ease-in-out infinite;
+  color: var(--text-stronger);
 }
 
 :root[data-theme="light"] .working-text {
   color: var(--text-muted);
-  background: none;
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme]) .working-text {
     color: var(--text-muted);
-    background: none;
   }
 }
 
@@ -241,18 +228,6 @@
 @keyframes working-spin {
   to {
     transform: rotate(360deg);
-  }
-}
-
-@keyframes working-shimmer {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
   }
 }
 
