@@ -13,6 +13,7 @@ import type {
   AppOption,
   CustomPromptOption,
   ModelOption,
+  ServiceTier,
   SkillOption,
   WorkspaceInfo,
 } from "../../../types";
@@ -58,6 +59,8 @@ type WorkspaceHomeProps = {
   collaborationModes: { id: string; label: string }[];
   selectedCollaborationModeId: string | null;
   onSelectCollaborationMode: (id: string | null) => void;
+  selectedServiceTier: ServiceTier | null;
+  onSelectServiceTier: (serviceTier: ServiceTier | null) => void;
   reasoningOptions: string[];
   selectedEffort: string | null;
   onSelectEffort: (effort: string) => void;
@@ -111,6 +114,8 @@ export function WorkspaceHome({
   collaborationModes,
   selectedCollaborationModeId,
   onSelectCollaborationMode,
+  selectedServiceTier,
+  onSelectServiceTier,
   reasoningOptions,
   selectedEffort,
   onSelectEffort,
@@ -386,6 +391,8 @@ export function WorkspaceHome({
         collaborationModes={collaborationModes}
         selectedCollaborationModeId={selectedCollaborationModeId}
         onSelectCollaborationMode={onSelectCollaborationMode}
+        selectedServiceTier={selectedServiceTier}
+        onSelectServiceTier={onSelectServiceTier}
         reasoningOptions={reasoningOptions}
         selectedEffort={selectedEffort}
         onSelectEffort={onSelectEffort}

@@ -1,4 +1,5 @@
 import { z } from "zod";
+export * from "./codexArgs.ts";
 
 export const appServerEventSchema = z.object({
   workspace_id: z.string(),
@@ -94,6 +95,7 @@ export type LaunchScriptEntry = {
 };
 
 export type AccessMode = "read-only" | "current" | "full-access";
+export type ServiceTier = "fast" | "flex";
 
 export type WorkspaceSettings = {
   sidebarCollapsed: boolean;
@@ -125,6 +127,7 @@ export type ThreadSummary = {
   createdAt?: number;
   modelId?: string | null;
   effort?: string | null;
+  serviceTier?: ServiceTier | null;
 };
 
 export type UndoCheckpointStatus = "created" | "ready" | "undone" | "failed";
@@ -328,7 +331,7 @@ export type RpcMethodMap = {
     result: WorkspaceInfo;
   };
   start_thread: {
-    params: { workspaceId: string; accessMode?: string | null };
+    params: { workspaceId: string; accessMode?: string | null; serviceTier?: ServiceTier | null };
     result: Record<string, unknown>;
   };
   list_threads: {
@@ -341,7 +344,7 @@ export type RpcMethodMap = {
     result: Record<string, unknown>;
   };
   resume_thread: {
-    params: { workspaceId: string; threadId: string };
+    params: { workspaceId: string; threadId: string; serviceTier?: ServiceTier | null };
     result: Record<string, unknown>;
   };
   fork_thread: {
@@ -420,6 +423,7 @@ export type RpcMethodMap = {
       text: string;
       model?: string | null;
       effort?: string | null;
+      serviceTier?: ServiceTier | null;
       accessMode?: string | null;
       images?: string[] | null;
       appMentions?: unknown[] | null;

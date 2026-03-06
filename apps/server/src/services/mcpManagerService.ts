@@ -215,11 +215,12 @@ function describeCodexFailure(error: unknown, args: string[]): string {
 }
 
 export class McpManagerService {
-  constructor(private readonly codexBin: string) {}
+  constructor(private readonly getCodexBin: () => Promise<string>) {}
 
   private async runMcpCommand(args: string[]): Promise<{ stdout: string; stderr: string }> {
+    const codexBin = await this.getCodexBin();
     try {
-      const response = await execFileAsync(this.codexBin, ["mcp", ...args], {
+      const response = await execFileAsync(codexBin, ["mcp", ...args], {
         env: process.env,
         maxBuffer: COMMAND_MAX_BUFFER,
       });

@@ -1,9 +1,12 @@
+import type { ServiceTier } from "@codex-remote/shared-types";
 import type { EventBus } from "../events/eventBus.js";
 import type { WorkspaceEntry } from "../types/domain.js";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import { CodexSession } from "./codexSession.js";
+import type { CodexLaunchConfig } from "./codexCliConfigService.js";
+import { CodexCliConfigService } from "./codexCliConfigService.js";
 import { enrichThreadResumeResultFromRollout } from "./threadHistoryService.js";
 import type { UndoCheckpointService } from "./undoCheckpointService.js";
 
@@ -182,13 +185,14 @@ type TurnUndoTracker = {
 
 export class SessionManager {
   private sessions = new Map<string, CodexSession>();
+  private ensureSessionPromises = new Map<string, Promise<CodexSession>>();
   private loginIds = new Map<string, string>();
   private turnUndoTrackers = new Map<string, TurnUndoTracker>();
   private turnTrackerKeysByThread = new Map<string, Set<string>>();
 
   constructor(
     private readonly eventBus: EventBus,
-    private readonly codexBin: string,
+    private readonly codexCliConfigService: CodexCliConfigService,
     private readonly undoCheckpointService?: UndoCheckpointService,
   ) {}
 
@@ -197,12 +201,7 @@ export class SessionManager {
   }
 
   async connect(workspace: WorkspaceEntry): Promise<void> {
-    if (this.sessions.has(workspace.id)) {
-      return;
-    }
-    const session = new CodexSession(workspace, this.codexBin, this.eventBus);
-    await session.initialize();
-    this.sessions.set(workspace.id, session);
+    await this.ensureSession(workspace);
   }
 
   disconnect(workspaceId: string): void {
@@ -212,12 +211,14 @@ export class SessionManager {
       session.close();
       this.sessions.delete(workspaceId);
     }
+    this.ensureSessionPromises.delete(workspaceId);
+    this.codexCliConfigService.clearWorkspaceRuntimeCodexArgs(workspaceId);
     this.loginIds.delete(workspaceId);
   }
 
   async startThread(
     workspace: WorkspaceEntry,
-    options?: { accessMode?: string | null },
+    options?: { accessMode?: string | null; serviceTier?: ServiceTier | null },
   ): Promise<unknown> {
     const session = await this.ensureSession(workspace);
     const policies = resolveAccessPolicies(options?.accessMode);
@@ -225,6 +226,7 @@ export class SessionManager {
       cwd: workspace.path,
       approvalPolicy: policies.approvalPolicy,
       sandbox: policies.sandbox,
+      serviceTier: options?.serviceTier ?? null,
     });
   }
 
@@ -251,9 +253,16 @@ export class SessionManager {
     });
   }
 
-  async resumeThread(workspace: WorkspaceEntry, threadId: string): Promise<unknown> {
+  async resumeThread(
+    workspace: WorkspaceEntry,
+    threadId: string,
+    serviceTier?: ServiceTier | null,
+  ): Promise<unknown> {
     const session = await this.ensureSession(workspace);
-    const result = await session.sendRequest(workspace.id, "thread/resume", { threadId });
+    const result = await session.sendRequest(workspace.id, "thread/resume", {
+      threadId,
+      serviceTier: serviceTier ?? null,
+    });
     return enrichThreadResumeResultFromRollout(result, workspace.path);
   }
 
@@ -335,6 +344,7 @@ export class SessionManager {
       text: string;
       model?: string | null;
       effort?: string | null;
+      serviceTier?: ServiceTier | null;
       accessMode?: string | null;
       images?: string[] | null;
       appMentions?: unknown[] | null;
@@ -350,6 +360,7 @@ export class SessionManager {
       input,
       model: params.model ?? null,
       effort: params.effort ?? null,
+      serviceTier: params.serviceTier ?? null,
       approvalPolicy: policies.approvalPolicy,
       sandboxPolicy: policies.sandboxPolicy,
       includePlanTool: true,
@@ -581,7 +592,36 @@ export class SessionManager {
       session.close();
     }
     this.sessions.clear();
+    this.ensureSessionPromises.clear();
     this.loginIds.clear();
+  }
+
+  async setWorkspaceRuntimeCodexArgs(
+    workspace: WorkspaceEntry,
+    codexArgs: string | null,
+  ): Promise<{ appliedCodexArgs: string | null; respawned: boolean }> {
+    const appliedCodexArgs = this.codexCliConfigService.setWorkspaceRuntimeCodexArgs(
+      workspace.id,
+      codexArgs,
+    );
+    const currentSession = this.sessions.get(workspace.id);
+    if (!currentSession) {
+      return { appliedCodexArgs, respawned: false };
+    }
+
+    const desiredLaunchConfig = await this.codexCliConfigService.resolveLaunchConfig(workspace.id);
+    if (currentSession.launchFingerprint === desiredLaunchConfig.fingerprint) {
+      return { appliedCodexArgs, respawned: false };
+    }
+    if (this.hasActiveWorkspaceTurns(workspace.id)) {
+      return { appliedCodexArgs, respawned: false };
+    }
+
+    const replacement = await this.replaceSession(workspace, desiredLaunchConfig, currentSession);
+    return {
+      appliedCodexArgs,
+      respawned: replacement.launchFingerprint !== currentSession.launchFingerprint,
+    };
   }
 
   private startUndoTrackingTurn(
@@ -874,15 +914,68 @@ export class SessionManager {
     return outOfBand;
   }
 
-  private async ensureSession(workspace: WorkspaceEntry): Promise<CodexSession> {
-    let session = this.sessions.get(workspace.id);
-    if (!session) {
-      await this.connect(workspace);
-      session = this.sessions.get(workspace.id);
+  private hasActiveWorkspaceTurns(workspaceId: string): boolean {
+    for (const tracker of this.turnUndoTrackers.values()) {
+      if (tracker.workspaceId === workspaceId) {
+        return true;
+      }
     }
-    if (!session) {
-      throw new Error(`Failed to connect workspace session: ${workspace.id}`);
-    }
+    return false;
+  }
+
+  private async createSession(
+    workspace: WorkspaceEntry,
+    launchConfig: CodexLaunchConfig,
+  ): Promise<CodexSession> {
+    const session = new CodexSession(workspace, launchConfig, this.eventBus);
+    await session.initialize();
     return session;
+  }
+
+  private async replaceSession(
+    workspace: WorkspaceEntry,
+    launchConfig: CodexLaunchConfig,
+    currentSession: CodexSession | null,
+  ): Promise<CodexSession> {
+    const nextSession = await this.createSession(workspace, launchConfig);
+    this.sessions.set(workspace.id, nextSession);
+    if (currentSession && currentSession !== nextSession) {
+      currentSession.close();
+    }
+    return nextSession;
+  }
+
+  private async ensureSession(workspace: WorkspaceEntry): Promise<CodexSession> {
+    const existing = this.ensureSessionPromises.get(workspace.id);
+    if (existing) {
+      return existing;
+    }
+
+    const promise = (async () => {
+      const currentSession = this.sessions.get(workspace.id) ?? null;
+      const launchConfig = await this.codexCliConfigService.resolveLaunchConfig(workspace.id);
+      if (!currentSession) {
+        const session = await this.createSession(workspace, launchConfig);
+        this.sessions.set(workspace.id, session);
+        return session;
+      }
+
+      if (currentSession.launchFingerprint === launchConfig.fingerprint) {
+        return currentSession;
+      }
+
+      if (this.hasActiveWorkspaceTurns(workspace.id)) {
+        return currentSession;
+      }
+
+      return this.replaceSession(workspace, launchConfig, currentSession);
+    })().finally(() => {
+      if (this.ensureSessionPromises.get(workspace.id) === promise) {
+        this.ensureSessionPromises.delete(workspace.id);
+      }
+    });
+
+    this.ensureSessionPromises.set(workspace.id, promise);
+    return promise;
   }
 }

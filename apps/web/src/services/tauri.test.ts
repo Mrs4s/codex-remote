@@ -266,11 +266,25 @@ describe("tauri invoke wrappers", () => {
     const invokeMock = vi.mocked(invoke);
     invokeMock.mockResolvedValueOnce({});
 
-    await startThread("ws-11", { accessMode: "full-access" });
+    await startThread("ws-11", { accessMode: "full-access", serviceTier: "fast" });
 
     expect(invokeMock).toHaveBeenCalledWith("start_thread", {
       workspaceId: "ws-11",
       accessMode: "full-access",
+      serviceTier: "fast",
+    });
+  });
+
+  it("maps workspaceId, threadId, and serviceTier for resume_thread", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await resumeThread("ws-12", "thread-12", "flex");
+
+    expect(invokeMock).toHaveBeenCalledWith("resume_thread", {
+      workspaceId: "ws-12",
+      threadId: "thread-12",
+      serviceTier: "flex",
     });
   });
 
@@ -784,6 +798,7 @@ describe("tauri invoke wrappers", () => {
       text: "hello",
       model: null,
       effort: null,
+      serviceTier: null,
       accessMode: "full-access",
       images: ["image.png"],
     });
@@ -828,6 +843,7 @@ describe("tauri invoke wrappers", () => {
       text: "hello",
       model: null,
       effort: null,
+      serviceTier: null,
       accessMode: null,
       images: ["data:image/png;base64,abc"],
     });
@@ -847,6 +863,7 @@ describe("tauri invoke wrappers", () => {
       text: "hello $calendar",
       model: null,
       effort: null,
+      serviceTier: null,
       accessMode: null,
       images: null,
       appMentions: [{ name: "Calendar", path: "app://connector_calendar" }],
@@ -925,6 +942,7 @@ describe("tauri invoke wrappers", () => {
       text: "hello",
       model: null,
       effort: null,
+      serviceTier: null,
       accessMode: null,
       images: ["data:image/png;base64,mobile"],
     });

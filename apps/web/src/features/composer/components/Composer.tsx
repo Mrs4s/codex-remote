@@ -64,6 +64,8 @@ type ComposerProps = {
   collaborationModes: { id: string; label: string }[];
   selectedCollaborationModeId: string | null;
   onSelectCollaborationMode: (id: string | null) => void;
+  selectedServiceTier: "fast" | "flex" | null;
+  onSelectServiceTier: (serviceTier: "fast" | "flex" | null) => void;
   models: { id: string; displayName: string; model: string }[];
   selectedModelId: string | null;
   onSelectModel: (id: string) => void;
@@ -173,6 +175,8 @@ export const Composer = memo(function Composer({
   collaborationModes,
   selectedCollaborationModeId,
   onSelectCollaborationMode,
+  selectedServiceTier,
+  onSelectServiceTier,
   models,
   selectedModelId,
   onSelectModel,
@@ -787,6 +791,8 @@ export const Composer = memo(function Composer({
         collaborationModes={collaborationModes}
         selectedCollaborationModeId={selectedCollaborationModeId}
         onSelectCollaborationMode={onSelectCollaborationMode}
+        selectedServiceTier={selectedServiceTier}
+        onSelectServiceTier={onSelectServiceTier}
         models={models}
         selectedModelId={selectedModelId}
         onSelectModel={onSelectModel}

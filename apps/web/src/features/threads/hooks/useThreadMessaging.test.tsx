@@ -91,7 +91,10 @@ describe("useThreadMessaging", () => {
   });
 
   it("ensures runtime codex args when sending a message", async () => {
-    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => undefined);
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => ({
+      appliedCodexArgs: null,
+      respawned: false,
+    }));
     const { result } = renderHook(() =>
       useThreadMessaging({
         activeWorkspace: workspace,
@@ -136,6 +139,113 @@ describe("useThreadMessaging", () => {
 
     expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledTimes(1);
     expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", "thread-1");
+  });
+
+  it("refreshes the thread before sending when runtime codex args respawn the session", async () => {
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => ({
+      appliedCodexArgs: "--profile dev",
+      respawned: true,
+    }));
+    const refreshThread = vi.fn(async () => "thread-1");
+
+    const { result } = renderHook(() =>
+      useThreadMessaging({
+        activeWorkspace: workspace,
+        activeThreadId: "thread-1",
+        accessMode: "current",
+        model: "gpt-5.4",
+        effort: "high",
+        serviceTier: "fast",
+        collaborationMode: null,
+        reviewDeliveryMode: "inline",
+        steerEnabled: false,
+        customPrompts: [],
+        ensureWorkspaceRuntimeCodexArgs,
+        threadStatusById: {},
+        activeTurnIdByThread: {},
+        rateLimitsByWorkspace: {},
+        pendingInterruptsRef: { current: new Set<string>() },
+        dispatch: vi.fn(),
+        getCustomName: vi.fn(() => undefined),
+        markProcessing: vi.fn(),
+        markReviewing: vi.fn(),
+        setActiveTurnId: vi.fn(),
+        recordThreadActivity: vi.fn(),
+        safeMessageActivity: vi.fn(),
+        onDebug: vi.fn(),
+        pushThreadErrorMessage: vi.fn(),
+        ensureThreadForActiveWorkspace: vi.fn(async () => "thread-1"),
+        ensureThreadForWorkspace: vi.fn(async () => "thread-1"),
+        refreshThread,
+        forkThreadForWorkspace: vi.fn(async () => null),
+        updateThreadParent: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.sendUserMessageToThread(workspace, "thread-1", "hello after respawn");
+    });
+
+    expect(refreshThread).toHaveBeenCalledWith("ws-1", "thread-1");
+    expect(sendUserMessageService).toHaveBeenCalledWith(
+      "ws-1",
+      "thread-1",
+      "hello after respawn",
+      expect.objectContaining({
+        model: "gpt-5.4",
+        effort: "high",
+        serviceTier: "fast",
+      }),
+    );
+  });
+
+  it("drops service tier for unsupported models", async () => {
+    const { result } = renderHook(() =>
+      useThreadMessaging({
+        activeWorkspace: workspace,
+        activeThreadId: "thread-1",
+        accessMode: "current",
+        model: "gpt-5.1",
+        effort: "high",
+        serviceTier: "fast",
+        collaborationMode: null,
+        reviewDeliveryMode: "inline",
+        steerEnabled: false,
+        customPrompts: [],
+        threadStatusById: {},
+        activeTurnIdByThread: {},
+        rateLimitsByWorkspace: {},
+        pendingInterruptsRef: { current: new Set<string>() },
+        dispatch: vi.fn(),
+        getCustomName: vi.fn(() => undefined),
+        markProcessing: vi.fn(),
+        markReviewing: vi.fn(),
+        setActiveTurnId: vi.fn(),
+        recordThreadActivity: vi.fn(),
+        safeMessageActivity: vi.fn(),
+        onDebug: vi.fn(),
+        pushThreadErrorMessage: vi.fn(),
+        ensureThreadForActiveWorkspace: vi.fn(async () => "thread-1"),
+        ensureThreadForWorkspace: vi.fn(async () => "thread-1"),
+        refreshThread: vi.fn(async () => null),
+        forkThreadForWorkspace: vi.fn(async () => null),
+        updateThreadParent: vi.fn(),
+      }),
+    );
+
+    await act(async () => {
+      await result.current.sendUserMessageToThread(workspace, "thread-1", "hello");
+    });
+
+    expect(sendUserMessageService).toHaveBeenCalledWith(
+      "ws-1",
+      "thread-1",
+      "hello",
+      expect.objectContaining({
+        model: "gpt-5.1",
+        serviceTier: null,
+      }),
+    );
   });
 
   it("forwards explicit app mentions to turn/start", async () => {
@@ -189,7 +299,10 @@ describe("useThreadMessaging", () => {
 
   it("uses turn/steer when steer mode is enabled and an active turn is present", async () => {
     const dispatch = vi.fn();
-    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => undefined);
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => ({
+      appliedCodexArgs: null,
+      respawned: false,
+    }));
     const { result } = renderHook(() =>
       useThreadMessaging({
         activeWorkspace: workspace,

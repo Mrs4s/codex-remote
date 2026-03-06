@@ -150,6 +150,7 @@ export type ThreadSummary = {
   createdAt?: number;
   modelId?: string | null;
   effort?: string | null;
+  serviceTier?: ServiceTier | null;
   isSubagent?: boolean;
 };
 
@@ -232,6 +233,7 @@ export type PullRequestSelectionRange = {
 };
 
 export type AccessMode = "read-only" | "current" | "full-access";
+export type ServiceTier = "fast" | "flex";
 export type BackendMode = "local" | "remote";
 export type RemoteBackendProvider = "tcp";
 export type RemoteBackendTarget = {
@@ -304,6 +306,7 @@ export type AppSettings = {
   cycleWorkspacePrevShortcut: string | null;
   lastComposerModelId: string | null;
   lastComposerReasoningEffort: string | null;
+  lastComposerServiceTier: ServiceTier | null;
   uiScale: number;
   theme: ThemePreference;
   usageShowRemaining: boolean;

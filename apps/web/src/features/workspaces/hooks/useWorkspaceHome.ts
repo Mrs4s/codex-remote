@@ -3,9 +3,11 @@ import type {
   AccessMode,
   ModelOption,
   SendMessageResult,
+  ServiceTier,
   WorkspaceInfo,
 } from "../../../types";
 import { generateRunMetadata } from "../../../services/tauri";
+import { resolveServiceTierForModel } from "../../../utils/serviceTier";
 
 export type WorkspaceRunMode = "local" | "worktree";
 
@@ -37,6 +39,7 @@ type UseWorkspaceHomeOptions = {
   selectedModelId: string | null;
   accessMode?: AccessMode;
   effort?: string | null;
+  serviceTier?: ServiceTier | null;
   collaborationMode?: Record<string, unknown> | null;
   addWorktreeAgent: (
     workspace: WorkspaceInfo,
@@ -46,7 +49,11 @@ type UseWorkspaceHomeOptions = {
   connectWorkspace: (workspace: WorkspaceInfo) => Promise<void>;
   startThreadForWorkspace: (
     workspaceId: string,
-    options?: { activate?: boolean; accessMode?: AccessMode },
+    options?: {
+      activate?: boolean;
+      accessMode?: AccessMode;
+      serviceTier?: ServiceTier | null;
+    },
   ) => Promise<string | null>;
   sendUserMessageToThread: (
     workspace: WorkspaceInfo,
@@ -56,6 +63,7 @@ type UseWorkspaceHomeOptions = {
     options?: {
       model?: string | null;
       effort?: string | null;
+      serviceTier?: ServiceTier | null;
       collaborationMode?: Record<string, unknown> | null;
     },
   ) => Promise<void | SendMessageResult>;
@@ -180,6 +188,7 @@ export function useWorkspaceHome({
   selectedModelId,
   accessMode = "current",
   effort = null,
+  serviceTier = null,
   collaborationMode = null,
   addWorktreeAgent,
   connectWorkspace,
@@ -473,19 +482,22 @@ export function useWorkspaceHome({
           if (!activeWorkspace.connected) {
             await connectWorkspace(activeWorkspace);
           }
+          const localModel = selectedModelId
+            ? modelLookup.get(selectedModelId)?.model ?? null
+            : null;
+          const localServiceTier = resolveServiceTierForModel(localModel, serviceTier);
           const threadId = await startThreadForWorkspace(activeWorkspace.id, {
             activate: false,
             accessMode,
+            serviceTier: localServiceTier,
           });
           if (!threadId) {
             throw new Error("Failed to start a local thread.");
           }
-          const localModel = selectedModelId
-            ? modelLookup.get(selectedModelId)?.model ?? null
-            : null;
           await sendUserMessageToThread(activeWorkspace, threadId, prompt, images, {
             model: localModel,
             effort,
+            serviceTier: localServiceTier,
             collaborationMode,
           });
           const model =
@@ -513,6 +525,11 @@ export function useWorkspaceHome({
         const branchBaseFallback = worktreeSlugBase ?? buildWorktreeBranch(prompt);
         for (const selection of selectedModels) {
           const label = resolveModelLabel(selection.model, selection.modelId);
+          const selectionModel = selection.model?.model ?? selection.modelId;
+          const selectionServiceTier = resolveServiceTierForModel(
+            selectionModel,
+            serviceTier,
+          );
           for (let index = 0; index < selection.count; index += 1) {
             instanceCounter += 1;
             const instanceSuffix =
@@ -538,6 +555,7 @@ export function useWorkspaceHome({
               const threadId = await startThreadForWorkspace(worktreeWorkspace.id, {
                 activate: false,
                 accessMode,
+                serviceTier: selectionServiceTier,
               });
               if (!threadId) {
                 throw new Error("Failed to start a worktree thread.");
@@ -548,8 +566,9 @@ export function useWorkspaceHome({
                 prompt,
                 images,
                 {
-                  model: selection.model?.model ?? selection.modelId,
+                  model: selectionModel,
                   effort,
+                  serviceTier: selectionServiceTier,
                   collaborationMode,
                 },
               );

@@ -1,6 +1,6 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import type { AccessMode } from "@/types";
+import type { AccessMode, ServiceTier } from "@/types";
 import { useThreadCodexParams } from "@threads/hooks/useThreadCodexParams";
 import {
   type PendingNewThreadSeed,
@@ -14,6 +14,8 @@ type ThreadCodexOrchestration = {
   setPreferredModelId: Dispatch<SetStateAction<string | null>>;
   preferredEffort: string | null;
   setPreferredEffort: Dispatch<SetStateAction<string | null>>;
+  preferredServiceTier: ServiceTier | null;
+  setPreferredServiceTier: Dispatch<SetStateAction<ServiceTier | null>>;
   preferredCollabModeId: string | null;
   setPreferredCollabModeId: Dispatch<SetStateAction<string | null>>;
   preferredCodexArgsOverride: string | null;
@@ -26,6 +28,7 @@ type ThreadCodexOrchestration = {
   persistThreadCodexParams: (patch: {
     modelId?: string | null;
     effort?: string | null;
+    serviceTier?: ServiceTier | null;
     accessMode?: AccessMode | null;
     collaborationModeId?: string | null;
     codexArgsOverride?: string | null;
@@ -49,6 +52,7 @@ export function useThreadCodexOrchestration({
   const [accessMode, setAccessMode] = useState<AccessMode>("current");
   const [preferredModelId, setPreferredModelId] = useState<string | null>(null);
   const [preferredEffort, setPreferredEffort] = useState<string | null>(null);
+  const [preferredServiceTier, setPreferredServiceTier] = useState<ServiceTier | null>(null);
   const [preferredCollabModeId, setPreferredCollabModeId] = useState<string | null>(
     null,
   );
@@ -65,6 +69,7 @@ export function useThreadCodexOrchestration({
     (patch: {
       modelId?: string | null;
       effort?: string | null;
+      serviceTier?: ServiceTier | null;
       accessMode?: AccessMode | null;
       collaborationModeId?: string | null;
       codexArgsOverride?: string | null;
@@ -87,6 +92,8 @@ export function useThreadCodexOrchestration({
       setPreferredModelId,
       preferredEffort,
       setPreferredEffort,
+      preferredServiceTier,
+      setPreferredServiceTier,
       preferredCollabModeId,
       setPreferredCollabModeId,
       preferredCodexArgsOverride,
@@ -105,6 +112,7 @@ export function useThreadCodexOrchestration({
       preferredCollabModeId,
       preferredCodexArgsOverride,
       preferredEffort,
+      preferredServiceTier,
       preferredModelId,
       threadCodexSelectionKey,
       threadCodexParamsVersion,

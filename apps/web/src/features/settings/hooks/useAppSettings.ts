@@ -23,6 +23,7 @@ import { DEFAULT_COMMIT_MESSAGE_PROMPT } from "@utils/commitMessagePrompt";
 const allowedThemes = new Set(["system", "light", "dark", "dim"]);
 const allowedPersonality = new Set(["friendly", "pragmatic"]);
 const allowedFollowUpMessageBehavior = new Set(["queue", "steer"]);
+const allowedServiceTiers = new Set(["fast", "flex"]);
 const DEFAULT_REMOTE_BACKEND_HOST = "127.0.0.1:4732";
 const DEFAULT_REMOTE_BACKEND_ID = "remote-default";
 const DEFAULT_REMOTE_BACKEND_NAME = "Primary remote";
@@ -262,6 +263,7 @@ function buildDefaultSettings(): AppSettings {
     cycleWorkspacePrevShortcut: isMac ? "cmd+shift+up" : "ctrl+alt+shift+up",
     lastComposerModelId: null,
     lastComposerReasoningEffort: null,
+    lastComposerServiceTier: null,
     uiScale: UI_SCALE_DEFAULT,
     theme: "system",
     usageShowRemaining: false,
@@ -349,6 +351,11 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     ...remoteBackendSettings,
     codexBin: settings.codexBin?.trim() ? settings.codexBin.trim() : null,
     codexArgs: settings.codexArgs?.trim() ? settings.codexArgs.trim() : null,
+    lastComposerServiceTier: allowedServiceTiers.has(
+      String(settings.lastComposerServiceTier ?? ""),
+    )
+      ? settings.lastComposerServiceTier
+      : null,
     uiScale: clampUiScale(settings.uiScale),
     theme: allowedThemes.has(settings.theme) ? settings.theme : "system",
     uiFontFamily: normalizeFontFamily(

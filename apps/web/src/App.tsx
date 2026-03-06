@@ -122,6 +122,7 @@ import { useWorkspaceAgentMd } from "@/features/workspaces/hooks/useWorkspaceAge
 import { useUndoCheckpoints } from "@/features/undo/hooks/useUndoCheckpoints";
 import type {
   ComposerEditorSettings,
+  ServiceTier,
   WorkspaceInfo,
 } from "@/types";
 import { computePlanFollowupState } from "@/features/messages/utils/messageRenderUtils";
@@ -178,6 +179,13 @@ const GitHubPanelData = lazy(() =>
     default: module.GitHubPanelData,
   })),
 );
+
+function normalizeServiceTier(value: string | null | undefined): ServiceTier | null {
+  if (value === "fast" || value === "flex") {
+    return value;
+  }
+  return null;
+}
 
 function MainApp() {
   const {
@@ -279,6 +287,8 @@ function MainApp() {
     setPreferredModelId,
     preferredEffort,
     setPreferredEffort,
+    preferredServiceTier,
+    setPreferredServiceTier,
     preferredCollabModeId,
     setPreferredCollabModeId,
     preferredCodexArgsOverride,
@@ -442,6 +452,11 @@ function MainApp() {
     onDebug: addDebugEntry,
   });
 
+  const [selectedServiceTier, setSelectedServiceTier] = useState<ServiceTier | null>(null);
+  useEffect(() => {
+    setSelectedServiceTier(normalizeServiceTier(preferredServiceTier));
+  }, [preferredServiceTier, threadCodexSelectionKey]);
+
   const [selectedCodexArgsOverride, setSelectedCodexArgsOverride] = useState<string | null>(
     null,
   );
@@ -452,6 +467,7 @@ function MainApp() {
   const {
     handleSelectModel,
     handleSelectEffort,
+    handleSelectServiceTier,
     handleSelectCollaborationMode,
     handleSelectAccessMode,
     handleSelectCodexArgsOverride,
@@ -462,6 +478,7 @@ function MainApp() {
     activeThreadIdRef,
     setSelectedModelId,
     setSelectedEffort,
+    setSelectedServiceTier,
     setSelectedCollaborationModeId,
     setAccessMode,
     setSelectedCodexArgsOverride,
@@ -535,7 +552,11 @@ function MainApp() {
     (
       workspaceId: string,
       threadId: string,
-      metadata: { modelId: string | null; effort: string | null },
+      metadata: {
+        modelId: string | null;
+        effort: string | null;
+        serviceTier: ServiceTier | null;
+      },
     ) => {
       if (!workspaceId || !threadId) {
         return;
@@ -548,7 +569,8 @@ function MainApp() {
         typeof metadata.effort === "string" && metadata.effort.trim().length > 0
           ? metadata.effort.trim().toLowerCase()
           : null;
-      if (!modelId && !effort) {
+      const serviceTier = normalizeServiceTier(metadata.serviceTier);
+      if (!modelId && !effort && !serviceTier) {
         return;
       }
 
@@ -556,12 +578,16 @@ function MainApp() {
       const patch: {
         modelId?: string | null;
         effort?: string | null;
+        serviceTier?: ServiceTier | null;
       } = {};
       if (modelId && !current?.modelId) {
         patch.modelId = modelId;
       }
       if (effort && !current?.effort) {
         patch.effort = effort;
+      }
+      if (serviceTier && !current?.serviceTier) {
+        patch.serviceTier = serviceTier;
       }
       if (Object.keys(patch).length === 0) {
         return;
@@ -585,7 +611,7 @@ function MainApp() {
         threadId,
         getThreadCodexParams,
       });
-      await setWorkspaceRuntimeCodexArgs(workspaceId, sanitizedCodexArgsOverride);
+      return setWorkspaceRuntimeCodexArgs(workspaceId, sanitizedCodexArgsOverride);
     },
     [getThreadCodexParams],
   );
@@ -681,6 +707,7 @@ function MainApp() {
     onDebug: addDebugEntry,
     model: resolvedModel,
     effort: resolvedEffort,
+    serviceTier: selectedServiceTier,
     collaborationMode: collaborationModePayload,
     accessMode,
     ensureWorkspaceRuntimeCodexArgs,
@@ -985,6 +1012,7 @@ function MainApp() {
       defaultAccessMode: appSettings.defaultAccessMode,
       lastComposerModelId: appSettings.lastComposerModelId,
       lastComposerReasoningEffort: appSettings.lastComposerReasoningEffort,
+      lastComposerServiceTier: appSettings.lastComposerServiceTier,
     },
     threadCodexParamsVersion,
     getThreadCodexParams,
@@ -993,12 +1021,14 @@ function MainApp() {
     setAccessMode,
     setPreferredModelId,
     setPreferredEffort,
+    setPreferredServiceTier,
     setPreferredCollabModeId,
     setPreferredCodexArgsOverride,
     activeThreadIdRef,
     pendingNewThreadSeedRef,
     selectedModelId,
     resolvedEffort,
+    selectedServiceTier,
     accessMode,
     selectedCollaborationModeId,
     selectedCodexArgsOverride,
@@ -1549,6 +1579,7 @@ function MainApp() {
     selectedModelId,
     accessMode,
     effort: resolvedEffort,
+    serviceTier: selectedServiceTier,
     collaborationMode: collaborationModePayload,
     addWorktreeAgent,
     connectWorkspace,
@@ -1950,6 +1981,7 @@ function MainApp() {
     activeWorkspaceId,
     activeThreadId,
     accessMode,
+    selectedServiceTier,
     selectedCollaborationModeId,
     selectedCodexArgsOverride,
     pendingNewThreadSeedRef,
@@ -2505,6 +2537,8 @@ function MainApp() {
     codexArgsOptions,
     selectedCodexArgsOverride,
     onSelectCodexArgsOverride: handleSelectCodexArgsOverride,
+    selectedServiceTier,
+    onSelectServiceTier: handleSelectServiceTier,
     models,
     selectedModelId,
     onSelectModel: handleSelectModel,
@@ -2602,6 +2636,8 @@ function MainApp() {
       collaborationModes={collaborationModes}
       selectedCollaborationModeId={selectedCollaborationModeId}
       onSelectCollaborationMode={setSelectedCollaborationModeId}
+      selectedServiceTier={selectedServiceTier}
+      onSelectServiceTier={handleSelectServiceTier}
       reasoningOptions={reasoningOptions}
       selectedEffort={selectedEffort}
       onSelectEffort={setSelectedEffort}

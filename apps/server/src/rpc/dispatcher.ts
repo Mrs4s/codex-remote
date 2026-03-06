@@ -1,3 +1,4 @@
+import type { ServiceTier } from "@codex-remote/shared-types";
 import type { AppSettings } from "../types/domain.js";
 import type { PromptScope, PromptService } from "../services/promptService.js";
 import type { WorkspaceService } from "../services/workspaceService.js";
@@ -446,9 +447,9 @@ export async function dispatchRpc(
       return { ok: true };
     }
     case "set_workspace_runtime_codex_args": {
-      const workspaceId = requireString(params, "workspaceId");
+      const workspace = workspaceFromParams();
       const codexArgs = optionalString(params, "codexArgs");
-      return deps.workspaceService.setRuntimeCodexArgs(workspaceId, codexArgs);
+      return deps.sessionManager.setWorkspaceRuntimeCodexArgs(workspace, codexArgs);
     }
     case "update_workspace_settings": {
       const id = requireString(params, "id");
@@ -472,6 +473,7 @@ export async function dispatchRpc(
       const workspace = workspaceFromParams();
       return deps.sessionManager.startThread(workspace, {
         accessMode: (params.accessMode as string | null | undefined) ?? null,
+        serviceTier: (params.serviceTier as ServiceTier | null | undefined) ?? null,
       });
     }
     case "list_threads": {
@@ -486,7 +488,11 @@ export async function dispatchRpc(
     case "resume_thread": {
       const workspace = workspaceFromParams();
       const threadId = requireString(params, "threadId");
-      return deps.sessionManager.resumeThread(workspace, threadId);
+      return deps.sessionManager.resumeThread(
+        workspace,
+        threadId,
+        (params.serviceTier as ServiceTier | null | undefined) ?? null,
+      );
     }
     case "fork_thread": {
       const workspace = workspaceFromParams();
@@ -604,6 +610,7 @@ export async function dispatchRpc(
         text,
         model: (params.model as string | null | undefined) ?? null,
         effort: (params.effort as string | null | undefined) ?? null,
+        serviceTier: (params.serviceTier as ServiceTier | null | undefined) ?? null,
         accessMode: (params.accessMode as string | null | undefined) ?? null,
         images: (params.images as string[] | null | undefined) ?? null,
         appMentions: (params.appMentions as unknown[] | null | undefined) ?? null,

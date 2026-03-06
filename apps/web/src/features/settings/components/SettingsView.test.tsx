@@ -185,6 +185,7 @@ const baseSettings: AppSettings = {
   cycleWorkspacePrevShortcut: null,
   lastComposerModelId: null,
   lastComposerReasoningEffort: null,
+  lastComposerServiceTier: null,
   uiScale: 1,
   theme: "system",
   usageShowRemaining: false,
@@ -1088,9 +1089,9 @@ describe("SettingsView Codex defaults", () => {
           isDefault: false,
         },
         {
-          id: "gpt-5.1",
-          model: "gpt-5.1",
-          displayName: "GPT-5.1",
+          id: "gpt-5.4",
+          model: "gpt-5.4",
+          displayName: "GPT-5.4",
           description: "",
           supportedReasoningEfforts: [
             { reasoningEffort: "low", description: "" },
@@ -1146,10 +1147,11 @@ describe("SettingsView Codex defaults", () => {
     const effortSelect = screen.getByLabelText(
       "Reasoning effort",
     ) as HTMLSelectElement;
+    const serviceTierSelect = screen.getByLabelText("Service tier") as HTMLSelectElement;
 
     await waitFor(() => {
       expect(getModelListMock).toHaveBeenCalledWith("w1");
-      expect(modelSelect.value).toBe("gpt-5.1");
+      expect(modelSelect.value).toBe("gpt-5.4");
     });
 
     expect(within(modelSelect).queryByRole("option", { name: /default/i })).toBeNull();
@@ -1159,7 +1161,7 @@ describe("SettingsView Codex defaults", () => {
     await waitFor(() => {
       expect(onUpdateAppSettings).toHaveBeenCalledWith(
         expect.objectContaining({
-          lastComposerModelId: "gpt-5.1",
+          lastComposerModelId: "gpt-5.4",
           lastComposerReasoningEffort: "medium",
         }),
       );
@@ -1172,9 +1174,9 @@ describe("SettingsView Codex defaults", () => {
     getModelListMock.mockResolvedValue(
       createModelListResponse([
         {
-          id: "gpt-4.1",
-          model: "gpt-4.1",
-          displayName: "GPT-4.1",
+          id: "gpt-5.1",
+          model: "gpt-5.1",
+          displayName: "GPT-5.1",
           description: "",
           supportedReasoningEfforts: [
             { reasoningEffort: "low", description: "" },
@@ -1185,9 +1187,9 @@ describe("SettingsView Codex defaults", () => {
           isDefault: false,
         },
         {
-          id: "gpt-5.1",
-          model: "gpt-5.1",
-          displayName: "GPT-5.1",
+          id: "gpt-5.4",
+          model: "gpt-5.4",
+          displayName: "GPT-5.4",
           description: "",
           supportedReasoningEfforts: [
             { reasoningEffort: "low", description: "" },
@@ -1243,22 +1245,35 @@ describe("SettingsView Codex defaults", () => {
     const effortSelect = screen.getByLabelText(
       "Reasoning effort",
     ) as HTMLSelectElement;
+    const serviceTierSelect = screen.getByLabelText("Service tier") as HTMLSelectElement;
 
     await waitFor(() => {
       expect(modelSelect.disabled).toBe(false);
-      expect(modelSelect.value).toBe("gpt-5.1");
+      expect(modelSelect.value).toBe("gpt-5.4");
       expect(onUpdateAppSettings).toHaveBeenCalledWith(
-        expect.objectContaining({ lastComposerModelId: "gpt-5.1" }),
+        expect.objectContaining({ lastComposerModelId: "gpt-5.4" }),
       );
     });
 
     onUpdateAppSettings.mockClear();
-    fireEvent.change(modelSelect, { target: { value: "gpt-4.1" } });
+    fireEvent.change(serviceTierSelect, { target: { value: "fast" } });
 
     await waitFor(() => {
       expect(onUpdateAppSettings).toHaveBeenCalledWith(
-        expect.objectContaining({ lastComposerModelId: "gpt-4.1" }),
+        expect.objectContaining({ lastComposerServiceTier: "fast" }),
       );
+    });
+
+    onUpdateAppSettings.mockClear();
+    fireEvent.change(modelSelect, { target: { value: "gpt-5.1" } });
+
+    await waitFor(() => {
+      expect(onUpdateAppSettings).toHaveBeenCalledWith(
+        expect.objectContaining({ lastComposerModelId: "gpt-5.1" }),
+      );
+    });
+    await waitFor(() => {
+      expect(screen.queryByLabelText("Service tier")).toBeNull();
     });
 
     onUpdateAppSettings.mockClear();

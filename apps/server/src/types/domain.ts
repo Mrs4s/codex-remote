@@ -1,4 +1,4 @@
-import type { WorkspaceInfo, WorkspaceSettings } from "@codex-remote/shared-types";
+import type { ServiceTier, WorkspaceInfo, WorkspaceSettings } from "@codex-remote/shared-types";
 
 export type WorkspaceKind = "main" | "worktree";
 
@@ -13,8 +13,11 @@ export type WorkspaceEntry = {
 };
 
 export type AppSettings = {
+  codexBin: string | null;
+  codexArgs: string | null;
   backendMode: "remote";
   remoteBackendHost: string;
+  lastComposerServiceTier: ServiceTier | null;
   threadTitleAutogenerationEnabled: boolean;
   steerEnabled: boolean;
   followUpMessageBehavior: "queue" | "steer";
@@ -40,8 +43,11 @@ export const defaultWorkspaceSettings = (): WorkspaceSettings => ({
 });
 
 export const defaultAppSettings = (): AppSettings => ({
+  codexBin: null,
+  codexArgs: null,
   backendMode: "remote",
   remoteBackendHost: "127.0.0.1:8787",
+  lastComposerServiceTier: null,
   threadTitleAutogenerationEnabled: false,
   steerEnabled: true,
   followUpMessageBehavior: "steer",

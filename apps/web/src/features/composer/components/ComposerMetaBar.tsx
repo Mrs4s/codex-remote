@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { BrainCog, SlidersHorizontal } from "lucide-react";
-import type { AccessMode, ThreadTokenUsage } from "../../../types";
+import type { AccessMode, ServiceTier, ThreadTokenUsage } from "../../../types";
+import { modelSupportsServiceTier } from "../../../utils/serviceTier";
 import {
   litellmPricingLookup,
   type LiteLLMPricingLookup,
@@ -18,6 +19,8 @@ type ComposerMetaBarProps = {
   reasoningOptions: string[];
   selectedEffort: string | null;
   onSelectEffort: (effort: string) => void;
+  selectedServiceTier: ServiceTier | null;
+  onSelectServiceTier: (serviceTier: ServiceTier | null) => void;
   reasoningSupported: boolean;
   accessMode: AccessMode;
   onSelectAccessMode: (mode: AccessMode) => void;
@@ -142,6 +145,8 @@ export function ComposerMetaBar({
   reasoningOptions,
   selectedEffort,
   onSelectEffort,
+  selectedServiceTier,
+  onSelectServiceTier,
   reasoningSupported,
   accessMode,
   onSelectAccessMode,
@@ -158,6 +163,10 @@ export function ComposerMetaBar({
     [models, selectedModelId],
   );
   const selectedModelName = selectedModel?.model ?? null;
+  const serviceTierSupported = useMemo(
+    () => modelSupportsServiceTier(selectedModelName),
+    [selectedModelName],
+  );
 
   useEffect(() => {
     let canceled = false;
@@ -375,6 +384,33 @@ export function ComposerMetaBar({
             ))}
           </select>
         </div>
+        {serviceTierSupported && (
+          <div className="composer-select-wrap">
+            <span className="composer-icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M6 8.5h12M6 12h12M6 15.5h8"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <select
+              className="composer-select composer-select--effort"
+              aria-label="Service tier"
+              value={selectedServiceTier ?? ""}
+              onChange={(event) =>
+                onSelectServiceTier((event.target.value || null) as ServiceTier | null)
+              }
+              disabled={disabled}
+            >
+              <option value="">Default</option>
+              <option value="fast">Fast</option>
+              <option value="flex">Flex</option>
+            </select>
+          </div>
+        )}
         {codexArgsOptions.length > 1 && onSelectCodexArgsOverride && (
           <div className="composer-select-wrap">
             <span className="composer-icon" aria-hidden>

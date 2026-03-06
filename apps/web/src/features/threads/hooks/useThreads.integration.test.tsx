@@ -122,7 +122,7 @@ describe("useThreads UX integration", () => {
     });
 
     await waitFor(() => {
-      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2");
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2", null);
     });
 
     await waitFor(() => {
@@ -143,7 +143,10 @@ describe("useThreads UX integration", () => {
   });
 
   it("applies runtime codex args before start and selection resume", async () => {
-    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => undefined);
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => ({
+      appliedCodexArgs: null,
+      respawned: false,
+    }));
     vi.mocked(startThread).mockResolvedValue({
       result: { thread: { id: "thread-new" } },
     } as Awaited<ReturnType<typeof startThread>>);
@@ -173,6 +176,7 @@ describe("useThreads UX integration", () => {
     expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", null);
     expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1", {
       accessMode: "current",
+      serviceTier: null,
     });
     const startEnsureCallOrder = ensureWorkspaceRuntimeCodexArgs.mock.invocationCallOrder[0];
     const startThreadCallOrder = vi.mocked(startThread).mock.invocationCallOrder[0];
@@ -184,7 +188,7 @@ describe("useThreads UX integration", () => {
 
     await waitFor(() => {
       expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", "thread-2");
-      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2");
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2", null);
     });
 
     const selectEnsureCallOrder = ensureWorkspaceRuntimeCodexArgs.mock.invocationCallOrder[1];
@@ -193,7 +197,10 @@ describe("useThreads UX integration", () => {
   });
 
   it("applies runtime codex args before direct startThreadForWorkspace calls", async () => {
-    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => undefined);
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => ({
+      appliedCodexArgs: null,
+      respawned: false,
+    }));
     vi.mocked(startThread).mockResolvedValue({
       result: { thread: { id: "thread-direct-new" } },
     } as Awaited<ReturnType<typeof startThread>>);
@@ -213,11 +220,127 @@ describe("useThreads UX integration", () => {
     expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", null);
     expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1", {
       accessMode: "current",
+      serviceTier: null,
     });
 
     const ensureCallOrder = ensureWorkspaceRuntimeCodexArgs.mock.invocationCallOrder[0];
     const startThreadCallOrder = vi.mocked(startThread).mock.invocationCallOrder[0];
     expect(ensureCallOrder).toBeLessThan(startThreadCallOrder);
+  });
+
+  it("uses default service tier for unsupported thread models", async () => {
+    vi.mocked(startThread).mockResolvedValue({
+      result: { thread: { id: "thread-unsupported-new" } },
+    } as Awaited<ReturnType<typeof startThread>>);
+    vi.mocked(listThreads).mockResolvedValue({
+      result: {
+        data: [
+          {
+            id: "thread-unsupported",
+            preview: "Unsupported thread",
+            updated_at: 1000,
+            cwd: workspace.path,
+            model: "gpt-5.1",
+            service_tier: "fast",
+          },
+        ],
+        nextCursor: null,
+      },
+    });
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-unsupported",
+          preview: "Unsupported thread",
+          updated_at: 1000,
+          model: "gpt-5.1",
+          service_tier: "fast",
+          turns: [],
+        },
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useThreads({
+        activeWorkspace: workspace,
+        onWorkspaceConnected: vi.fn(),
+        model: "gpt-5.1",
+        serviceTier: "fast",
+      }),
+    );
+
+    await act(async () => {
+      await result.current.startThread();
+    });
+
+    expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1", {
+      accessMode: "current",
+      serviceTier: null,
+    });
+
+    await act(async () => {
+      await result.current.listThreadsForWorkspace(workspace);
+    });
+
+    act(() => {
+      result.current.setActiveThreadId("thread-unsupported");
+    });
+
+    await waitFor(() => {
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith(
+        "ws-1",
+        "thread-unsupported",
+        null,
+      );
+    });
+  });
+
+  it("prefers a thread's known service tier when resuming a selected thread", async () => {
+    vi.mocked(listThreads).mockResolvedValue({
+      result: {
+        data: [
+          {
+            id: "thread-flex",
+            preview: "Flex thread",
+            updated_at: 1000,
+            cwd: workspace.path,
+            service_tier: "flex",
+          },
+        ],
+        nextCursor: null,
+      },
+    });
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: {
+        thread: {
+          id: "thread-flex",
+          preview: "Flex thread",
+          updated_at: 1000,
+          service_tier: "flex",
+          turns: [],
+        },
+      },
+    });
+
+    const { result } = renderHook(() =>
+      useThreads({
+        activeWorkspace: workspace,
+        onWorkspaceConnected: vi.fn(),
+        serviceTier: "fast",
+      }),
+    );
+
+    await act(async () => {
+      await result.current.listThreadsForWorkspace(workspace);
+    });
+
+    act(() => {
+      result.current.setActiveThreadId("thread-flex");
+    });
+
+    await waitFor(() => {
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-flex", "flex");
+    });
   });
 
   it("passes explicit access mode override when starting a thread", async () => {
@@ -242,6 +365,7 @@ describe("useThreads UX integration", () => {
 
     expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1", {
       accessMode: "full-access",
+      serviceTier: null,
     });
   });
 
@@ -274,12 +398,15 @@ describe("useThreads UX integration", () => {
 
     await waitFor(() => {
       expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", "thread-2");
-      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2");
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2", null);
     });
   });
 
   it("does not preflight runtime codex args on selection while a workspace thread is processing", async () => {
-    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => undefined);
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => ({
+      appliedCodexArgs: null,
+      respawned: false,
+    }));
     vi.mocked(resumeThread).mockImplementation(async (_workspaceId, threadId) => ({
       result: {
         thread: {
@@ -304,7 +431,7 @@ describe("useThreads UX integration", () => {
     });
 
     await waitFor(() => {
-      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-1");
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-1", null);
     });
 
     vi.mocked(resumeThread).mockClear();
@@ -323,14 +450,17 @@ describe("useThreads UX integration", () => {
     });
 
     await waitFor(() => {
-      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2");
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2", null);
     });
 
     expect(ensureWorkspaceRuntimeCodexArgs).not.toHaveBeenCalled();
   });
 
   it("does not preflight runtime codex args on selection when a hidden thread is processing", async () => {
-    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => undefined);
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => ({
+      appliedCodexArgs: null,
+      respawned: false,
+    }));
     vi.mocked(resumeThread).mockImplementation(async (_workspaceId, threadId) => ({
       result: {
         thread: {
@@ -364,14 +494,17 @@ describe("useThreads UX integration", () => {
     });
 
     await waitFor(() => {
-      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2");
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-2", null);
     });
 
     expect(ensureWorkspaceRuntimeCodexArgs).not.toHaveBeenCalled();
   });
 
   it("does not preflight runtime codex args on send when another workspace thread is processing", async () => {
-    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => undefined);
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => ({
+      appliedCodexArgs: null,
+      respawned: false,
+    }));
     vi.mocked(resumeThread).mockImplementation(async (_workspaceId, threadId) => ({
       result: {
         thread: {
@@ -399,7 +532,7 @@ describe("useThreads UX integration", () => {
     });
 
     await waitFor(() => {
-      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-busy");
+      expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-busy", null);
     });
 
     act(() => {
@@ -452,6 +585,7 @@ describe("useThreads UX integration", () => {
     expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", null);
     expect(vi.mocked(startThread)).toHaveBeenCalledWith("ws-1", {
       accessMode: "current",
+      serviceTier: null,
     });
     expect(threadId).toBe("thread-new");
   });
@@ -604,7 +738,10 @@ describe("useThreads UX integration", () => {
         },
       },
     });
-    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => undefined);
+    const ensureWorkspaceRuntimeCodexArgs = vi.fn(async () => ({
+      appliedCodexArgs: null,
+      respawned: false,
+    }));
 
     const { result } = renderHook(() =>
       useThreads({

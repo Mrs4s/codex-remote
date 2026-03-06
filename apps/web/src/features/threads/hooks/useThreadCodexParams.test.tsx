@@ -16,6 +16,7 @@ describe("useThreadCodexParams", () => {
       result.current.patchThreadCodexParams("ws-1", "thread-1", {
         modelId: "gpt-5.1",
         effort: "high",
+        serviceTier: "fast",
         accessMode: "full-access",
         collaborationModeId: "plan",
         codexArgsOverride: "--profile dev",
@@ -26,6 +27,7 @@ describe("useThreadCodexParams", () => {
       expect.objectContaining({
         modelId: "gpt-5.1",
         effort: "high",
+        serviceTier: "fast",
         accessMode: "full-access",
         collaborationModeId: "plan",
         codexArgsOverride: "--profile dev",
@@ -45,6 +47,7 @@ describe("useThreadCodexParams", () => {
         "ws-1:thread-1": {
           modelId: "gpt-4.1",
           effort: "medium",
+          serviceTier: "turbo",
           accessMode: "nope",
           collaborationModeId: 99,
           codexArgsOverride: 12,
@@ -58,6 +61,7 @@ describe("useThreadCodexParams", () => {
     expect(result.current.getThreadCodexParams("ws-1", "thread-1")).toEqual({
       modelId: "gpt-4.1",
       effort: "medium",
+      serviceTier: null,
       accessMode: null,
       collaborationModeId: null,
       codexArgsOverride: null,
@@ -85,6 +89,7 @@ describe("useThreadCodexParams", () => {
       expect.objectContaining({
         modelId: "gpt-4.1",
         effort: "medium",
+        serviceTier: null,
         accessMode: "current",
         collaborationModeId: "default",
         updatedAt: 123,
@@ -102,6 +107,7 @@ describe("useThreadCodexParams", () => {
         "ws-1:thread-2": {
           modelId: "gpt-5",
           effort: "low",
+          serviceTier: "flex",
           accessMode: "current",
           collaborationModeId: "default",
           codexArgsOverride: "--profile ws",
@@ -123,6 +129,7 @@ describe("useThreadCodexParams", () => {
     expect(result.current.getThreadCodexParams("ws-1", "thread-2")).toEqual({
       modelId: "gpt-5",
       effort: "low",
+      serviceTier: "flex",
       accessMode: "current",
       collaborationModeId: "default",
       codexArgsOverride: "--profile ws",
@@ -165,5 +172,38 @@ describe("useThreadCodexParams", () => {
     expect(
       result.current.getThreadCodexParams("ws-1", "thread-4")?.codexArgsOverride,
     ).toBeUndefined();
+  });
+
+  it("coerces persisted service tier values to supported options only", () => {
+    window.localStorage.setItem(
+      STORAGE_KEY_THREAD_CODEX_PARAMS,
+      JSON.stringify({
+        "ws-1:thread-fast": {
+          modelId: "gpt-5.4",
+          effort: "medium",
+          serviceTier: "fast",
+          updatedAt: 1,
+        },
+        "ws-1:thread-unknown": {
+          modelId: "gpt-5.4",
+          effort: "medium",
+          serviceTier: "priority",
+          updatedAt: 2,
+        },
+      }),
+    );
+
+    const { result } = renderHook(() => useThreadCodexParams());
+
+    expect(result.current.getThreadCodexParams("ws-1", "thread-fast")).toEqual(
+      expect.objectContaining({
+        serviceTier: "fast",
+      }),
+    );
+    expect(result.current.getThreadCodexParams("ws-1", "thread-unknown")).toEqual(
+      expect.objectContaining({
+        serviceTier: null,
+      }),
+    );
   });
 });

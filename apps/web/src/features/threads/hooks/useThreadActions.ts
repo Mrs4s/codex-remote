@@ -4,6 +4,7 @@ import type {
   AccessMode,
   ConversationItem,
   DebugEntry,
+  ServiceTier,
   ThreadListSortKey,
   ThreadSummary,
   WorkspaceInfo,
@@ -29,6 +30,7 @@ import {
   asString,
   normalizeRootPath,
 } from "@threads/utils/threadNormalize";
+import { resolveServiceTierForModel } from "@utils/serviceTier";
 import {
   getParentThreadIdFromThread,
   getResumedTurnState,
@@ -124,6 +126,8 @@ type UseThreadActionsOptions = {
   threadListCursorByWorkspace: ThreadState["threadListCursorByWorkspace"];
   threadStatusById: ThreadState["threadStatusById"];
   threadSortKey: ThreadListSortKey;
+  model?: string | null;
+  serviceTier?: ServiceTier | null;
   onDebug?: (entry: DebugEntry) => void;
   getCustomName: (workspaceId: string, threadId: string) => string | undefined;
   threadActivityRef: MutableRefObject<Record<string, Record<string, number>>>;
@@ -139,7 +143,11 @@ type UseThreadActionsOptions = {
   onThreadCodexMetadataDetected?: (
     workspaceId: string,
     threadId: string,
-    metadata: { modelId: string | null; effort: string | null },
+    metadata: {
+      modelId: string | null;
+      effort: string | null;
+      serviceTier: ServiceTier | null;
+    },
   ) => void;
 };
 
@@ -153,6 +161,8 @@ export function useThreadActions({
   threadListCursorByWorkspace,
   threadStatusById,
   threadSortKey,
+  model = null,
+  serviceTier = null,
   onDebug,
   getCustomName,
   threadActivityRef,
@@ -177,7 +187,12 @@ export function useThreadActions({
   const startThreadForWorkspace = useCallback(
     async (
       workspaceId: string,
-      options?: { activate?: boolean; accessMode?: AccessMode | null },
+      options?: {
+        activate?: boolean;
+        accessMode?: AccessMode | null;
+        model?: string | null;
+        serviceTier?: ServiceTier | null;
+      },
     ) => {
       const shouldActivate = options?.activate !== false;
       onDebug?.({
@@ -188,8 +203,14 @@ export function useThreadActions({
         payload: { workspaceId },
       });
       try {
+        const resolvedModel = options?.model ?? model;
+        const resolvedServiceTier = resolveServiceTierForModel(
+          resolvedModel,
+          options?.serviceTier ?? serviceTier,
+        );
         const response = await startThreadService(workspaceId, {
           accessMode: options?.accessMode ?? null,
+          serviceTier: resolvedServiceTier,
         });
         onDebug?.({
           id: `${Date.now()}-server-thread-start`,
@@ -219,7 +240,7 @@ export function useThreadActions({
         throw error;
       }
     },
-    [dispatch, extractThreadId, loadedThreadsRef, onDebug],
+    [dispatch, extractThreadId, loadedThreadsRef, model, onDebug, serviceTier],
   );
 
   const resumeThreadForWorkspace = useCallback(
@@ -259,9 +280,17 @@ export function useThreadActions({
       if (inFlightCount === 1) {
         dispatch({ type: "setThreadResumeLoading", threadId, isLoading: true });
       }
+      const knownThread =
+        threadsByWorkspace[workspaceId]?.find((thread) => thread.id === threadId) ??
+        null;
+      const requestedServiceTier = knownThread?.serviceTier ?? serviceTier;
+      const resolvedServiceTier = resolveServiceTierForModel(
+        knownThread?.modelId ?? model,
+        requestedServiceTier,
+      );
       try {
         const response =
-          (await resumeThreadService(workspaceId, threadId)) as
+          (await resumeThreadService(workspaceId, threadId, resolvedServiceTier)) as
             | Record<string, unknown>
             | null;
         onDebug?.({
@@ -279,7 +308,7 @@ export function useThreadActions({
           | null;
         if (thread) {
           const codexMetadata = extractThreadCodexMetadata(thread);
-          if (codexMetadata.modelId || codexMetadata.effort) {
+          if (codexMetadata.modelId || codexMetadata.effort || codexMetadata.serviceTier) {
             onThreadCodexMetadataDetected?.(workspaceId, threadId, codexMetadata);
           }
           dispatch({ type: "ensureThread", workspaceId, threadId });
@@ -416,6 +445,9 @@ export function useThreadActions({
       onSubagentThreadDetected,
       onThreadCodexMetadataDetected,
       replaceOnResumeRef,
+      model,
+      serviceTier,
+      threadsByWorkspace,
       updateThreadParent,
     ],
   );
@@ -538,10 +570,11 @@ export function useThreadActions({
         name,
         updatedAt: getThreadTimestamp(thread),
         createdAt: getThreadCreatedTimestamp(thread),
-        ...(metadata.modelId ? { modelId: metadata.modelId } : {}),
-        ...(metadata.effort ? { effort: metadata.effort } : {}),
-        ...(isSubagent ? { isSubagent: true } : {}),
-      };
+          ...(metadata.modelId ? { modelId: metadata.modelId } : {}),
+          ...(metadata.effort ? { effort: metadata.effort } : {}),
+          ...(metadata.serviceTier ? { serviceTier: metadata.serviceTier } : {}),
+          ...(isSubagent ? { isSubagent: true } : {}),
+        };
     },
     [getCustomName],
   );
@@ -692,7 +725,7 @@ export function useThreadActions({
               return;
             }
             const codexMetadata = extractThreadCodexMetadata(thread);
-            if (codexMetadata.modelId || codexMetadata.effort) {
+            if (codexMetadata.modelId || codexMetadata.effort || codexMetadata.serviceTier) {
               onThreadCodexMetadataDetected?.(workspace.id, threadId, codexMetadata);
             }
             const sourceParentId = getParentThreadIdFromThread(thread);
@@ -958,7 +991,7 @@ export function useThreadActions({
             return;
           }
           const codexMetadata = extractThreadCodexMetadata(thread);
-          if (codexMetadata.modelId || codexMetadata.effort) {
+          if (codexMetadata.modelId || codexMetadata.effort || codexMetadata.serviceTier) {
             onThreadCodexMetadataDetected?.(workspace.id, id, codexMetadata);
           }
           const sourceParentId = getParentThreadIdFromThread(thread);

@@ -11,6 +11,7 @@ describe("extractThreadCodexMetadata", () => {
     expect(metadata).toEqual({
       modelId: "gpt-5-codex",
       effort: "high",
+      serviceTier: null,
     });
   });
 
@@ -49,6 +50,7 @@ describe("extractThreadCodexMetadata", () => {
     expect(metadata).toEqual({
       modelId: "gpt-5.3-codex",
       effort: "medium",
+      serviceTier: null,
     });
   });
 
@@ -61,6 +63,32 @@ describe("extractThreadCodexMetadata", () => {
     expect(metadata).toEqual({
       modelId: "gpt-5",
       effort: null,
+      serviceTier: null,
+    });
+  });
+
+  it("reads service tier aliases from nested metadata", () => {
+    const metadata = extractThreadCodexMetadata({
+      turns: [
+        {
+          items: [
+            {
+              payload: {
+                info: {
+                  model: "gpt-5.4",
+                  service_tier: "fast",
+                },
+              },
+            },
+          ],
+        },
+      ],
+    });
+
+    expect(metadata).toEqual({
+      modelId: "gpt-5.4",
+      effort: null,
+      serviceTier: "fast",
     });
   });
 });

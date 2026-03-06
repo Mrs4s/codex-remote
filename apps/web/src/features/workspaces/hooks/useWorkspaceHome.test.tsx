@@ -43,10 +43,23 @@ const models: ModelOption[] = [
     defaultReasoningEffort: "medium",
     isDefault: false,
   },
+  {
+    id: "id-2",
+    model: "gpt-5.4",
+    displayName: "GPT-5.4",
+    description: "Test model",
+    supportedReasoningEfforts: [
+      { reasoningEffort: "low", description: "Low effort" },
+      { reasoningEffort: "medium", description: "Medium effort" },
+      { reasoningEffort: "high", description: "High effort" },
+    ],
+    defaultReasoningEffort: "medium",
+    isDefault: false,
+  },
 ];
 
 describe("useWorkspaceHome", () => {
-  it("uses provider model name for worktree runs", async () => {
+  it("uses default service tier for unsupported worktree models", async () => {
     const addWorktreeAgent = vi.fn().mockResolvedValue(worktreeWorkspace);
     const connectWorkspace = vi.fn().mockResolvedValue(undefined);
     const startThreadForWorkspace = vi.fn().mockResolvedValue("thread-1");
@@ -61,6 +74,7 @@ describe("useWorkspaceHome", () => {
         activeWorkspace: workspace,
         models,
         selectedModelId: null,
+        serviceTier: "flex",
         addWorktreeAgent,
         connectWorkspace,
         startThreadForWorkspace,
@@ -83,7 +97,49 @@ describe("useWorkspaceHome", () => {
       "thread-1",
       "Hello worktree",
       [],
-      expect.objectContaining({ model: "gpt-5.1-max" }),
+      expect.objectContaining({ model: "gpt-5.1-max", serviceTier: null }),
+    );
+  });
+
+  it("forwards service tier for supported worktree models", async () => {
+    const addWorktreeAgent = vi.fn().mockResolvedValue(worktreeWorkspace);
+    const connectWorkspace = vi.fn().mockResolvedValue(undefined);
+    const startThreadForWorkspace = vi.fn().mockResolvedValue("thread-1");
+    const sendUserMessageToThread = vi.fn().mockResolvedValue(undefined);
+    vi.mocked(generateRunMetadata).mockResolvedValue({
+      title: "GPT-5.4 run",
+      worktreeName: "feat/gpt54",
+    });
+
+    const { result } = renderHook(() =>
+      useWorkspaceHome({
+        activeWorkspace: workspace,
+        models,
+        selectedModelId: null,
+        serviceTier: "flex",
+        addWorktreeAgent,
+        connectWorkspace,
+        startThreadForWorkspace,
+        sendUserMessageToThread,
+      }),
+    );
+
+    act(() => {
+      result.current.setRunMode("worktree");
+      result.current.toggleModelSelection("id-2");
+      result.current.setDraft("Hello gpt-5.4");
+    });
+
+    await act(async () => {
+      await result.current.startRun();
+    });
+
+    expect(sendUserMessageToThread).toHaveBeenCalledWith(
+      worktreeWorkspace,
+      "thread-1",
+      "Hello gpt-5.4",
+      [],
+      expect.objectContaining({ model: "gpt-5.4", serviceTier: "flex" }),
     );
   });
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useReducer, useRef } from "react";
 import type {
   CustomPromptOption,
   DebugEntry,
+  ServiceTier,
   ThreadListSortKey,
   WorkspaceInfo,
 } from "@/types";
@@ -41,9 +42,10 @@ type UseThreadsOptions = {
   ensureWorkspaceRuntimeCodexArgs?: (
     workspaceId: string,
     threadId: string | null,
-  ) => Promise<void>;
+  ) => Promise<{ appliedCodexArgs: string | null; respawned: boolean }>;
   model?: string | null;
   effort?: string | null;
+  serviceTier?: ServiceTier | null;
   collaborationMode?: Record<string, unknown> | null;
   accessMode?: "read-only" | "current" | "full-access";
   reviewDeliveryMode?: "inline" | "detached";
@@ -56,7 +58,11 @@ type UseThreadsOptions = {
   onThreadCodexMetadataDetected?: (
     workspaceId: string,
     threadId: string,
-    metadata: { modelId: string | null; effort: string | null },
+    metadata: {
+      modelId: string | null;
+      effort: string | null;
+      serviceTier: ServiceTier | null;
+    },
   ) => void;
 };
 
@@ -73,6 +79,7 @@ export function useThreads({
   ensureWorkspaceRuntimeCodexArgs,
   model,
   effort,
+  serviceTier,
   collaborationMode,
   accessMode,
   reviewDeliveryMode = "inline",
@@ -603,6 +610,8 @@ export function useThreads({
     threadListCursorByWorkspace: state.threadListCursorByWorkspace,
     threadStatusById: state.threadStatusById,
     threadSortKey,
+    model,
+    serviceTier,
     onDebug,
     getCustomName,
     threadActivityRef,
@@ -617,10 +626,10 @@ export function useThreads({
   const ensureWorkspaceRuntimeCodexArgsBestEffort = useCallback(
     async (workspaceId: string, threadId: string | null, phase: string) => {
       if (!ensureWorkspaceRuntimeCodexArgs) {
-        return;
+        return null;
       }
       try {
-        await ensureWorkspaceRuntimeCodexArgs(workspaceId, threadId);
+        return await ensureWorkspaceRuntimeCodexArgs(workspaceId, threadId);
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         onDebug?.({
@@ -630,6 +639,7 @@ export function useThreads({
           label: "thread/runtime-codex-args sync error",
           payload: `${phase}: ${detail}`,
         });
+        return null;
       }
     },
     [ensureWorkspaceRuntimeCodexArgs, onDebug],
@@ -680,15 +690,25 @@ export function useThreads({
   const startThreadForWorkspace = useCallback(
     async (
       workspaceId: string,
-      options?: { activate?: boolean; accessMode?: "read-only" | "current" | "full-access" },
+      options?: {
+        activate?: boolean;
+        accessMode?: "read-only" | "current" | "full-access";
+        serviceTier?: ServiceTier | null;
+      },
     ) => {
       await ensureWorkspaceRuntimeCodexArgsBestEffort(workspaceId, null, "start");
       return startThreadForWorkspaceInternal(workspaceId, {
         ...options,
         accessMode: options?.accessMode ?? accessMode ?? "current",
+        serviceTier: options?.serviceTier ?? serviceTier ?? null,
       });
     },
-    [accessMode, ensureWorkspaceRuntimeCodexArgsBestEffort, startThreadForWorkspaceInternal],
+    [
+      accessMode,
+      ensureWorkspaceRuntimeCodexArgsBestEffort,
+      serviceTier,
+      startThreadForWorkspaceInternal,
+    ],
   );
 
   const startThread = useCallback(async () => {
@@ -795,6 +815,7 @@ export function useThreads({
     accessMode,
     model,
     effort,
+    serviceTier,
     collaborationMode,
     reviewDeliveryMode,
     steerEnabled,

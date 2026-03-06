@@ -34,6 +34,7 @@ function makeSelectionParams(): SelectionParams & {
     activeThreadIdRef,
     setSelectedModelId: vi.fn(),
     setSelectedEffort: vi.fn(),
+    setSelectedServiceTier: vi.fn(),
     setSelectedCollaborationModeId: vi.fn(),
     setAccessMode,
     setSelectedCodexArgsOverride,
@@ -58,6 +59,7 @@ function makeSyncParams(
       defaultAccessMode: "current",
       lastComposerModelId: "gpt-5",
       lastComposerReasoningEffort: "medium",
+      lastComposerServiceTier: "fast",
     },
     threadCodexParamsVersion: 0,
     getThreadCodexParams,
@@ -68,6 +70,9 @@ function makeSyncParams(
     setAccessMode: vi.fn() as unknown as Dispatch<SetStateAction<AccessMode>>,
     setPreferredModelId: vi.fn() as unknown as Dispatch<SetStateAction<string | null>>,
     setPreferredEffort: vi.fn() as unknown as Dispatch<SetStateAction<string | null>>,
+    setPreferredServiceTier: vi.fn() as unknown as Dispatch<
+      SetStateAction<"fast" | "flex" | null>
+    >,
     setPreferredCollabModeId: vi.fn() as unknown as Dispatch<
       SetStateAction<string | null>
     >,
@@ -80,6 +85,7 @@ function makeSyncParams(
     } as MutableRefObject<PendingNewThreadSeed | null>,
     selectedModelId: "gpt-5",
     resolvedEffort: "high",
+    selectedServiceTier: "fast",
     accessMode: "full-access",
     selectedCollaborationModeId: "default",
     ...overrides,
@@ -130,6 +136,19 @@ describe("useThreadSelectionHandlersOrchestration codex args selection", () => {
     expect(pushErrorToast).not.toHaveBeenCalled();
   });
 
+  it("persists service tier selection alongside app defaults when there is no active thread", () => {
+    const params = makeSelectionParams();
+    const { result } = renderHook(() => useThreadSelectionHandlersOrchestration(params));
+
+    act(() => {
+      result.current.handleSelectServiceTier("flex");
+    });
+
+    expect(params.persistThreadCodexParams).toHaveBeenCalledWith({
+      serviceTier: "flex",
+    });
+  });
+
   it("normalizes smart quotes/dashes before persisting selected override", () => {
     const params = makeSelectionParams();
     const { result } = renderHook(() => useThreadSelectionHandlersOrchestration(params));
@@ -175,6 +194,7 @@ describe("useThreadCodexSyncOrchestration seed behavior", () => {
           workspaceId: "ws-1",
           collaborationModeId: "plan",
           accessMode: "read-only",
+          serviceTier: "flex",
           codexArgsOverride: "--profile pending",
         },
       } as MutableRefObject<PendingNewThreadSeed | null>,
@@ -189,7 +209,10 @@ describe("useThreadCodexSyncOrchestration seed behavior", () => {
     expect(params.patchThreadCodexParams).toHaveBeenCalledWith(
       "ws-1",
       "thread-2",
-      expect.objectContaining({ codexArgsOverride: "--profile pending" }),
+      expect.objectContaining({
+        codexArgsOverride: "--profile pending",
+        serviceTier: "flex",
+      }),
     );
   });
 
@@ -207,7 +230,10 @@ describe("useThreadCodexSyncOrchestration seed behavior", () => {
     expect(params.patchThreadCodexParams).toHaveBeenCalledWith(
       "ws-1",
       "thread-2",
-      expect.objectContaining({ codexArgsOverride: "--profile selected" }),
+      expect.objectContaining({
+        codexArgsOverride: "--profile selected",
+        serviceTier: "fast",
+      }),
     );
   });
 

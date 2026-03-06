@@ -45,9 +45,7 @@ export function ThreadRow({
   const badge = getThreadArgsBadge?.(workspaceId, thread.id) ?? null;
   const modelBadge =
     thread.modelId && thread.modelId.trim().length > 0
-      ? thread.effort && thread.effort.trim().length > 0
-        ? `${thread.modelId} · ${thread.effort}`
-        : thread.modelId
+      ? [thread.modelId, thread.effort, thread.serviceTier].filter(Boolean).join(" · ")
       : null;
   const indentStyle =
     depth > 0

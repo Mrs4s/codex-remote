@@ -1,4 +1,4 @@
-import type { AccessMode } from "@/types";
+import type { AccessMode, ServiceTier } from "@/types";
 import {
   buildEffectiveCodexArgsBadgeLabel,
   sanitizeRuntimeCodexArgs,
@@ -12,6 +12,7 @@ export type PendingNewThreadSeed = {
   workspaceId: string;
   collaborationModeId: string | null;
   accessMode: AccessMode;
+  serviceTier: ServiceTier | null;
   codexArgsOverride: string | null;
 };
 
@@ -21,6 +22,7 @@ type ResolveThreadCodexStateInput = {
   defaultAccessMode: AccessMode;
   lastComposerModelId: string | null;
   lastComposerReasoningEffort: string | null;
+  lastComposerServiceTier: ServiceTier | null;
   stored: ThreadCodexParams | null;
   noThreadStored: ThreadCodexParams | null;
   pendingSeed: PendingNewThreadSeed | null;
@@ -31,6 +33,7 @@ type ResolvedThreadCodexState = {
   accessMode: AccessMode;
   preferredModelId: string | null;
   preferredEffort: string | null;
+  preferredServiceTier: ServiceTier | null;
   preferredCollabModeId: string | null;
   preferredCodexArgsOverride: string | null;
 };
@@ -38,6 +41,7 @@ type ResolvedThreadCodexState = {
 type ThreadCodexSeedPatch = {
   modelId: string | null;
   effort: string | null;
+  serviceTier: ServiceTier | null;
   accessMode: AccessMode;
   collaborationModeId: string | null;
   codexArgsOverride: string | null | undefined;
@@ -85,6 +89,7 @@ export function createPendingThreadSeed(options: {
   activeWorkspaceId: string | null;
   selectedCollaborationModeId: string | null;
   accessMode: AccessMode;
+  serviceTier: ServiceTier | null;
   codexArgsOverride?: string | null;
 }): PendingNewThreadSeed | null {
   const {
@@ -92,6 +97,7 @@ export function createPendingThreadSeed(options: {
     activeWorkspaceId,
     selectedCollaborationModeId,
     accessMode,
+    serviceTier,
     codexArgsOverride = null,
   } = options;
   if (activeThreadId || !activeWorkspaceId) {
@@ -101,6 +107,7 @@ export function createPendingThreadSeed(options: {
     workspaceId: activeWorkspaceId,
     collaborationModeId: selectedCollaborationModeId,
     accessMode,
+    serviceTier,
     codexArgsOverride,
   };
 }
@@ -114,6 +121,7 @@ export function resolveThreadCodexState(
     defaultAccessMode,
     lastComposerModelId,
     lastComposerReasoningEffort,
+    lastComposerServiceTier,
     stored,
     noThreadStored,
     pendingSeed,
@@ -125,6 +133,7 @@ export function resolveThreadCodexState(
       accessMode: stored?.accessMode ?? defaultAccessMode,
       preferredModelId: stored?.modelId ?? lastComposerModelId ?? null,
       preferredEffort: stored?.effort ?? lastComposerReasoningEffort ?? null,
+      preferredServiceTier: stored?.serviceTier ?? lastComposerServiceTier ?? null,
       preferredCollabModeId: stored?.collaborationModeId ?? null,
       preferredCodexArgsOverride: stored?.codexArgsOverride ?? null,
     };
@@ -138,6 +147,8 @@ export function resolveThreadCodexState(
     accessMode: stored?.accessMode ?? pendingForWorkspace?.accessMode ?? defaultAccessMode,
     preferredModelId: stored?.modelId ?? lastComposerModelId ?? null,
     preferredEffort: stored?.effort ?? lastComposerReasoningEffort ?? null,
+    preferredServiceTier:
+      stored?.serviceTier ?? pendingForWorkspace?.serviceTier ?? lastComposerServiceTier ?? null,
     preferredCollabModeId:
       stored?.collaborationModeId ??
       (pendingForWorkspace
@@ -157,6 +168,7 @@ export function buildThreadCodexSeedPatch(options: {
   selectedModelId: string | null;
   resolvedEffort: string | null;
   accessMode: AccessMode;
+  serviceTier: ServiceTier | null;
   selectedCollaborationModeId: string | null;
   codexArgsOverride?: string | null | undefined;
   pendingSeed: PendingNewThreadSeed | null;
@@ -166,6 +178,7 @@ export function buildThreadCodexSeedPatch(options: {
     selectedModelId,
     resolvedEffort,
     accessMode,
+    serviceTier,
     selectedCollaborationModeId,
     codexArgsOverride,
     pendingSeed,
@@ -177,6 +190,7 @@ export function buildThreadCodexSeedPatch(options: {
   return {
     modelId: selectedModelId,
     effort: resolvedEffort,
+    serviceTier: pendingForWorkspace?.serviceTier ?? serviceTier,
     accessMode: pendingForWorkspace?.accessMode ?? accessMode,
     collaborationModeId: pendingForWorkspace
       ? pendingForWorkspace.collaborationModeId

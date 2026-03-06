@@ -2,6 +2,7 @@ import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import readline from "node:readline";
 import type { EventBus } from "../events/eventBus.js";
 import type { WorkspaceEntry } from "../types/domain.js";
+import type { CodexLaunchConfig } from "./codexCliConfigService.js";
 
 type PendingResolver = {
   resolve: (value: unknown) => void;
@@ -34,6 +35,10 @@ function extractThreadId(value: unknown): string | null {
 
 export class CodexSession {
   private process: ChildProcessWithoutNullStreams;
+  readonly launchFingerprint: string;
+  readonly codexBin: string;
+  readonly codexArgsTokens: string[];
+  private isClosing = false;
 
   private nextId = 1;
   private pending = new Map<number, PendingResolver>();
@@ -43,10 +48,13 @@ export class CodexSession {
 
   constructor(
     private readonly workspace: WorkspaceEntry,
-    private readonly codexBin: string,
+    launchConfig: CodexLaunchConfig,
     private readonly eventBus: EventBus,
   ) {
-    this.process = spawn(this.codexBin, ["app-server"], {
+    this.launchFingerprint = launchConfig.fingerprint;
+    this.codexBin = launchConfig.codexBin;
+    this.codexArgsTokens = [...launchConfig.codexArgsTokens];
+    this.process = spawn(this.codexBin, [...this.codexArgsTokens, "app-server"], {
       cwd: this.workspace.path,
       stdio: ["pipe", "pipe", "pipe"],
       env: process.env,
@@ -122,6 +130,7 @@ export class CodexSession {
   }
 
   close(): void {
+    this.isClosing = true;
     this.process.kill();
     for (const entry of this.pending.values()) {
       entry.reject(new Error("session closed"));
@@ -160,6 +169,9 @@ export class CodexSession {
     });
 
     this.process.on("exit", (code, signal) => {
+      if (this.isClosing) {
+        return;
+      }
       const message = `codex app-server exited (code=${code ?? "null"}, signal=${signal ?? "null"})`;
       for (const entry of this.pending.values()) {
         entry.reject(new Error(message));

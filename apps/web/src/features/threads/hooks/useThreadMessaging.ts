@@ -9,6 +9,7 @@ import type {
   CustomPromptOption,
   DebugEntry,
   ReviewTarget,
+  ServiceTier,
   WorkspaceInfo,
 } from "@/types";
 import {
@@ -21,6 +22,7 @@ import {
   listMcpServerStatus as listMcpServerStatusService,
 } from "@services/tauri";
 import { expandCustomPromptText } from "@utils/customPrompts";
+import { resolveServiceTierForModel } from "@utils/serviceTier";
 import {
   asString,
   extractReviewThreadId,
@@ -36,6 +38,7 @@ type SendMessageOptions = {
   skipPromptExpansion?: boolean;
   model?: string | null;
   effort?: string | null;
+  serviceTier?: ServiceTier | null;
   collaborationMode?: Record<string, unknown> | null;
   accessMode?: AccessMode;
   appMentions?: AppMention[];
@@ -48,6 +51,7 @@ type UseThreadMessagingOptions = {
   accessMode?: "read-only" | "current" | "full-access";
   model?: string | null;
   effort?: string | null;
+  serviceTier?: ServiceTier | null;
   collaborationMode?: Record<string, unknown> | null;
   reviewDeliveryMode?: "inline" | "detached";
   steerEnabled: boolean;
@@ -55,7 +59,7 @@ type UseThreadMessagingOptions = {
   ensureWorkspaceRuntimeCodexArgs?: (
     workspaceId: string,
     threadId: string | null,
-  ) => Promise<void>;
+  ) => Promise<{ appliedCodexArgs: string | null; respawned: boolean }>;
   shouldPreflightRuntimeCodexArgsForSend?: (
     workspaceId: string,
     threadId: string,
@@ -132,6 +136,7 @@ export function useThreadMessaging({
   accessMode,
   model,
   effort,
+  serviceTier,
   collaborationMode,
   reviewDeliveryMode = "inline",
   steerEnabled,
@@ -185,6 +190,12 @@ export function useThreadMessaging({
         options?.model !== undefined ? options.model : model;
       const resolvedEffort =
         options?.effort !== undefined ? options.effort : effort;
+      const requestedServiceTier =
+        options?.serviceTier !== undefined ? options.serviceTier : serviceTier;
+      const resolvedServiceTier = resolveServiceTierForModel(
+        resolvedModel,
+        requestedServiceTier,
+      );
       const resolvedCollaborationMode =
         options?.collaborationMode !== undefined
           ? options.collaborationMode
@@ -234,6 +245,7 @@ export function useThreadMessaging({
           images,
           model: resolvedModel,
           effort: resolvedEffort,
+          serviceTier: resolvedServiceTier,
           collaborationMode: sanitizedCollaborationMode,
           sendIntent,
           threadCustomName: customThreadName,
@@ -241,6 +253,7 @@ export function useThreadMessaging({
       });
       const requestMode: "start" | "steer" = shouldSteer ? "steer" : "start";
       try {
+        let activeTargetThreadId = threadId;
         const shouldPreflightRuntimeCodexArgs =
           shouldPreflightRuntimeCodexArgsForSend?.(workspace.id, threadId) ?? true;
         if (
@@ -248,12 +261,27 @@ export function useThreadMessaging({
           shouldPreflightRuntimeCodexArgs &&
           ensureWorkspaceRuntimeCodexArgs
         ) {
-          await ensureWorkspaceRuntimeCodexArgs(workspace.id, threadId);
+          const preflight = await ensureWorkspaceRuntimeCodexArgs(workspace.id, threadId);
+          if (preflight.respawned) {
+            const refreshedThreadId = await refreshThread(workspace.id, threadId);
+            if (!refreshedThreadId) {
+              markProcessing(threadId, false);
+              setActiveTurnId(threadId, null);
+              pushThreadErrorMessage(
+                threadId,
+                "Codex session restarted, but the thread could not be reloaded.",
+              );
+              safeMessageActivity();
+              return { status: "blocked" };
+            }
+            activeTargetThreadId = refreshedThreadId;
+          }
         }
         const startTurn = () => {
           const payload: {
             model?: string | null;
             effort?: string | null;
+            serviceTier?: ServiceTier | null;
             collaborationMode?: Record<string, unknown> | null;
             accessMode?: AccessMode;
             images?: string[];
@@ -261,6 +289,7 @@ export function useThreadMessaging({
           } = {
             model: resolvedModel,
             effort: resolvedEffort,
+            serviceTier: resolvedServiceTier,
             collaborationMode: sanitizedCollaborationMode,
             accessMode: resolvedAccessMode,
             images,
@@ -270,7 +299,7 @@ export function useThreadMessaging({
           }
           return sendUserMessageService(
             workspace.id,
-            threadId,
+            activeTargetThreadId,
             finalText,
             payload,
           );
@@ -382,10 +411,12 @@ export function useThreadMessaging({
       activeTurnIdByThread,
       markProcessing,
       model,
+      refreshThread,
       onDebug,
       pushThreadErrorMessage,
       recordThreadActivity,
       safeMessageActivity,
+      serviceTier,
       setActiveTurnId,
       steerEnabled,
       threadStatusById,

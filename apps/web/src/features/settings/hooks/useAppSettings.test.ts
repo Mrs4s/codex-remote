@@ -36,6 +36,7 @@ describe("useAppSettings", () => {
         theme: "nope" as unknown as AppSettings["theme"],
         backendMode: "remote",
         remoteBackendHost: "example:1234",
+        lastComposerServiceTier: "unknown" as unknown as AppSettings["lastComposerServiceTier"],
         personality: "unknown",
         uiFontFamily: "",
         codeFontFamily: "  ",
@@ -65,6 +66,7 @@ describe("useAppSettings", () => {
     expect(result.current.settings.codeFontFamily).toContain("ui-monospace");
     expect(result.current.settings.codeFontSize).toBe(16);
     expect(result.current.settings.personality).toBe("friendly");
+    expect(result.current.settings.lastComposerServiceTier).toBeNull();
     expect(result.current.settings.backendMode).toBe("remote");
     expect(result.current.settings.remoteBackendHost).toBe("example:1234");
     expect(result.current.settings.threadFoldersByWorkspace["ws-1"]?.[0]?.name).toBe(

@@ -1,3 +1,5 @@
+import type { ServiceTier } from "@/types";
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   if (!value || typeof value !== "object") {
     return null;
@@ -22,6 +24,13 @@ function normalizeEffort(value: string | null): string | null {
     return null;
   }
   return normalized;
+}
+
+function normalizeServiceTier(value: string | null): ServiceTier | null {
+  if (value === "fast" || value === "flex") {
+    return value;
+  }
+  return null;
 }
 
 function pickString(
@@ -53,9 +62,17 @@ const EFFORT_KEYS = [
   "model_reasoning_effort",
 ] as const;
 
+const SERVICE_TIER_KEYS = [
+  "serviceTier",
+  "service_tier",
+  "modelServiceTier",
+  "model_service_tier",
+] as const;
+
 function extractFromRecord(record: Record<string, unknown>): {
   modelId: string | null;
   effort: string | null;
+  serviceTier: ServiceTier | null;
 } {
   const payload = asRecord(record.payload);
   const containers = [
@@ -74,6 +91,7 @@ function extractFromRecord(record: Record<string, unknown>): {
 
   let modelId: string | null = null;
   let effort: string | null = null;
+  let serviceTier: ServiceTier | null = null;
 
   for (const container of containers) {
     if (!modelId) {
@@ -82,24 +100,30 @@ function extractFromRecord(record: Record<string, unknown>): {
     if (!effort) {
       effort = normalizeEffort(pickString(container, EFFORT_KEYS));
     }
-    if (modelId && effort) {
+    if (!serviceTier) {
+      serviceTier = normalizeServiceTier(pickString(container, SERVICE_TIER_KEYS));
+    }
+    if (modelId && effort && serviceTier) {
       break;
     }
   }
 
-  return { modelId, effort };
+  return { modelId, effort, serviceTier };
 }
 
 function extractFromTurn(turn: Record<string, unknown>): {
   modelId: string | null;
   effort: string | null;
+  serviceTier: ServiceTier | null;
 } {
   let modelId: string | null = null;
   let effort: string | null = null;
+  let serviceTier: ServiceTier | null = null;
 
   const turnLevel = extractFromRecord(turn);
   modelId = turnLevel.modelId;
   effort = turnLevel.effort;
+  serviceTier = turnLevel.serviceTier;
 
   const items = Array.isArray(turn.items)
     ? (turn.items as unknown[])
@@ -117,20 +141,25 @@ function extractFromTurn(turn: Record<string, unknown>): {
     if (!effort && extracted.effort) {
       effort = extracted.effort;
     }
-    if (modelId && effort) {
+    if (!serviceTier && extracted.serviceTier) {
+      serviceTier = extracted.serviceTier;
+    }
+    if (modelId && effort && serviceTier) {
       break;
     }
   }
 
-  return { modelId, effort };
+  return { modelId, effort, serviceTier };
 }
 
 export function extractThreadCodexMetadata(thread: Record<string, unknown>): {
   modelId: string | null;
   effort: string | null;
+  serviceTier: ServiceTier | null;
 } {
   let modelId: string | null = null;
   let effort: string | null = null;
+  let serviceTier: ServiceTier | null = null;
 
   const turns = Array.isArray(thread.turns)
     ? (thread.turns as unknown[])
@@ -147,12 +176,15 @@ export function extractThreadCodexMetadata(thread: Record<string, unknown>): {
     if (!effort && extracted.effort) {
       effort = extracted.effort;
     }
-    if (modelId && effort) {
+    if (!serviceTier && extracted.serviceTier) {
+      serviceTier = extracted.serviceTier;
+    }
+    if (modelId && effort && serviceTier) {
       break;
     }
   }
 
-  if (!modelId || !effort) {
+  if (!modelId || !effort || !serviceTier) {
     const threadLevel = extractFromRecord(thread);
     if (!modelId) {
       modelId = threadLevel.modelId;
@@ -160,7 +192,10 @@ export function extractThreadCodexMetadata(thread: Record<string, unknown>): {
     if (!effort) {
       effort = threadLevel.effort;
     }
+    if (!serviceTier) {
+      serviceTier = threadLevel.serviceTier;
+    }
   }
 
-  return { modelId, effort };
+  return { modelId, effort, serviceTier };
 }

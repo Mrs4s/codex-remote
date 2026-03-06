@@ -1,5 +1,6 @@
 import { useCallback } from "react";
-import type { AccessMode, ModelOption, WorkspaceInfo } from "../../../types";
+import type { AccessMode, ModelOption, ServiceTier, WorkspaceInfo } from "../../../types";
+import { modelSupportsServiceTier } from "../../../utils/serviceTier";
 import type { WorkspaceRunMode } from "../hooks/useWorkspaceHome";
 import Laptop from "lucide-react/dist/esm/icons/laptop";
 import GitBranch from "lucide-react/dist/esm/icons/git-branch";
@@ -30,6 +31,8 @@ type WorkspaceHomeRunControlsProps = {
   collaborationModes: { id: string; label: string }[];
   selectedCollaborationModeId: string | null;
   onSelectCollaborationMode: (id: string | null) => void;
+  selectedServiceTier: ServiceTier | null;
+  onSelectServiceTier: (serviceTier: ServiceTier | null) => void;
   reasoningOptions: string[];
   selectedEffort: string | null;
   onSelectEffort: (effort: string) => void;
@@ -52,6 +55,8 @@ export function WorkspaceHomeRunControls({
   collaborationModes,
   selectedCollaborationModeId,
   onSelectCollaborationMode,
+  selectedServiceTier,
+  onSelectServiceTier,
   reasoningOptions,
   selectedEffort,
   onSelectEffort,
@@ -80,6 +85,12 @@ export function WorkspaceHomeRunControls({
     : null;
   const selectedModelLabel = resolveModelLabel(selectedModel);
   const modelSummary = buildModelSummary(models, modelSelections);
+  const selectedWorktreeModels = models.filter((model) => (modelSelections[model.id] ?? 0) > 0);
+  const serviceTierSupported =
+    runMode === "local"
+      ? modelSupportsServiceTier(selectedModel?.model ?? null)
+      : selectedWorktreeModels.length > 0 &&
+        selectedWorktreeModels.every((model) => modelSupportsServiceTier(model.model));
   const showRunMode = (workspaceKind ?? "main") !== "worktree";
   const runModeLabel = runMode === "local" ? "Local" : "Worktree";
   const RunModeIcon = runMode === "local" ? Laptop : GitBranch;
@@ -258,6 +269,35 @@ export function WorkspaceHomeRunControls({
                   {mode.label || mode.id}
                 </option>
               ))}
+            </select>
+          </div>
+        </div>
+      )}
+      {serviceTierSupported && (
+        <div className="composer-select-wrap workspace-home-control">
+          <div className="open-app-button">
+            <span className="composer-icon" aria-hidden>
+              <svg viewBox="0 0 24 24" fill="none">
+                <path
+                  d="M6 8.5h12M6 12h12M6 15.5h8"
+                  stroke="currentColor"
+                  strokeWidth="1.4"
+                  strokeLinecap="round"
+                />
+              </svg>
+            </span>
+            <select
+              className="composer-select composer-select--effort"
+              aria-label="Service tier"
+              value={selectedServiceTier ?? ""}
+              onChange={(event) =>
+                onSelectServiceTier((event.target.value || null) as ServiceTier | null)
+              }
+              disabled={isSubmitting}
+            >
+              <option value="">Default</option>
+              <option value="fast">Fast</option>
+              <option value="flex">Flex</option>
             </select>
           </div>
         </div>

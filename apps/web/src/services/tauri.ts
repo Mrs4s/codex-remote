@@ -11,6 +11,7 @@ import type {
   LocalUsageCountingMode,
   LocalUsageCostSnapshot,
   LocalUsageSnapshot,
+  ServiceTier,
   ThreadTokenUsageSnapshot,
   UndoCheckpointSummary,
   TcpDaemonStatus,
@@ -385,11 +386,12 @@ export async function setWorkspaceRuntimeCodexArgs(
 
 export async function startThread(
   workspaceId: string,
-  options?: { accessMode?: AccessMode | null },
+  options?: { accessMode?: AccessMode | null; serviceTier?: ServiceTier | null },
 ) {
   return invoke<any>("start_thread", {
     workspaceId,
     accessMode: options?.accessMode ?? null,
+    serviceTier: options?.serviceTier ?? null,
   });
 }
 
@@ -454,6 +456,7 @@ export async function sendUserMessage(
   options?: {
     model?: string | null;
     effort?: string | null;
+    serviceTier?: ServiceTier | null;
     accessMode?: "read-only" | "current" | "full-access";
     images?: string[];
     collaborationMode?: Record<string, unknown> | null;
@@ -467,6 +470,7 @@ export async function sendUserMessage(
     text,
     model: options?.model ?? null,
     effort: options?.effort ?? null,
+    serviceTier: options?.serviceTier ?? null,
     accessMode: options?.accessMode ?? null,
     images,
   };
@@ -1193,8 +1197,16 @@ export async function mcpServerOauthLogin(
   });
 }
 
-export async function resumeThread(workspaceId: string, threadId: string) {
-  return invoke<any>("resume_thread", { workspaceId, threadId });
+export async function resumeThread(
+  workspaceId: string,
+  threadId: string,
+  serviceTier?: ServiceTier | null,
+) {
+  return invoke<any>("resume_thread", {
+    workspaceId,
+    threadId,
+    serviceTier: serviceTier ?? null,
+  });
 }
 
 export async function getThreadTokenUsageSnapshot(

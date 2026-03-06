@@ -30,6 +30,7 @@ import type {
   RateLimitSnapshot,
   RequestUserInputRequest,
   RequestUserInputResponse,
+  ServiceTier,
   SkillOption,
   ThreadFolder,
   ThreadListOrganizeMode,
@@ -464,6 +465,8 @@ export type LayoutNodesOptions = {
   reasoningOptions: string[];
   selectedEffort: string | null;
   onSelectEffort: (effort: string | null) => void;
+  selectedServiceTier: ServiceTier | null;
+  onSelectServiceTier: (serviceTier: ServiceTier | null) => void;
   reasoningSupported: boolean;
   codexArgsOptions: CodexArgsOption[];
   selectedCodexArgsOverride: string | null;

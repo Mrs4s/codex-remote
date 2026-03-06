@@ -171,6 +171,8 @@ export function buildPrimaryNodes(options: LayoutNodesOptions): PrimaryLayoutNod
       reasoningOptions={options.reasoningOptions}
       selectedEffort={options.selectedEffort}
       onSelectEffort={options.onSelectEffort}
+      selectedServiceTier={options.selectedServiceTier}
+      onSelectServiceTier={options.onSelectServiceTier}
       reasoningSupported={options.reasoningSupported}
       codexArgsOptions={options.codexArgsOptions}
       selectedCodexArgsOverride={options.selectedCodexArgsOverride}

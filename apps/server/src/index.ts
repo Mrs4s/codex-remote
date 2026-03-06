@@ -14,6 +14,7 @@ import { DictationService } from "./services/dictationService.js";
 import { LiteLLMPricingService } from "./services/litellmPricingService.js";
 import { UndoCheckpointService } from "./services/undoCheckpointService.js";
 import { McpManagerService } from "./services/mcpManagerService.js";
+import { CodexCliConfigService } from "./services/codexCliConfigService.js";
 import { dispatchRpc } from "./rpc/dispatcher.js";
 
 const app = Fastify({ logger: true });
@@ -22,11 +23,12 @@ const store = new JsonStore(env.dataDir);
 const eventBus = new EventBus();
 const workspaceService = new WorkspaceService(store);
 const undoCheckpointService = new UndoCheckpointService(env.dataDir);
-const sessionManager = new SessionManager(eventBus, env.codexBin, undoCheckpointService);
+const codexCliConfigService = new CodexCliConfigService(store, env.codexBin);
+const sessionManager = new SessionManager(eventBus, codexCliConfigService, undoCheckpointService);
 const terminalService = new TerminalService(eventBus);
 const promptService = new PromptService(env.dataDir);
 const dictationService = new DictationService(eventBus);
-const mcpManagerService = new McpManagerService(env.codexBin);
+const mcpManagerService = new McpManagerService(() => codexCliConfigService.getCodexBin());
 const litellmPricingService = new LiteLLMPricingService({
   dataDir: env.dataDir,
   url: env.litellmPricingUrl,

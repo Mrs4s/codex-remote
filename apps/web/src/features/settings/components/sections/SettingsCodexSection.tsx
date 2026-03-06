@@ -6,7 +6,9 @@ import type {
   CodexDoctorResult,
   CodexUpdateResult,
   ModelOption,
+  ServiceTier,
 } from "@/types";
+import { modelSupportsServiceTier } from "@/utils/serviceTier";
 import {
   SettingsSection,
   SettingsToggleRow,
@@ -69,6 +71,13 @@ const normalizeEffortValue = (value: unknown): string | null => {
   }
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed.toLowerCase() : null;
+};
+
+const normalizeServiceTier = (value: unknown): ServiceTier | null => {
+  if (value === "fast" || value === "flex") {
+    return value;
+  }
+  return null;
 };
 
 function coerceSavedModelSlug(value: string | null, models: ModelOption[]): string | null {
@@ -184,6 +193,14 @@ export function SettingsCodexSection({
     }
     return reasoningOptions[0] ?? "";
   }, [reasoningOptions, reasoningSupported, savedEffort, selectedModel]);
+  const selectedServiceTier = useMemo(
+    () => normalizeServiceTier(appSettings.lastComposerServiceTier),
+    [appSettings.lastComposerServiceTier],
+  );
+  const serviceTierSupported = useMemo(
+    () => modelSupportsServiceTier(selectedModel?.model ?? null),
+    [selectedModel],
+  );
 
   const didNormalizeDefaultsRef = useRef(false);
   useEffect(() => {
@@ -285,7 +302,7 @@ export function SettingsCodexSection({
           Extra flags passed before <code>app-server</code>. Use quotes for values with spaces.
         </div>
         <div className="settings-help">
-          These settings apply to the shared Codex app-server used across all connected workspaces.
+          These settings apply to each workspace session the next time that workspace reconnects or respawns.
         </div>
         <div className="settings-help">
           Per-thread override processing ignores unsupported flags: <code>-m</code>/
@@ -440,6 +457,34 @@ export function SettingsCodexSection({
           </button>
         </div>
       </SettingsToggleRow>
+
+      {serviceTierSupported && (
+        <SettingsToggleRow
+          title={
+            <label htmlFor="default-service-tier">
+              Service Tier
+            </label>
+          }
+          subtitle="Used when there is no thread-specific override. Default falls back to Codex or profile settings."
+        >
+          <select
+            id="default-service-tier"
+            className="settings-select"
+            value={selectedServiceTier ?? ""}
+            onChange={(event) =>
+              void onUpdateAppSettings({
+                ...appSettings,
+                lastComposerServiceTier: normalizeServiceTier(event.target.value),
+              })
+            }
+            aria-label="Service tier"
+          >
+            <option value="">Default</option>
+            <option value="fast">Fast</option>
+            <option value="flex">Flex</option>
+          </select>
+        </SettingsToggleRow>
+      )}
 
       <SettingsToggleRow
         title={
