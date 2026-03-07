@@ -178,6 +178,52 @@ export type TextFileResponse = {
   truncated: boolean;
 };
 
+export type AgentSummary = {
+  name: string;
+  description: string | null;
+  developerInstructions: string | null;
+  configFile: string;
+  resolvedPath: string;
+  managedByApp: boolean;
+  fileExists: boolean;
+};
+
+export type AgentsSettings = {
+  configPath: string;
+  multiAgentEnabled: boolean;
+  maxThreads: number;
+  maxDepth: number;
+  agents: AgentSummary[];
+};
+
+export type SetAgentsCoreInput = {
+  multiAgentEnabled: boolean;
+  maxThreads: number;
+  maxDepth: number;
+};
+
+export type CreateAgentInput = {
+  name: string;
+  description?: string | null;
+  developerInstructions?: string | null;
+  template?: string | null;
+  model?: string | null;
+  reasoningEffort?: string | null;
+};
+
+export type UpdateAgentInput = {
+  originalName: string;
+  name: string;
+  description?: string | null;
+  developerInstructions?: string | null;
+  renameManagedFile?: boolean;
+};
+
+export type DeleteAgentInput = {
+  name: string;
+  deleteManagedFile?: boolean;
+};
+
 export type TokenUsageBreakdown = {
   totalTokens: number;
   inputTokens: number;
@@ -647,6 +693,38 @@ export type RpcMethodMap = {
       content: string;
     };
     result: { ok: true };
+  };
+  get_agents_settings: {
+    params: Record<string, never>;
+    result: AgentsSettings;
+  };
+  set_agents_core_settings: {
+    params: { input: SetAgentsCoreInput };
+    result: AgentsSettings;
+  };
+  create_agent: {
+    params: { input: CreateAgentInput };
+    result: AgentsSettings;
+  };
+  update_agent: {
+    params: { input: UpdateAgentInput };
+    result: AgentsSettings;
+  };
+  delete_agent: {
+    params: { input: DeleteAgentInput };
+    result: AgentsSettings;
+  };
+  read_agent_config_toml: {
+    params: { agentName: string };
+    result: string;
+  };
+  write_agent_config_toml: {
+    params: { agentName: string; content: string };
+    result: { ok: true };
+  };
+  get_config_model: {
+    params: { workspaceId: string };
+    result: { model: string | null };
   };
   prompts_list: {
     params: { workspaceId: string };

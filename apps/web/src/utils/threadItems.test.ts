@@ -887,6 +887,44 @@ describe("threadItems", () => {
     }
   });
 
+  it("extracts structured assistant text from thread history items", () => {
+    const item = buildConversationItemFromThreadItem({
+      type: "agentMessage",
+      id: "assistant-structured-1",
+      text: [
+        { type: "output_text", text: "First paragraph" },
+        { type: "output_text", text: "Second paragraph" },
+      ],
+    });
+
+    expect(item).not.toBeNull();
+    if (item && item.kind === "message") {
+      expect(item.role).toBe("assistant");
+      expect(item.text).toBe("First paragraph\n\nSecond paragraph");
+    }
+  });
+
+  it("extracts structured reasoning text without object placeholders", () => {
+    const item = buildConversationItem({
+      type: "reasoning",
+      id: "reasoning-structured-1",
+      summary: [{ type: "summary_text", text: "Explored" }],
+      content: [
+        { type: "output_text", text: "Checked package.json" },
+        { type: "output_text", text: "Opened page.tsx" },
+      ],
+    });
+
+    expect(item).not.toBeNull();
+    expect(item?.kind).toBe("reasoning");
+    if (item && item.kind === "reasoning") {
+      expect(item.summary).toBe("Explored");
+      expect(item.content).toBe("Checked package.json\n\nOpened page.tsx");
+      expect(item.summary).not.toContain("[object Object]");
+      expect(item.content).not.toContain("[object Object]");
+    }
+  });
+
   it("falls back to call_id for thread history tool items", () => {
     const item = buildConversationItemFromThreadItem({
       type: "local_shell_call",

@@ -12,6 +12,7 @@ import {
   isApprovalRequestMethod,
   isSupportedAppServerMethod,
 } from "../../../utils/appServerEvents";
+import { extractStructuredText } from "../../../utils/threadItems";
 import type { SupportedAppServerMethod } from "../../../utils/appServerEvents";
 
 type AgentDelta = {
@@ -227,7 +228,7 @@ export function useAppServerEvents(handlers: AppServerEventHandlers) {
       if (method === "item/agentMessage/delta") {
         const threadId = String(params.threadId ?? params.thread_id ?? "");
         const itemId = String(params.itemId ?? params.item_id ?? "");
-        const delta = String(params.delta ?? "");
+        const delta = extractStructuredText(params.delta ?? "", "");
         if (threadId && itemId && delta) {
           currentHandlers.onAgentMessageDelta?.({
             workspaceId: workspace_id,
@@ -433,7 +434,7 @@ export function useAppServerEvents(handlers: AppServerEventHandlers) {
         }
         if (threadId && item?.type === "agentMessage") {
           const itemId = String(item.id ?? "");
-          const text = String(item.text ?? "");
+          const text = extractStructuredText(item.text ?? item.content ?? "");
           if (itemId) {
             currentHandlers.onAgentMessageCompleted?.({
               workspaceId: workspace_id,

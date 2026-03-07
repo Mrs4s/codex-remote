@@ -28,6 +28,16 @@ function asString(value: unknown): string {
   return value === null || value === undefined ? "" : String(value);
 }
 
+function asTextScalar(value: unknown): string {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return "";
+}
+
 function asStringList(value: unknown): string[] {
   if (Array.isArray(value)) {
     return value
@@ -200,29 +210,54 @@ function extractSessionIdFromOutput(outputText: string): string | null {
 }
 
 function extractMessageText(content: unknown): string {
-  if (!Array.isArray(content)) {
-    return "";
+  return extractStructuredText(content);
+}
+
+function extractStructuredTextSegments(value: unknown): string[] {
+  const scalar = asTextScalar(value);
+  if (scalar) {
+    return [scalar];
   }
-  return content
-    .map((entry) => {
-      const record = asRecord(entry);
-      if (!record) {
-        return "";
-      }
-      const type = asString(record.type).trim().toLowerCase();
-      if (
-        type === "text" ||
-        type === "input_text" ||
-        type === "output_text" ||
-        type === "inputtext" ||
-        type === "outputtext"
-      ) {
-        return asString(record.text ?? record.value ?? "");
-      }
-      return "";
-    })
-    .filter(Boolean)
-    .join("\n\n");
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => extractStructuredTextSegments(entry));
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  const directFields = [record.text, record.value]
+    .flatMap((entry) => extractStructuredTextSegments(entry))
+    .filter((entry) => entry.trim().length > 0);
+  if (directFields.length > 0) {
+    return directFields;
+  }
+
+  const nestedFields = [
+    record.content,
+    record.contentItems,
+    record.content_items,
+    record.summary,
+    record.parts,
+    record.items,
+    record.message,
+  ];
+  for (const field of nestedFields) {
+    const extracted = extractStructuredTextSegments(field).filter(
+      (entry) => entry.trim().length > 0,
+    );
+    if (extracted.length > 0) {
+      return extracted;
+    }
+  }
+
+  return [];
+}
+
+function extractStructuredText(value: unknown, separator = "\n\n"): string {
+  return extractStructuredTextSegments(value)
+    .filter((entry) => entry.trim().length > 0)
+    .join(separator);
 }
 
 function normalizeUserContent(content: unknown): Array<Record<string, unknown>> {
@@ -552,13 +587,8 @@ async function parseRolloutEntries(
       }
 
       if (payloadType === "reasoning") {
-        const summary = Array.isArray(payload.summary)
-          ? payload.summary.map((entry) => asString(entry)).filter(Boolean)
-          : asString(payload.summary ?? "")
-              .split("\n")
-              .map((entry) => entry.trim())
-              .filter(Boolean);
-        const content = asString(payload.content ?? "").trim();
+        const summary = extractStructuredText(payload.summary ?? "");
+        const content = extractStructuredText(payload.content ?? "").trim();
         if (summary.length > 0 || content) {
           getEntriesForTurn(entriesByTurn, currentTurnId).push({
             kind: "reasoning",

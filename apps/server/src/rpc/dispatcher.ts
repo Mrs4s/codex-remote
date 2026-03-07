@@ -54,6 +54,15 @@ import {
 } from "../services/codexCompatService.js";
 import type { DictationService } from "../services/dictationService.js";
 import type { UndoCheckpointService } from "../services/undoCheckpointService.js";
+import {
+  createAgent,
+  deleteAgent,
+  getAgentsSettings,
+  getConfigModel,
+  readAgentConfigToml,
+  setAgentsCoreSettings,
+  updateAgent,
+} from "../services/agentsConfigService.js";
 
 export type DispatcherDeps = {
   workspaceService: WorkspaceService;
@@ -70,13 +79,6 @@ export type DispatcherDeps = {
 const NOT_IMPLEMENTED_METHODS = new Set([
   "get_codex_config_path",
   "read_image_as_data_url",
-  "get_agents_settings",
-  "set_agents_core_settings",
-  "create_agent",
-  "update_agent",
-  "delete_agent",
-  "read_agent_config_toml",
-  "get_config_model",
   "open_workspace_in",
   "get_open_app_icon",
   "generate_run_metadata",
@@ -216,6 +218,14 @@ function optionalStringRecord(
     next[entryKey] = String(rawEntryValue);
   }
   return next;
+}
+
+function requireRecord(params: Record<string, unknown>, key: string): Record<string, unknown> {
+  const value = params[key];
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error(`${key} must be an object`);
+  }
+  return value as Record<string, unknown>;
 }
 
 type AccessMode = "read-only" | "current" | "full-access";
@@ -1025,6 +1035,64 @@ export async function dispatchRpc(
       const workspace = scope === "workspace" ? workspaceFromParams() : undefined;
       await fileWrite(scope, kind, content, workspace);
       return { ok: true };
+    }
+    case "get_agents_settings": {
+      return getAgentsSettings();
+    }
+    case "set_agents_core_settings": {
+      const input = requireRecord(params, "input");
+      const multiAgentEnabled = optionalBoolean(input, "multiAgentEnabled");
+      const maxThreads = optionalNumber(input, "maxThreads");
+      const maxDepth = optionalNumber(input, "maxDepth");
+      if (multiAgentEnabled === null || maxThreads === null || maxDepth === null) {
+        throw new Error("input must include multiAgentEnabled, maxThreads, and maxDepth");
+      }
+      return setAgentsCoreSettings({
+        multiAgentEnabled,
+        maxThreads,
+        maxDepth,
+      });
+    }
+    case "create_agent": {
+      const input = requireRecord(params, "input");
+      return createAgent({
+        name: requireString(input, "name"),
+        description: optionalString(input, "description"),
+        developerInstructions: optionalString(input, "developerInstructions"),
+        template: optionalString(input, "template"),
+        model: optionalString(input, "model"),
+        reasoningEffort: optionalString(input, "reasoningEffort"),
+      });
+    }
+    case "update_agent": {
+      const input = requireRecord(params, "input");
+      return updateAgent({
+        originalName: requireString(input, "originalName"),
+        name: requireString(input, "name"),
+        description: optionalString(input, "description"),
+        developerInstructions:
+          Object.prototype.hasOwnProperty.call(input, "developerInstructions")
+            ? String(input.developerInstructions ?? "")
+            : undefined,
+        renameManagedFile: optionalBoolean(input, "renameManagedFile") ?? true,
+      });
+    }
+    case "delete_agent": {
+      const input = requireRecord(params, "input");
+      return deleteAgent({
+        name: requireString(input, "name"),
+        deleteManagedFile: optionalBoolean(input, "deleteManagedFile") ?? true,
+      });
+    }
+    case "read_agent_config_toml": {
+      const agentName = requireString(params, "agentName");
+      return readAgentConfigToml(agentName);
+    }
+    case "get_config_model": {
+      const workspace = workspaceFromParams();
+      return {
+        model: await getConfigModel(workspace),
+      };
     }
     case "prompts_list": {
       const workspace = workspaceFromParams();

@@ -545,4 +545,64 @@ describe("useAppServerEvents", () => {
       root.unmount();
     });
   });
+
+  it("normalizes structured assistant text in delta and completed events", async () => {
+    const handlers: Handlers = {
+      onAgentMessageDelta: vi.fn(),
+      onAgentMessageCompleted: vi.fn(),
+    };
+    const { root } = await mount(handlers);
+
+    act(() => {
+      listener?.({
+        workspace_id: "ws-1",
+        message: {
+          method: "item/agentMessage/delta",
+          params: {
+            threadId: "thread-1",
+            itemId: "item-structured-1",
+            delta: { type: "output_text", text: "Hello" },
+          },
+        },
+      });
+    });
+
+    expect(handlers.onAgentMessageDelta).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      itemId: "item-structured-1",
+      delta: "Hello",
+    });
+
+    act(() => {
+      listener?.({
+        workspace_id: "ws-1",
+        message: {
+          method: "item/completed",
+          params: {
+            threadId: "thread-1",
+            item: {
+              type: "agentMessage",
+              id: "item-structured-2",
+              text: [
+                { type: "output_text", text: "First line" },
+                { type: "output_text", text: "Second line" },
+              ],
+            },
+          },
+        },
+      });
+    });
+
+    expect(handlers.onAgentMessageCompleted).toHaveBeenCalledWith({
+      workspaceId: "ws-1",
+      threadId: "thread-1",
+      itemId: "item-structured-2",
+      text: "First line\n\nSecond line",
+    });
+
+    await act(async () => {
+      root.unmount();
+    });
+  });
 });

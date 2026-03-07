@@ -63,6 +63,63 @@ function asRecord(value: unknown): Record<string, unknown> | null {
   return value as Record<string, unknown>;
 }
 
+function asTextScalar(value: unknown) {
+  if (typeof value === "string") {
+    return value;
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+  return "";
+}
+
+function extractStructuredTextSegments(value: unknown): string[] {
+  const scalar = asTextScalar(value);
+  if (scalar) {
+    return [scalar];
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap((entry) => extractStructuredTextSegments(entry));
+  }
+  const record = asRecord(value);
+  if (!record) {
+    return [];
+  }
+
+  const directFields = [record.text, record.value]
+    .flatMap((entry) => extractStructuredTextSegments(entry))
+    .filter((entry) => entry.trim().length > 0);
+  if (directFields.length > 0) {
+    return directFields;
+  }
+
+  const nestedFields = [
+    record.content,
+    record.contentItems,
+    record.content_items,
+    record.summary,
+    record.parts,
+    record.items,
+    record.message,
+  ];
+  for (const field of nestedFields) {
+    const extracted = extractStructuredTextSegments(field).filter(
+      (entry) => entry.trim().length > 0,
+    );
+    if (extracted.length > 0) {
+      return extracted;
+    }
+  }
+
+  return [];
+}
+
+export function extractStructuredText(value: unknown, separator = "\n\n") {
+  return extractStructuredTextSegments(value)
+    .filter((entry) => entry.trim().length > 0)
+    .join(separator);
+}
+
 function stringifyJsonValue(value: unknown) {
   if (value === null || value === undefined) {
     return "";
@@ -176,18 +233,18 @@ function extractTextContentItems(value: unknown) {
     return "";
   }
   return value
-    .map((entry) => {
+    .flatMap((entry) => {
       const record = asRecord(entry);
       if (!record) {
-        return "";
+        return [];
       }
       const type = asString(record.type ?? "").trim();
       if (type === "inputText" || type === "text" || type === "outputText") {
-        return asString(record.text ?? record.value ?? "");
+        return extractStructuredTextSegments(record.text ?? record.value ?? "");
       }
-      return "";
+      return [];
     })
-    .filter(Boolean)
+    .filter((entry) => entry.trim().length > 0)
     .join("\n\n");
 }
 
@@ -1441,10 +1498,8 @@ export function buildConversationItem(
     };
   }
   if (type === "reasoning") {
-    const summary = asString(item.summary ?? "");
-    const content = Array.isArray(item.content)
-      ? item.content.map((entry) => asString(entry)).join("\n")
-      : asString(item.content ?? "");
+    const summary = extractStructuredText(item.summary ?? "");
+    const content = extractStructuredText(item.content ?? "");
     return { id, kind: "reasoning", summary, content };
   }
   if (type === "plan") {
@@ -1737,16 +1792,12 @@ export function buildConversationItemFromThreadItem(
       id,
       kind: "message",
       role: "assistant",
-      text: asString(item.text),
+      text: extractStructuredText(item.text ?? item.content ?? ""),
     };
   }
   if (type === "reasoning") {
-    const summary = Array.isArray(item.summary)
-      ? item.summary.map((entry) => asString(entry)).join("\n")
-      : asString(item.summary ?? "");
-    const content = Array.isArray(item.content)
-      ? item.content.map((entry) => asString(entry)).join("\n")
-      : asString(item.content ?? "");
+    const summary = extractStructuredText(item.summary ?? "");
+    const content = extractStructuredText(item.content ?? "");
     return { id, kind: "reasoning", summary, content };
   }
   return buildConversationItem(item);

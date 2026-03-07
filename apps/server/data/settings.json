@@ -1,0 +1,7 @@
+{
+  "backendMode": "remote",
+  "remoteBackendHost": "127.0.0.1:8787",
+  "threadTitleAutogenerationEnabled": false,
+  "steerEnabled": true,
+  "followUpMessageBehavior": "steer"
+}
