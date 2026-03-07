@@ -259,6 +259,9 @@ function toolIconForSummary(
   if (item.toolType === "imageView") {
     return Image;
   }
+  if (item.toolType === "subagentNotification") {
+    return Users;
+  }
   if (item.toolType === "collabToolCall") {
     return Users;
   }

@@ -5,6 +5,7 @@ import type {
   ConversationItem,
 } from "../types";
 import { CHAT_SCROLLBACK_DEFAULT } from "./chatScrollback";
+import { parseSubagentNotificationTaggedMessage } from "./internalSubagentNotifications";
 
 export type PrepareThreadItemsOptions = {
   maxItemsPerThread?: number | null;
@@ -1488,14 +1489,7 @@ export function buildConversationItem(
   }
   if (type === "userMessage") {
     const content = Array.isArray(item.content) ? item.content : [];
-    const { text, images } = parseUserInputs(content);
-    return {
-      id,
-      kind: "message",
-      role: "user",
-      text,
-      images: images.length > 0 ? images : undefined,
-    };
+    return buildUserConversationItem(id, content as Array<Record<string, unknown>>);
   }
   if (type === "reasoning") {
     const summary = extractStructuredText(item.summary ?? "");
@@ -1768,6 +1762,35 @@ function parseUserInputs(inputs: Array<Record<string, unknown>>) {
   return { text: textParts.join(" ").trim(), images };
 }
 
+function buildUserConversationItem(
+  id: string,
+  content: Array<Record<string, unknown>>,
+): ConversationItem {
+  const { text, images } = parseUserInputs(content);
+  const subagentNotification =
+    images.length === 0 ? parseSubagentNotificationTaggedMessage(text) : null;
+  if (subagentNotification) {
+    return {
+      id,
+      kind: "tool",
+      toolType: "subagentNotification",
+      title: "Sub-agent notification",
+      detail: subagentNotification.agentId
+        ? `Agent ${subagentNotification.agentId}`
+        : "Agent",
+      status: subagentNotification.status,
+      output: subagentNotification.output,
+    };
+  }
+  return {
+    id,
+    kind: "message",
+    role: "user",
+    text,
+    images: images.length > 0 ? images : undefined,
+  };
+}
+
 export function buildConversationItemFromThreadItem(
   item: Record<string, unknown>,
 ): ConversationItem | null {
@@ -1778,14 +1801,7 @@ export function buildConversationItemFromThreadItem(
   }
   if (type === "userMessage") {
     const content = Array.isArray(item.content) ? item.content : [];
-    const { text, images } = parseUserInputs(content);
-    return {
-      id,
-      kind: "message",
-      role: "user",
-      text,
-      images: images.length > 0 ? images : undefined,
-    };
+    return buildUserConversationItem(id, content as Array<Record<string, unknown>>);
   }
   if (type === "agentMessage") {
     return {

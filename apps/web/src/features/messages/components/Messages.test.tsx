@@ -498,6 +498,39 @@ describe("Messages", () => {
     expect(workingText?.textContent ?? "").toContain("Scanning repository");
   });
 
+  it("renders sub-agent notifications as expanded tool rows instead of user bubbles", async () => {
+    const items: ConversationItem[] = [
+      {
+        id: "subagent-1",
+        kind: "tool",
+        toolType: "subagentNotification",
+        title: "Sub-agent notification",
+        detail: "Agent agent-1",
+        status: "completed",
+        output: "Finished the handoff",
+      },
+    ];
+
+    const { container } = render(
+      <Messages
+        items={items}
+        threadId="thread-1"
+        workspaceId="ws-1"
+        isThinking={false}
+        openTargets={[]}
+        selectedOpenAppId=""
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Finished the handoff")).toBeTruthy();
+    });
+
+    expect(container.querySelector(".message-bubble")).toBeNull();
+    expect(container.textContent ?? "").toContain("Agent agent-1");
+    expect(container.textContent ?? "").toContain("completed");
+  });
+
   it("uses content for the reasoning title when summary is empty", () => {
     const items: ConversationItem[] = [
       {

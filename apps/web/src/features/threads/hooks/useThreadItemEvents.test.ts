@@ -213,6 +213,27 @@ describe("useThreadItemEvents", () => {
     );
   });
 
+  it("does not treat sub-agent notifications as user-created messages", () => {
+    const onUserMessageCreated = vi.fn();
+    vi.mocked(buildConversationItem).mockReturnValue({
+      id: "item-subagent-1",
+      kind: "tool",
+      toolType: "subagentNotification",
+      title: "Sub-agent notification",
+      detail: "Agent agent-1",
+      status: "completed",
+      output: "Finished the handoff",
+    });
+    const { result } = makeOptions({ onUserMessageCreated });
+    const item: ItemPayload = { type: "userMessage", id: "item-subagent-1" };
+
+    act(() => {
+      result.current.onItemCompleted("ws-1", "thread-1", item);
+    });
+
+    expect(onUserMessageCreated).not.toHaveBeenCalled();
+  });
+
   it("upserts converted raw response items", () => {
     const { result, dispatch, safeMessageActivity } = makeOptions();
     const rawItem: ItemPayload = { type: "custom_tool_call", call_id: "call-1" };

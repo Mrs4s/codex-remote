@@ -135,6 +135,30 @@ function summarizeCollabReceiver(
   return `${formatCollabAgentLabel(receivers[0])} +${receivers.length - 1}`;
 }
 
+function summarizeSubagentNotificationStatus(
+  item: Extract<ConversationItem, { kind: "tool" }>,
+) {
+  const tone = statusToneFromText(item.status);
+  const outputLine = (item.output ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .find(Boolean);
+  if (tone === "failed") {
+    if (outputLine && outputLine.length <= 80) {
+      return outputLine;
+    }
+    return "errored";
+  }
+  if (tone === "processing") {
+    return "running";
+  }
+  if (tone === "completed") {
+    return "completed";
+  }
+  const normalized = (item.status ?? "").trim().replace(/[_-]+/g, " ");
+  return normalized || "updated";
+}
+
 export function toolNameFromTitle(title: string) {
   if (!title.toLowerCase().startsWith("tool:")) {
     return "";
@@ -374,6 +398,15 @@ export function buildToolSummary(
     return {
       label: "read",
       value: file || "image",
+    };
+  }
+
+  if (item.toolType === "subagentNotification") {
+    return {
+      label: "sub-agent",
+      value: summarizeSubagentNotificationStatus(item),
+      detail: item.detail || "",
+      output: item.output || "",
     };
   }
 

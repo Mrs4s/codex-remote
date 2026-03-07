@@ -310,6 +310,30 @@ export const Messages = memo(function Messages({
   }, [visibleItems]);
 
   useEffect(() => {
+    const subagentItems = visibleItems.filter(
+      (item) =>
+        item.kind === "tool" &&
+        item.toolType === "subagentNotification" &&
+        (item.output ?? "").trim().length > 0,
+    );
+    if (subagentItems.length === 0) {
+      return;
+    }
+    setExpandedItems((prev) => {
+      let didChange = false;
+      const next = new Set(prev);
+      subagentItems.forEach((item) => {
+        if (manuallyToggledExpandedRef.current.has(item.id) || next.has(item.id)) {
+          return;
+        }
+        next.add(item.id);
+        didChange = true;
+      });
+      return didChange ? next : prev;
+    });
+  }, [visibleItems]);
+
+  useEffect(() => {
     return () => {
       if (copyTimeoutRef.current) {
         window.clearTimeout(copyTimeoutRef.current);

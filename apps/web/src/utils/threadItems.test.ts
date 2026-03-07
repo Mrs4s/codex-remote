@@ -887,6 +887,54 @@ describe("threadItems", () => {
     }
   });
 
+  it("converts tagged sub-agent notifications from thread history into tool items", () => {
+    const item = buildConversationItemFromThreadItem({
+      type: "userMessage",
+      id: "subagent-history-1",
+      content: [
+        {
+          type: "text",
+          text: `<subagent_notification>
+{"agent_id":"agent-123","status":{"completed":"Finished the handoff"}}
+</subagent_notification>`,
+        },
+      ],
+    });
+
+    expect(item).not.toBeNull();
+    expect(item?.kind).toBe("tool");
+    if (item && item.kind === "tool") {
+      expect(item.toolType).toBe("subagentNotification");
+      expect(item.detail).toBe("Agent agent-123");
+      expect(item.status).toBe("completed");
+      expect(item.output).toBe("Finished the handoff");
+    }
+  });
+
+  it("converts tagged sub-agent notifications from live user items into tool items", () => {
+    const item = buildConversationItem({
+      type: "userMessage",
+      id: "subagent-live-1",
+      content: [
+        {
+          type: "text",
+          text: `<subagent_notification>
+{"agent_id":"agent-456","status":{"errored":"Interrupted"}}
+</subagent_notification>`,
+        },
+      ],
+    });
+
+    expect(item).not.toBeNull();
+    expect(item?.kind).toBe("tool");
+    if (item && item.kind === "tool") {
+      expect(item.toolType).toBe("subagentNotification");
+      expect(item.detail).toBe("Agent agent-456");
+      expect(item.status).toBe("errored");
+      expect(item.output).toBe("Interrupted");
+    }
+  });
+
   it("extracts structured assistant text from thread history items", () => {
     const item = buildConversationItemFromThreadItem({
       type: "agentMessage",
