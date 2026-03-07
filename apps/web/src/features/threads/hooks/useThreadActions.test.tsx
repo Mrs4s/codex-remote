@@ -137,7 +137,7 @@ describe("useThreadActions", () => {
       workspaceId: "ws-1",
       threadId: "thread-1",
     });
-    expect(loadedThreadsRef.current["thread-1"]).toBe(true);
+    expect(loadedThreadsRef.current["ws-1:thread-1"]).toBe(true);
   });
 
   it("forks a thread and activates the fork", async () => {
@@ -164,7 +164,7 @@ describe("useThreadActions", () => {
       workspaceId: "ws-1",
       threadId: "thread-fork-1",
     });
-    expect(loadedThreadsRef.current["thread-fork-1"]).toBe(true);
+    expect(loadedThreadsRef.current["ws-1:thread-fork-1"]).toBe(true);
   });
 
   it("forks a thread without activating when requested", async () => {
@@ -215,7 +215,7 @@ describe("useThreadActions", () => {
   });
 
   it("skips resume when already loaded", async () => {
-    const loadedThreadsRef = { current: { "thread-1": true } };
+    const loadedThreadsRef = { current: { "ws-1:thread-1": true } };
     const { result } = renderActions({ loadedThreadsRef });
 
     let threadId: string | null = null;
@@ -229,7 +229,7 @@ describe("useThreadActions", () => {
 
   it("skips resume while processing unless forced", async () => {
     const options = {
-      loadedThreadsRef: { current: { "thread-1": true } },
+      loadedThreadsRef: { current: { "ws-1:thread-1": true } },
       threadStatusById: {
         "thread-1": {
           isProcessing: true,
@@ -259,6 +259,21 @@ describe("useThreadActions", () => {
     });
 
     expect(resumeThread).toHaveBeenCalledWith("ws-1", "thread-1");
+  });
+
+  it("does not reuse loaded state from another workspace", async () => {
+    vi.mocked(resumeThread).mockResolvedValue({
+      result: { thread: { id: "thread-1", updated_at: 1 } },
+    });
+
+    const loadedThreadsRef = { current: { "ws-1:thread-1": true } };
+    const { result } = renderActions({ loadedThreadsRef });
+
+    await act(async () => {
+      await result.current.resumeThreadForWorkspace("ws-2", "thread-1");
+    });
+
+    expect(resumeThread).toHaveBeenCalledWith("ws-2", "thread-1");
   });
 
   it("resumes thread, sets items, status, name, and last message", async () => {

@@ -712,7 +712,7 @@ describe("useThreads UX integration", () => {
     );
   });
 
-  it("does not resume selected threads that already have local items", async () => {
+  it("refreshes selected threads when they only have optimistic local items", async () => {
     vi.mocked(resumeThread).mockResolvedValue({
       result: {
         thread: {
@@ -769,8 +769,8 @@ describe("useThreads UX integration", () => {
     await act(async () => {
       await Promise.resolve();
     });
-    expect(vi.mocked(resumeThread)).not.toHaveBeenCalled();
-    expect(ensureWorkspaceRuntimeCodexArgs).not.toHaveBeenCalled();
+    expect(ensureWorkspaceRuntimeCodexArgs).toHaveBeenCalledWith("ws-1", "thread-3");
+    expect(vi.mocked(resumeThread)).toHaveBeenCalledWith("ws-1", "thread-3", null);
 
     const activeItems = result.current.activeItems;
     const hasLocal = activeItems.some(
@@ -782,8 +782,8 @@ describe("useThreads UX integration", () => {
     const hasRemote = activeItems.some(
       (item) => item.kind === "message" && item.id === "server-user-1",
     );
-    expect(hasLocal).toBe(true);
-    expect(hasRemote).toBe(false);
+    expect(hasLocal).toBe(false);
+    expect(hasRemote).toBe(true);
   });
 
   it("clears empty plan updates to null", () => {

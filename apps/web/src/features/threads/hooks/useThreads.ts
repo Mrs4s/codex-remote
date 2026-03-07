@@ -26,6 +26,7 @@ import {
   getThreadTokenUsageSnapshot,
   setThreadName as setThreadNameService,
 } from "@services/tauri";
+import { buildWorkspaceThreadKey } from "@threads/utils/threadKeys";
 import {
   loadDetachedReviewLinks,
   makeCustomNameKey,
@@ -65,10 +66,6 @@ type UseThreadsOptions = {
     },
   ) => void;
 };
-
-function buildWorkspaceThreadKey(workspaceId: string, threadId: string) {
-  return `${workspaceId}:${threadId}`;
-}
 
 const CASCADE_ARCHIVE_SKIP_TTL_MS = 120_000;
 
@@ -238,8 +235,15 @@ export function useThreads({
     }
   }, [onMessageActivity]);
 
-  const setThreadLoaded = useCallback((threadId: string, isLoaded: boolean) => {
-    loadedThreadsRef.current[threadId] = isLoaded;
+  const setThreadLoaded = useCallback(
+    (workspaceId: string, threadId: string, isLoaded: boolean) => {
+      loadedThreadsRef.current[buildWorkspaceThreadKey(workspaceId, threadId)] = isLoaded;
+    },
+    [],
+  );
+
+  const isThreadLoaded = useCallback((workspaceId: string, threadId: string) => {
+    return loadedThreadsRef.current[buildWorkspaceThreadKey(workspaceId, threadId)] === true;
   }, []);
 
   const renameThread = useCallback(
@@ -728,7 +732,7 @@ export function useThreads({
       if (!threadId) {
         return null;
       }
-    } else if (!loadedThreadsRef.current[threadId]) {
+    } else if (!isThreadLoaded(activeWorkspace.id, threadId)) {
       await ensureWorkspaceRuntimeCodexArgsBestEffort(
         activeWorkspace.id,
         threadId,
@@ -757,7 +761,7 @@ export function useThreads({
         if (!threadId) {
           return null;
         }
-      } else if (!loadedThreadsRef.current[threadId]) {
+      } else if (!isThreadLoaded(workspaceId, threadId)) {
         await ensureWorkspaceRuntimeCodexArgsBestEffort(workspaceId, threadId, "resume");
         await resumeThreadForWorkspace(workspaceId, threadId);
       }
@@ -770,7 +774,7 @@ export function useThreads({
       activeWorkspaceId,
       dispatch,
       ensureWorkspaceRuntimeCodexArgsBestEffort,
-      loadedThreadsRef,
+      isThreadLoaded,
       resumeThreadForWorkspace,
       startThreadForWorkspace,
       state.activeThreadIdByWorkspace,
@@ -845,16 +849,13 @@ export function useThreads({
   });
 
   const hasLocalThreadSnapshot = useCallback(
-    (threadId: string | null) => {
-      if (!threadId) {
+    (workspaceId: string | null, threadId: string | null) => {
+      if (!workspaceId || !threadId) {
         return false;
       }
-      return (
-        loadedThreadsRef.current[threadId] === true ||
-        (itemsByThreadRef.current[threadId]?.length ?? 0) > 0
-      );
+      return isThreadLoaded(workspaceId, threadId);
     },
-    [itemsByThreadRef, loadedThreadsRef],
+    [isThreadLoaded],
   );
 
   const setActiveThreadId = useCallback(
@@ -866,9 +867,8 @@ export function useThreads({
       dispatch({ type: "setActiveThreadId", workspaceId: targetId, threadId });
       if (threadId) {
         void (async () => {
-          const hasLocalSnapshot = hasLocalThreadSnapshot(threadId);
+          const hasLocalSnapshot = hasLocalThreadSnapshot(targetId, threadId);
           if (hasLocalSnapshot) {
-            loadedThreadsRef.current[threadId] = true;
             return;
           }
           const hasActiveTurnInWorkspace = hasProcessingThreadInWorkspace(targetId);
@@ -884,7 +884,6 @@ export function useThreads({
       ensureWorkspaceRuntimeCodexArgsBestEffort,
       hasLocalThreadSnapshot,
       hasProcessingThreadInWorkspace,
-      loadedThreadsRef,
       resumeThreadForWorkspace,
     ],
   );

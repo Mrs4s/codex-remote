@@ -738,7 +738,7 @@ function MainApp() {
       backendMode: appSettings.backendMode,
       activeWorkspace,
       activeThreadId,
-      activeThreadHasLocalSnapshot: hasLocalThreadSnapshot(activeThreadId),
+      activeThreadHasLocalSnapshot: hasLocalThreadSnapshot(activeWorkspaceId, activeThreadId),
       activeThreadIsProcessing: Boolean(
         activeThreadId && threadStatusById[activeThreadId]?.isProcessing,
       ),

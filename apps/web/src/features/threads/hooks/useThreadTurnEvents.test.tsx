@@ -480,7 +480,7 @@ describe("useThreadTurnEvents", () => {
       result.current.onThreadStatusChanged("ws-1", "thread-1", { type: "notLoaded" });
     });
 
-    expect(setThreadLoaded).toHaveBeenCalledWith("thread-1", false);
+    expect(setThreadLoaded).toHaveBeenCalledWith("ws-1", "thread-1", false);
     expect(markReviewing).toHaveBeenCalledWith("thread-1", false);
   });
 
@@ -498,7 +498,7 @@ describe("useThreadTurnEvents", () => {
       result.current.onThreadClosed("ws-1", "thread-1");
     });
 
-    expect(setThreadLoaded).toHaveBeenCalledWith("thread-1", false);
+    expect(setThreadLoaded).toHaveBeenCalledWith("ws-1", "thread-1", false);
     expect(markProcessing).toHaveBeenCalledWith("thread-1", false);
     expect(markReviewing).toHaveBeenCalledWith("thread-1", false);
     expect(setActiveTurnId).toHaveBeenCalledWith("thread-1", null);

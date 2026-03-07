@@ -30,6 +30,7 @@ import {
   asString,
   normalizeRootPath,
 } from "@threads/utils/threadNormalize";
+import { buildWorkspaceThreadKey } from "@threads/utils/threadKeys";
 import { resolveServiceTierForModel } from "@utils/serviceTier";
 import {
   getParentThreadIdFromThread,
@@ -179,6 +180,11 @@ export function useThreadActions({
   threadStatusByIdRef.current = threadStatusById;
   activeTurnIdByThreadRef.current = activeTurnIdByThread;
 
+  const getThreadLoadKey = useCallback(
+    (workspaceId: string, threadId: string) => buildWorkspaceThreadKey(workspaceId, threadId),
+    [],
+  );
+
   const extractThreadId = useCallback((response: Record<string, any>) => {
     const thread = response.result?.thread ?? response.thread ?? null;
     return String(thread?.id ?? "");
@@ -225,7 +231,7 @@ export function useThreadActions({
           if (shouldActivate) {
             dispatch({ type: "setActiveThreadId", workspaceId, threadId });
           }
-          loadedThreadsRef.current[threadId] = true;
+          loadedThreadsRef.current[getThreadLoadKey(workspaceId, threadId)] = true;
           return threadId;
         }
         return null;
@@ -240,7 +246,7 @@ export function useThreadActions({
         throw error;
       }
     },
-    [dispatch, extractThreadId, loadedThreadsRef, model, onDebug, serviceTier],
+    [dispatch, extractThreadId, getThreadLoadKey, loadedThreadsRef, model, onDebug, serviceTier],
   );
 
   const resumeThreadForWorkspace = useCallback(
@@ -253,11 +259,12 @@ export function useThreadActions({
       if (!threadId) {
         return null;
       }
-      if (!force && loadedThreadsRef.current[threadId]) {
+      const threadLoadKey = getThreadLoadKey(workspaceId, threadId);
+      if (!force && loadedThreadsRef.current[threadLoadKey]) {
         return threadId;
       }
       const status = threadStatusByIdRef.current[threadId];
-      if (status?.isProcessing && loadedThreadsRef.current[threadId] && !force) {
+      if (status?.isProcessing && loadedThreadsRef.current[threadLoadKey] && !force) {
         onDebug?.({
           id: `${Date.now()}-client-thread-resume-skipped`,
           timestamp: Date.now(),
@@ -321,12 +328,12 @@ export function useThreadActions({
           const items = buildItemsFromThread(thread);
           const localItems = itemsByThread[threadId] ?? [];
           const shouldReplace =
-            replaceLocal || replaceOnResumeRef.current[threadId] === true;
+            replaceLocal || replaceOnResumeRef.current[threadLoadKey] === true;
           if (shouldReplace) {
-            replaceOnResumeRef.current[threadId] = false;
+            replaceOnResumeRef.current[threadLoadKey] = false;
           }
           if (localItems.length > 0 && !shouldReplace) {
-            loadedThreadsRef.current[threadId] = true;
+            loadedThreadsRef.current[threadLoadKey] = true;
             return threadId;
           }
           const resumedTurnState = getResumedTurnState(thread);
@@ -411,7 +418,7 @@ export function useThreadActions({
             });
           }
         }
-        loadedThreadsRef.current[threadId] = true;
+        loadedThreadsRef.current[threadLoadKey] = true;
         return threadId;
       } catch (error) {
         onDebug?.({
@@ -439,6 +446,7 @@ export function useThreadActions({
       applyCollabThreadLinksFromThread,
       dispatch,
       getCustomName,
+      getThreadLoadKey,
       itemsByThread,
       loadedThreadsRef,
       onDebug,
@@ -490,7 +498,7 @@ export function useThreadActions({
             threadId: forkedThreadId,
           });
         }
-        loadedThreadsRef.current[forkedThreadId] = false;
+        loadedThreadsRef.current[getThreadLoadKey(workspaceId, forkedThreadId)] = false;
         await resumeThreadForWorkspace(workspaceId, forkedThreadId, true, true);
         return forkedThreadId;
       } catch (error) {
@@ -507,6 +515,7 @@ export function useThreadActions({
     [
       dispatch,
       extractThreadId,
+      getThreadLoadKey,
       loadedThreadsRef,
       onDebug,
       resumeThreadForWorkspace,
@@ -518,10 +527,10 @@ export function useThreadActions({
       if (!threadId) {
         return null;
       }
-      replaceOnResumeRef.current[threadId] = true;
+      replaceOnResumeRef.current[getThreadLoadKey(workspaceId, threadId)] = true;
       return resumeThreadForWorkspace(workspaceId, threadId, true, true);
     },
-    [replaceOnResumeRef, resumeThreadForWorkspace],
+    [getThreadLoadKey, replaceOnResumeRef, resumeThreadForWorkspace],
   );
 
   const resetWorkspaceThreads = useCallback(
@@ -534,10 +543,10 @@ export function useThreadActions({
         threadIds.add(activeThread);
       }
       threadIds.forEach((threadId) => {
-        loadedThreadsRef.current[threadId] = false;
+        loadedThreadsRef.current[getThreadLoadKey(workspaceId, threadId)] = false;
       });
     },
-    [activeThreadIdByWorkspace, loadedThreadsRef, threadsByWorkspace],
+    [activeThreadIdByWorkspace, getThreadLoadKey, loadedThreadsRef, threadsByWorkspace],
   );
 
   const buildThreadSummary = useCallback(

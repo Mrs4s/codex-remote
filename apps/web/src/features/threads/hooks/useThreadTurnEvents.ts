@@ -23,7 +23,7 @@ type UseThreadTurnEventsOptions = {
   getCurrentRateLimits?: (workspaceId: string) => RateLimitSnapshot | null;
   getCustomName: (workspaceId: string, threadId: string) => string | undefined;
   isThreadHidden: (workspaceId: string, threadId: string) => boolean;
-  setThreadLoaded: (threadId: string, isLoaded: boolean) => void;
+  setThreadLoaded: (workspaceId: string, threadId: string, isLoaded: boolean) => void;
   markProcessing: (threadId: string, isProcessing: boolean) => void;
   markReviewing: (threadId: string, isReviewing: boolean) => void;
   setActiveTurnId: (threadId: string, turnId: string | null) => void;
@@ -284,7 +284,7 @@ export function useThreadTurnEvents({
   );
 
   const onThreadStatusChanged = useCallback(
-    (_workspaceId: string, threadId: string, status: Record<string, unknown>) => {
+    (workspaceId: string, threadId: string, status: Record<string, unknown>) => {
       const statusType = normalizeThreadStatusType(status);
       if (!statusType) {
         return;
@@ -300,7 +300,7 @@ export function useThreadTurnEvents({
       ) {
         markProcessing(threadId, false);
         if (statusType === "notloaded") {
-          setThreadLoaded(threadId, false);
+          setThreadLoaded(workspaceId, threadId, false);
           markReviewing(threadId, false);
         }
         hasOptimisticActiveTurnByThreadRef.current[threadId] = false;
@@ -319,8 +319,8 @@ export function useThreadTurnEvents({
   );
 
   const onThreadClosed = useCallback(
-    (_workspaceId: string, threadId: string) => {
-      setThreadLoaded(threadId, false);
+    (workspaceId: string, threadId: string) => {
+      setThreadLoaded(workspaceId, threadId, false);
       markProcessing(threadId, false);
       markReviewing(threadId, false);
       hasOptimisticActiveTurnByThreadRef.current[threadId] = false;
