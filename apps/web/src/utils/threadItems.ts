@@ -1,3 +1,8 @@
+import type { ChatAttachment } from "@codex-remote/shared-types";
+import {
+  createChatImageAttachment,
+  extractChatTextAttachmentsFromText,
+} from "@codex-remote/shared-types";
 import type {
   CollabAgentRef,
   CollabAgentStatus,
@@ -1735,14 +1740,15 @@ function extractImageInputValue(input: Record<string, unknown>) {
 
 function parseUserInputs(inputs: Array<Record<string, unknown>>) {
   const textParts: string[] = [];
-  const images: string[] = [];
+  const attachments: ChatAttachment[] = [];
   inputs.forEach((input) => {
     const type = asString(input.type);
     if (type === "text") {
-      const text = asString(input.text);
-      if (text) {
-        textParts.push(text);
+      const extracted = extractChatTextAttachmentsFromText(asString(input.text));
+      if (extracted.text) {
+        textParts.push(extracted.text);
       }
+      attachments.push(...extracted.attachments);
       return;
     }
     if (type === "skill") {
@@ -1755,20 +1761,25 @@ function parseUserInputs(inputs: Array<Record<string, unknown>>) {
     if (type === "image" || type === "localImage") {
       const value = extractImageInputValue(input);
       if (value) {
-        images.push(value);
+        attachments.push(
+          createChatImageAttachment(value, {
+            name: asString(input.name ?? "") || null,
+            mimeType: asString(input.mimeType ?? input.mime_type ?? "") || null,
+          }),
+        );
       }
     }
   });
-  return { text: textParts.join(" ").trim(), images };
+  return { text: textParts.join(" ").trim(), attachments };
 }
 
 function buildUserConversationItem(
   id: string,
   content: Array<Record<string, unknown>>,
 ): ConversationItem {
-  const { text, images } = parseUserInputs(content);
+  const { text, attachments } = parseUserInputs(content);
   const subagentNotification =
-    images.length === 0 ? parseSubagentNotificationTaggedMessage(text) : null;
+    attachments.length === 0 ? parseSubagentNotificationTaggedMessage(text) : null;
   if (subagentNotification) {
     return {
       id,
@@ -1787,7 +1798,13 @@ function buildUserConversationItem(
     kind: "message",
     role: "user",
     text,
-    images: images.length > 0 ? images : undefined,
+    attachments: attachments.length > 0 ? attachments : undefined,
+    images:
+      attachments.length > 0
+        ? attachments
+            .filter((attachment) => attachment.kind === "image")
+            .map((attachment) => attachment.source)
+        : undefined,
   };
 }
 

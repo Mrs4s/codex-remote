@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
+import { createChatImageAttachment } from "@codex-remote/shared-types";
 import type {
   AppMention,
   ComposerSendIntent,
@@ -25,7 +27,7 @@ type UseQueuedSendOptions = {
   ) => Promise<string | null>;
   sendUserMessage: (
     text: string,
-    images?: string[],
+    images?: ChatAttachment[],
     appMentions?: AppMention[],
     options?: { sendIntent?: ComposerSendIntent },
   ) => Promise<SendMessageResult>;
@@ -33,7 +35,7 @@ type UseQueuedSendOptions = {
     workspace: WorkspaceInfo,
     threadId: string,
     text: string,
-    images?: string[],
+    images?: ChatAttachment[],
   ) => Promise<void | SendMessageResult>;
   startFork: (text: string) => Promise<void>;
   startReview: (text: string) => Promise<void>;
@@ -50,13 +52,13 @@ type UseQueuedSendResult = {
   activeQueue: QueuedMessage[];
   handleSend: (
     text: string,
-    images?: string[],
+    images?: ChatAttachment[],
     appMentions?: AppMention[],
     submitIntent?: ComposerSendIntent,
   ) => Promise<void>;
   queueMessage: (
     text: string,
-    images?: string[],
+    images?: ChatAttachment[],
     appMentions?: AppMention[],
   ) => Promise<void>;
   removeQueuedMessage: (threadId: string, messageId: string) => void;
@@ -165,11 +167,15 @@ export function useQueuedSend({
   }, []);
 
   const createQueuedItem = useCallback(
-    (text: string, images: string[], appMentions: AppMention[]): QueuedMessage => ({
+    (
+      text: string,
+      attachments: ChatAttachment[],
+      appMentions: AppMention[],
+    ): QueuedMessage => ({
       id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
       text,
       createdAt: Date.now(),
-      images,
+      attachments,
       ...(appMentions.length > 0 ? { appMentions } : {}),
     }),
     [],
@@ -230,7 +236,7 @@ export function useQueuedSend({
   const handleSend = useCallback(
     async (
       text: string,
-      images: string[] = [],
+      images: ChatAttachment[] = [],
       appMentions: AppMention[] = [],
       submitIntent: ComposerSendIntent = "default",
     ) => {
@@ -309,7 +315,7 @@ export function useQueuedSend({
   const queueMessage = useCallback(
     async (
       text: string,
-      images: string[] = [],
+      images: ChatAttachment[] = [],
       appMentions: AppMention[] = [],
     ) => {
       const trimmed = text.trim();
@@ -396,9 +402,18 @@ export function useQueuedSend({
         } else {
           const queuedMentions = nextItem.appMentions ?? [];
           if (queuedMentions.length > 0) {
-            await sendUserMessage(nextItem.text, nextItem.images ?? [], queuedMentions);
+            await sendUserMessage(
+              nextItem.text,
+              nextItem.attachments ??
+                (nextItem.images ?? []).map((image) => createChatImageAttachment(image)),
+              queuedMentions,
+            );
           } else {
-            await sendUserMessage(nextItem.text, nextItem.images ?? []);
+            await sendUserMessage(
+              nextItem.text,
+              nextItem.attachments ??
+                (nextItem.images ?? []).map((image) => createChatImageAttachment(image)),
+            );
           }
         }
       } catch {

@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
+import { createChatImageAttachment } from "@codex-remote/shared-types";
 import { subscribeWindowDragDrop } from "../../../services/dragDrop";
 
 const imageExtensions = [
@@ -11,10 +13,60 @@ const imageExtensions = [
   ".tiff",
   ".tif",
 ];
+const textAttachmentExtensions = new Set([
+  ".c",
+  ".cc",
+  ".cpp",
+  ".cs",
+  ".css",
+  ".env",
+  ".go",
+  ".graphql",
+  ".h",
+  ".hpp",
+  ".html",
+  ".ini",
+  ".java",
+  ".js",
+  ".json",
+  ".jsx",
+  ".kt",
+  ".log",
+  ".lua",
+  ".md",
+  ".mjs",
+  ".php",
+  ".pl",
+  ".ps1",
+  ".py",
+  ".rb",
+  ".rs",
+  ".sass",
+  ".scss",
+  ".sh",
+  ".sql",
+  ".svg",
+  ".swift",
+  ".toml",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".vue",
+  ".xml",
+  ".yaml",
+  ".yml",
+  ".zsh",
+]);
+const TEXT_ATTACHMENT_MAX_BYTES = 400_000;
 
 function isImagePath(path: string) {
   const lower = path.toLowerCase();
   return imageExtensions.some((ext) => lower.endsWith(ext));
+}
+
+function isTextPath(path: string) {
+  const lower = path.toLowerCase();
+  return Array.from(textAttachmentExtensions).some((ext) => lower.endsWith(ext));
 }
 
 function isDragFileTransfer(types: readonly string[] | undefined) {
@@ -43,6 +95,47 @@ function readFilesAsDataUrls(files: File[]) {
   ).then((items) => items.filter(Boolean));
 }
 
+async function readFileAsTextAttachment(file: File): Promise<ChatAttachment | null> {
+  const slice = file.slice(0, TEXT_ATTACHMENT_MAX_BYTES + 1);
+  const text = await slice.text();
+  const truncated = text.length > TEXT_ATTACHMENT_MAX_BYTES || file.size > TEXT_ATTACHMENT_MAX_BYTES;
+  return {
+    kind: "text",
+    name: file.name || "attachment.txt",
+    mimeType: file.type || null,
+    path: null,
+    truncated,
+    text: truncated ? text.slice(0, TEXT_ATTACHMENT_MAX_BYTES) : text,
+  };
+}
+
+async function readDroppedFileAttachment(file: File): Promise<ChatAttachment | null> {
+  const path = (file as File & { path?: string }).path ?? "";
+  if (path && isImagePath(path)) {
+    return createChatImageAttachment(path, {
+      name: file.name || null,
+      mimeType: file.type || null,
+    });
+  }
+  if (String(file.type ?? "").startsWith("image/")) {
+    const [source] = await readFilesAsDataUrls([file]);
+    return source
+      ? createChatImageAttachment(source, {
+          name: file.name || null,
+          mimeType: file.type || null,
+        })
+      : null;
+  }
+  if (
+    path
+      ? isTextPath(path)
+      : String(file.type ?? "").startsWith("text/") || textAttachmentExtensions.has(`.${file.name.split(".").pop()?.toLowerCase() ?? ""}`)
+  ) {
+    return readFileAsTextAttachment(file);
+  }
+  return null;
+}
+
 function getDragPosition(position: { x: number; y: number }) {
   return position;
 }
@@ -69,7 +162,7 @@ function normalizeDragPosition(
 
 type UseComposerImageDropArgs = {
   disabled: boolean;
-  onAttachImages?: (paths: string[]) => void;
+  onAttachImages?: (attachments: ChatAttachment[]) => void;
 };
 
 export function useComposerImageDrop({
@@ -112,12 +205,24 @@ export function useComposerImageDrop({
         if (!isInside) {
           return;
         }
-        const imagePaths = (event.payload.paths ?? [])
+        const attachments = (event.payload.paths ?? [])
           .map((path) => path.trim())
           .filter(Boolean)
-          .filter(isImagePath);
-        if (imagePaths.length > 0) {
-          onAttachImages?.(imagePaths);
+          .filter((path) => isImagePath(path) || isTextPath(path))
+          .map((path) =>
+            isImagePath(path)
+              ? createChatImageAttachment(path)
+              : ({
+                  kind: "text" as const,
+                  name: path.replace(/\\/g, "/").split("/").filter(Boolean).pop() ?? "attachment.txt",
+                  mimeType: null,
+                  path,
+                  truncated: false,
+                  text: "",
+                }),
+          );
+        if (attachments.length > 0) {
+          onAttachImages?.(attachments.filter((attachment) => attachment.kind === "image"));
         }
       }
     });
@@ -163,24 +268,17 @@ export function useComposerImageDrop({
       .filter((item) => item.kind === "file")
       .map((item) => item.getAsFile())
       .filter((file): file is File => Boolean(file));
-    const filePaths = [...files, ...itemFiles]
-      .map((file) => (file as File & { path?: string }).path ?? "")
-      .filter(Boolean);
-    const imagePaths = filePaths.filter(isImagePath);
-    if (imagePaths.length > 0) {
-      onAttachImages?.(imagePaths);
-      return;
-    }
-    const fileImages = [...files, ...itemFiles].filter((file) =>
-      file.type.startsWith("image/"),
+    const attachments = await Promise.all(
+      [...files, ...itemFiles].map((file) => readDroppedFileAttachment(file)),
     );
-    if (fileImages.length === 0) {
+    const validAttachments = attachments.filter(
+      (attachment): attachment is ChatAttachment =>
+        attachment !== null && !(attachment.kind === "text" && attachment.text.length === 0),
+    );
+    if (validAttachments.length === 0) {
       return;
     }
-    const dataUrls = await readFilesAsDataUrls(fileImages);
-    if (dataUrls.length > 0) {
-      onAttachImages?.(dataUrls);
-    }
+    onAttachImages?.(validAttachments);
   };
 
   const handlePaste = async (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
@@ -211,7 +309,12 @@ export function useComposerImageDrop({
           }),
       ),
     );
-    const valid = dataUrls.filter(Boolean);
+    const valid = dataUrls.filter(Boolean).map((source, index) =>
+      createChatImageAttachment(source, {
+        name: files[index]?.name ?? null,
+        mimeType: files[index]?.type ?? null,
+      }),
+    );
     if (valid.length > 0) {
       onAttachImages?.(valid);
     }

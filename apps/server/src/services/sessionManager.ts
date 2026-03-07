@@ -1,4 +1,10 @@
-import type { ServiceTier } from "@codex-remote/shared-types";
+import type { ChatAttachment, ServiceTier } from "@codex-remote/shared-types";
+import {
+  chatImageAttachmentName,
+  createChatImageAttachment,
+  isChatImageAttachment,
+  serializeChatTextAttachment,
+} from "@codex-remote/shared-types";
 import type { EventBus } from "../events/eventBus.js";
 import type { WorkspaceEntry } from "../types/domain.js";
 import { execFile } from "node:child_process";
@@ -50,9 +56,19 @@ function resolveAccessPolicies(accessMode: string | null | undefined): {
   }
 }
 
+function legacyImagesToAttachments(images?: string[] | null): ChatAttachment[] | null {
+  if (images == null) {
+    return null;
+  }
+  return images
+    .map((image) => image.trim())
+    .filter(Boolean)
+    .map((image) => createChatImageAttachment(image));
+}
+
 function buildTurnInputItems(
   text: string,
-  images?: string[] | null,
+  attachments?: ChatAttachment[] | null,
   appMentions?: unknown[] | null,
 ): Array<Record<string, unknown>> {
   const input: Array<Record<string, unknown>> = [];
@@ -60,15 +76,33 @@ function buildTurnInputItems(
   if (trimmed) {
     input.push({ type: "text", text: trimmed });
   }
-  for (const image of images ?? []) {
-    if (!image.trim()) {
+  for (const attachment of attachments ?? []) {
+    if (isChatImageAttachment(attachment)) {
+      if (!attachment.source.trim()) {
+        continue;
+      }
+      if (
+        attachment.source.startsWith("data:") ||
+        attachment.source.startsWith("http://") ||
+        attachment.source.startsWith("https://")
+      ) {
+        input.push({
+          type: "image",
+          url: attachment.source,
+          name: chatImageAttachmentName(attachment),
+          mimeType: attachment.mimeType ?? null,
+        });
+        continue;
+      }
+      input.push({
+        type: "localImage",
+        path: attachment.source,
+        name: chatImageAttachmentName(attachment),
+        mimeType: attachment.mimeType ?? null,
+      });
       continue;
     }
-    if (image.startsWith("data:") || image.startsWith("http://") || image.startsWith("https://")) {
-      input.push({ type: "image", url: image });
-    } else {
-      input.push({ type: "localImage", path: image });
-    }
+    input.push({ type: "text", text: serializeChatTextAttachment(attachment) });
   }
   if (appMentions && appMentions.length > 0) {
     input.push({
@@ -346,13 +380,18 @@ export class SessionManager {
       effort?: string | null;
       serviceTier?: ServiceTier | null;
       accessMode?: string | null;
+      attachments?: ChatAttachment[] | null;
       images?: string[] | null;
       appMentions?: unknown[] | null;
       collaborationMode?: Record<string, unknown> | null;
     },
   ): Promise<unknown> {
     const session = await this.ensureSession(workspace);
-    const input = buildTurnInputItems(params.text, params.images, params.appMentions);
+    const input = buildTurnInputItems(
+      params.text,
+      params.attachments ?? legacyImagesToAttachments(params.images),
+      params.appMentions,
+    );
     const policies = resolveAccessPolicies(params.accessMode);
 
     const request: Record<string, unknown> = {
@@ -385,12 +424,17 @@ export class SessionManager {
       threadId: string;
       turnId: string;
       text: string;
+      attachments?: ChatAttachment[] | null;
       images?: string[] | null;
       appMentions?: unknown[] | null;
     },
   ): Promise<unknown> {
     const session = await this.ensureSession(workspace);
-    const input = buildTurnInputItems(params.text, params.images, params.appMentions);
+    const input = buildTurnInputItems(
+      params.text,
+      params.attachments ?? legacyImagesToAttachments(params.images),
+      params.appMentions,
+    );
     return session.sendRequest(workspace.id, "turn/steer", {
       threadId: params.threadId,
       turnId: params.turnId,

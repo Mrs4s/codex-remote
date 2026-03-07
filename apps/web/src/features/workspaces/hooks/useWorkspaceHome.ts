@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type {
   AccessMode,
   ModelOption,
@@ -59,7 +60,7 @@ type UseWorkspaceHomeOptions = {
     workspace: WorkspaceInfo,
     threadId: string,
     text: string,
-    images?: string[],
+    images?: ChatAttachment[],
     options?: {
       model?: string | null;
       effort?: string | null;
@@ -386,7 +387,7 @@ export function useWorkspaceHome({
     [],
   );
 
-  const startRun = useCallback(async (images: string[] = []) => {
+  const startRun = useCallback(async (images: ChatAttachment[] = []) => {
     if (!activeWorkspaceId || !activeWorkspace) {
       return false;
     }

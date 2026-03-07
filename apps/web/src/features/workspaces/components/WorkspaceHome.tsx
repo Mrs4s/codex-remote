@@ -6,6 +6,7 @@ import {
   type KeyboardEvent,
   type RefObject,
 } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import RefreshCw from "lucide-react/dist/esm/icons/refresh-cw";
 import { convertFileSrc } from "@tauri-apps/api/core";
 import type {
@@ -47,7 +48,7 @@ type WorkspaceHomeProps = {
   recentThreadsUpdatedAt: number | null;
   prompt: string;
   onPromptChange: (value: string) => void;
-  onStartRun: (images?: string[]) => Promise<boolean>;
+  onStartRun: (images?: ChatAttachment[]) => Promise<boolean>;
   runMode: WorkspaceRunMode;
   onRunModeChange: (mode: WorkspaceRunMode) => void;
   models: ModelOption[];

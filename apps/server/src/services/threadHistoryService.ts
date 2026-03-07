@@ -279,11 +279,23 @@ function normalizeUserContent(content: unknown): Array<Record<string, unknown>> 
       if (type === "image" || type === "input_image" || type === "inputimage") {
         const url = asString(record.url ?? record.value ?? "").trim();
         const imagePath = asString(record.path ?? "").trim();
+        const name = asString(record.name ?? "").trim();
+        const mimeType = asString(record.mimeType ?? record.mime_type ?? "").trim();
         if (url) {
-          return { type: "image", url };
+          return {
+            type: "image",
+            url,
+            ...(name ? { name } : {}),
+            ...(mimeType ? { mimeType } : {}),
+          };
         }
         if (imagePath) {
-          return { type: "localImage", path: imagePath };
+          return {
+            type: "localImage",
+            path: imagePath,
+            ...(name ? { name } : {}),
+            ...(mimeType ? { mimeType } : {}),
+          };
         }
       }
       return null;

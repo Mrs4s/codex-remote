@@ -8,6 +8,7 @@ import {
   type CSSProperties,
   type ClipboardEvent,
 } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type {
   AppMention,
   AppOption,
@@ -49,7 +50,7 @@ import type { CodexArgsOption } from "../../threads/utils/codexArgsProfiles";
 type ComposerProps = {
   onSend: (
     text: string,
-    images: string[],
+    attachments: ChatAttachment[],
     appMentions?: AppMention[],
     submitIntent?: ComposerSendIntent,
   ) => void;
@@ -91,10 +92,10 @@ type ComposerProps = {
   draftText?: string;
   onDraftChange?: (text: string) => void;
   historyKey?: string | null;
-  attachedImages?: string[];
+  attachedImages?: ChatAttachment[];
   onPickImages?: () => void;
-  onAttachImages?: (paths: string[]) => void;
-  onRemoveImage?: (path: string) => void;
+  onAttachImages?: (attachments: ChatAttachment[]) => void;
+  onRemoveImage?: (attachment: ChatAttachment) => void;
   prefillDraft?: QueuedMessage | null;
   onPrefillHandled?: (id: string) => void;
   insertText?: QueuedMessage | null;

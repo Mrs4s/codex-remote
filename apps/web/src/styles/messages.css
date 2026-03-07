@@ -365,6 +365,31 @@
   padding-bottom: 8px;
 }
 
+.message-attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.message-attachment-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+  color: var(--text-secondary);
+  background: color-mix(in srgb, var(--surface-elevated) 84%, transparent);
+  border: 1px solid var(--border-subtle);
+}
+
+.message-attachment-meta {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
+
 .message-image-thumb {
   border: none;
   padding: 0;

@@ -1,4 +1,5 @@
 import { useCallback, useMemo } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type {
   AppMention,
   ComposerSendIntent,
@@ -42,14 +43,14 @@ type UsePullRequestComposerOptions = {
   runPullRequestReview: (options: {
     intent: PullRequestReviewIntent;
     question?: string;
-    images?: string[];
+    images?: ChatAttachment[];
     activateThread?: boolean;
   }) => Promise<string | null>;
   startReview: (text: string) => Promise<void>;
   clearActiveImages: () => void;
   handleSend: (
     text: string,
-    images: string[],
+    images: ChatAttachment[],
     appMentions?: AppMention[],
     submitIntent?: ComposerSendIntent,
   ) => Promise<void>;
@@ -131,7 +132,7 @@ export function usePullRequestComposer({
   const handleSendPullRequestQuestion = useCallback(
     async (
       text: string,
-      images: string[] = [],
+      images: ChatAttachment[] = [],
       appMentions: AppMention[] = [],
       submitIntent?: ComposerSendIntent,
     ) => {

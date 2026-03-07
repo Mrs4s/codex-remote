@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
+import { createChatImageAttachment } from "@codex-remote/shared-types";
 import * as notification from "@tauri-apps/plugin-notification";
 import {
   exportMarkdownFile,
@@ -800,6 +801,7 @@ describe("tauri invoke wrappers", () => {
       effort: null,
       serviceTier: null,
       accessMode: "full-access",
+      attachments: [createChatImageAttachment("image.png")],
       images: ["image.png"],
     });
   });
@@ -845,7 +847,45 @@ describe("tauri invoke wrappers", () => {
       effort: null,
       serviceTier: null,
       accessMode: null,
+      attachments: [createChatImageAttachment("data:image/png;base64,abc")],
       images: ["data:image/png;base64,abc"],
+    });
+  });
+
+  it("passes text attachments through send_user_message", async () => {
+    const invokeMock = vi.mocked(invoke);
+    invokeMock.mockResolvedValueOnce({});
+
+    await sendUserMessage("ws-4", "thread-1", "summarize this", {
+      attachments: [
+        {
+          kind: "text",
+          name: "notes.md",
+          mimeType: "text/markdown",
+          text: "# Notes",
+          truncated: false,
+        },
+      ],
+    });
+
+    expect(invokeMock).toHaveBeenCalledWith("send_user_message", {
+      workspaceId: "ws-4",
+      threadId: "thread-1",
+      text: "summarize this",
+      model: null,
+      effort: null,
+      serviceTier: null,
+      accessMode: null,
+      attachments: [
+        {
+          kind: "text",
+          name: "notes.md",
+          mimeType: "text/markdown",
+          text: "# Notes",
+          truncated: false,
+        },
+      ],
+      images: null,
     });
   });
 
@@ -865,6 +905,7 @@ describe("tauri invoke wrappers", () => {
       effort: null,
       serviceTier: null,
       accessMode: null,
+      attachments: null,
       images: null,
       appMentions: [{ name: "Calendar", path: "app://connector_calendar" }],
     });
@@ -881,7 +922,7 @@ describe("tauri invoke wrappers", () => {
       threadId: "thread-1",
       turnId: "turn-2",
       text: "continue",
-      images: ["image.png"],
+      attachments: [createChatImageAttachment("image.png")],
     });
   });
 
@@ -910,7 +951,7 @@ describe("tauri invoke wrappers", () => {
       threadId: "thread-1",
       turnId: "turn-2",
       text: "continue",
-      images: ["data:image/jpeg;base64,xyz"],
+      attachments: [createChatImageAttachment("data:image/jpeg;base64,xyz")],
     });
   });
 
@@ -944,6 +985,7 @@ describe("tauri invoke wrappers", () => {
       effort: null,
       serviceTier: null,
       accessMode: null,
+      attachments: [createChatImageAttachment("data:image/png;base64,mobile")],
       images: ["data:image/png;base64,mobile"],
     });
   });

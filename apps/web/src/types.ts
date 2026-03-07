@@ -1,3 +1,9 @@
+import type {
+  ChatAttachment,
+  ChatImageAttachment,
+  ChatTextAttachment,
+} from "@codex-remote/shared-types";
+
 export type WorkspaceSettings = {
   sidebarCollapsed: boolean;
   sortOrder?: number | null;
@@ -84,6 +90,7 @@ export type ConversationMessageItem = {
   kind: "message";
   role: "user" | "assistant";
   text: string;
+  attachments?: ChatAttachment[];
   images?: string[];
 };
 
@@ -681,9 +688,14 @@ export type QueuedMessage = {
   id: string;
   text: string;
   createdAt: number;
+  attachments?: ChatAttachment[];
   images?: string[];
   appMentions?: AppMention[];
 };
+
+export type MessageAttachment = ChatAttachment;
+export type MessageImageAttachment = ChatImageAttachment;
+export type MessageTextAttachment = ChatTextAttachment;
 
 export type AppMention = {
   name: string;

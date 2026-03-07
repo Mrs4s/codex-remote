@@ -1,3 +1,4 @@
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type {
   GitHubPullRequest,
   GitHubPullRequestComment,
@@ -42,7 +43,7 @@ export type GitDiffViewerProps = {
     intent: PullRequestReviewIntent;
     question?: string;
     selection?: PullRequestSelectionRange | null;
-    images?: string[];
+    images?: ChatAttachment[];
   }) => Promise<string | null>;
   pullRequestReviewLaunching?: boolean;
   pullRequestReviewThreadId?: string | null;

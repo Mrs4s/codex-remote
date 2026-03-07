@@ -2,7 +2,11 @@ import type { ConversationItem } from "../types";
 
 function formatMessage(item: Extract<ConversationItem, { kind: "message" }>) {
   const roleLabel = item.role === "user" ? "User" : "Assistant";
-  return `${roleLabel}: ${item.text}`;
+  const attachmentSummary =
+    item.attachments && item.attachments.length > 0
+      ? `\nAttachments: ${item.attachments.map((attachment) => attachment.name).join(", ")}`
+      : "";
+  return `${roleLabel}: ${item.text}${attachmentSummary}`;
 }
 
 function formatReasoning(item: Extract<ConversationItem, { kind: "reasoning" }>) {

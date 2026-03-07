@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { serializeChatTextAttachment } from "@codex-remote/shared-types";
 import type { ConversationItem } from "../types";
 import {
   buildConversationItem,
@@ -1148,6 +1149,44 @@ describe("threadItems", () => {
   it("parses created timestamps", () => {
     const timestamp = getThreadCreatedTimestamp({ created_at: "2025-01-01T00:00:00Z" });
     expect(timestamp).toBe(Date.parse("2025-01-01T00:00:00Z"));
+  });
+
+  it("extracts serialized text attachments from user messages", () => {
+    const item = buildConversationItemFromThreadItem({
+      id: "user-1",
+      type: "userMessage",
+      content: [
+        { type: "text", text: "Please review this file" },
+        {
+          type: "text",
+          text: serializeChatTextAttachment({
+            kind: "text",
+            name: "notes.md",
+            mimeType: "text/markdown",
+            text: "# Notes",
+            truncated: false,
+          }),
+        },
+      ],
+    });
+
+    expect(item).toEqual({
+      id: "user-1",
+      kind: "message",
+      role: "user",
+      text: "Please review this file",
+      attachments: [
+        {
+          kind: "text",
+          name: "notes.md",
+          mimeType: "text/markdown",
+          text: "# Notes",
+          path: null,
+          truncated: false,
+        },
+      ],
+      images: undefined,
+    });
   });
 
 });

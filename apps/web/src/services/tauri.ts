@@ -2,6 +2,16 @@ import { invoke } from "@tauri-apps/api/core";
 import { open, save } from "@tauri-apps/plugin-dialog";
 import type { Options as NotificationOptions } from "@tauri-apps/plugin-notification";
 import type {
+  ChatAttachment,
+  ChatImageAttachment,
+  ChatTextAttachment,
+} from "@codex-remote/shared-types";
+import {
+  chatImageAttachmentName,
+  createChatImageAttachment,
+  isChatImageAttachment,
+} from "@codex-remote/shared-types";
+import type {
   AccessMode,
   AppSettings,
   CodexUpdateResult,
@@ -41,6 +51,198 @@ function isMissingTauriInvokeError(error: unknown) {
   );
 }
 
+const TEXT_ATTACHMENT_MAX_BYTES = 400_000;
+const TEXT_ATTACHMENT_EXTENSIONS = new Set([
+  "c",
+  "cc",
+  "cpp",
+  "cs",
+  "css",
+  "env",
+  "go",
+  "graphql",
+  "h",
+  "hpp",
+  "html",
+  "ini",
+  "java",
+  "js",
+  "json",
+  "jsx",
+  "kt",
+  "log",
+  "lua",
+  "md",
+  "mjs",
+  "php",
+  "pl",
+  "ps1",
+  "py",
+  "rb",
+  "rs",
+  "sass",
+  "scss",
+  "sh",
+  "sql",
+  "svg",
+  "swift",
+  "toml",
+  "ts",
+  "tsx",
+  "txt",
+  "vue",
+  "xml",
+  "yaml",
+  "yml",
+  "zsh",
+]);
+const CHAT_ATTACHMENT_ACCEPT = [
+  "image/*",
+  ".c",
+  ".cc",
+  ".cpp",
+  ".cs",
+  ".css",
+  ".env",
+  ".go",
+  ".graphql",
+  ".h",
+  ".hpp",
+  ".html",
+  ".ini",
+  ".java",
+  ".js",
+  ".json",
+  ".jsx",
+  ".kt",
+  ".log",
+  ".lua",
+  ".md",
+  ".mjs",
+  ".php",
+  ".pl",
+  ".ps1",
+  ".py",
+  ".rb",
+  ".rs",
+  ".sass",
+  ".scss",
+  ".sh",
+  ".sql",
+  ".svg",
+  ".swift",
+  ".toml",
+  ".ts",
+  ".tsx",
+  ".txt",
+  ".vue",
+  ".xml",
+  ".yaml",
+  ".yml",
+  ".zsh",
+].join(",");
+
+function fileExtension(name: string) {
+  const dotIndex = name.lastIndexOf(".");
+  if (dotIndex <= 0 || dotIndex >= name.length - 1) {
+    return "";
+  }
+  return name.slice(dotIndex + 1).toLowerCase();
+}
+
+function isInlineImageUrl(image: string) {
+  return (
+    image.startsWith("data:") ||
+    image.startsWith("http://") ||
+    image.startsWith("https://")
+  );
+}
+
+function isTextLikeMimeType(mimeType: string) {
+  const normalized = mimeType.toLowerCase();
+  return (
+    normalized.startsWith("text/") ||
+    normalized.includes("json") ||
+    normalized.includes("xml") ||
+    normalized.includes("yaml") ||
+    normalized.includes("javascript") ||
+    normalized.includes("typescript") ||
+    normalized.includes("toml") ||
+    normalized.includes("shellscript")
+  );
+}
+
+function isTextAttachmentFile(file: File) {
+  const type = String(file.type ?? "");
+  return isTextLikeMimeType(type) || TEXT_ATTACHMENT_EXTENSIONS.has(fileExtension(file.name));
+}
+
+function isImageAttachmentFile(file: File) {
+  return String(file.type ?? "").startsWith("image/");
+}
+
+function readFileAsDataUrl(file: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result ?? ""));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
+async function toImageAttachment(file: File): Promise<ChatImageAttachment> {
+  const source = await readFileAsDataUrl(file);
+  return {
+    kind: "image",
+    name: file.name || "image",
+    mimeType: file.type || null,
+    source,
+  };
+}
+
+async function toTextAttachment(file: File): Promise<ChatTextAttachment> {
+  const slice = file.slice(0, TEXT_ATTACHMENT_MAX_BYTES + 1);
+  const content = await slice.text();
+  const truncated = content.length > TEXT_ATTACHMENT_MAX_BYTES || file.size > TEXT_ATTACHMENT_MAX_BYTES;
+  return {
+    kind: "text",
+    name: file.name || "attachment.txt",
+    mimeType: file.type || null,
+    text: truncated ? content.slice(0, TEXT_ATTACHMENT_MAX_BYTES) : content,
+    path: null,
+    truncated,
+  };
+}
+
+async function toChatAttachment(file: File): Promise<ChatAttachment | null> {
+  if (isImageAttachmentFile(file)) {
+    return toImageAttachment(file);
+  }
+  if (isTextAttachmentFile(file)) {
+    return toTextAttachment(file);
+  }
+  return null;
+}
+
+async function pickAttachmentsFromBrowser(): Promise<ChatAttachment[]> {
+  if (typeof document === "undefined") {
+    return [];
+  }
+  const input = document.createElement("input");
+  input.type = "file";
+  input.multiple = true;
+  input.accept = CHAT_ATTACHMENT_ACCEPT;
+
+  const files = await new Promise<File[]>((resolve) => {
+    input.onchange = () => {
+      resolve(Array.from(input.files ?? []));
+    };
+    input.click();
+  });
+  const attachments = await Promise.all(files.map((file) => toChatAttachment(file)));
+  return attachments.filter((attachment): attachment is ChatAttachment => attachment !== null);
+}
+
 export async function pickWorkspacePath(): Promise<string | null> {
   const selection = await open({ directory: true, multiple: false });
   if (!selection || Array.isArray(selection)) {
@@ -71,6 +273,14 @@ export async function pickImageFiles(): Promise<string[]> {
     return [];
   }
   return Array.isArray(selection) ? selection : [selection];
+}
+
+export async function pickChatAttachments(): Promise<ChatAttachment[]> {
+  const attachments = await pickAttachmentsFromBrowser();
+  if (attachments.length > 0) {
+    return attachments;
+  }
+  return [];
 }
 
 export async function exportMarkdownFile(
@@ -403,14 +613,6 @@ export async function compactThread(workspaceId: string, threadId: string) {
   return invoke<any>("compact_thread", { workspaceId, threadId });
 }
 
-function isInlineImageUrl(image: string) {
-  return (
-    image.startsWith("data:") ||
-    image.startsWith("http://") ||
-    image.startsWith("https://")
-  );
-}
-
 async function convertImagesToDataUrls(images: string[]): Promise<string[]> {
   return Promise.all(
     images.map(async (image) => {
@@ -449,6 +651,67 @@ async function normalizeImagesForRpc(images?: string[]): Promise<string[] | null
   return convertImagesToDataUrls(images);
 }
 
+async function normalizeAttachmentsForRpc(
+  attachments?: ChatAttachment[] | null,
+  legacyImages?: string[] | null,
+): Promise<ChatAttachment[] | null> {
+  if (attachments == null) {
+    if (legacyImages == null) {
+      return null;
+    }
+    const normalizedImages = await normalizeImagesForRpc(legacyImages);
+    if (normalizedImages == null) {
+      return null;
+    }
+    return normalizedImages.map((image) => createChatImageAttachment(image));
+  }
+  if (attachments.length === 0) {
+    return [];
+  }
+  const imageAttachments = attachments.filter(isChatImageAttachment);
+  if (imageAttachments.length === 0) {
+    return attachments;
+  }
+
+  const pathImages = imageAttachments.filter(
+    (attachment) => !isInlineImageUrl(attachment.source),
+  );
+  if (pathImages.length === 0) {
+    return attachments;
+  }
+
+  let settings: AppSettings;
+  let mobileRuntime: boolean;
+  try {
+    [settings, mobileRuntime] = await Promise.all([getAppSettings(), isMobileRuntime()]);
+  } catch (error) {
+    if (isMissingTauriInvokeError(error)) {
+      return attachments;
+    }
+    throw error;
+  }
+
+  if (settings.backendMode !== "remote" && !mobileRuntime) {
+    return attachments;
+  }
+
+  const replacements = new Map<string, string>();
+  await Promise.all(
+    pathImages.map(async (attachment) => {
+      replacements.set(attachment.source, await readImageAsDataUrl(attachment.source));
+    }),
+  );
+  return attachments.map((attachment) =>
+    isChatImageAttachment(attachment) && replacements.has(attachment.source)
+      ? {
+          ...attachment,
+          name: chatImageAttachmentName(attachment),
+          source: replacements.get(attachment.source) ?? attachment.source,
+        }
+      : attachment,
+  );
+}
+
 export async function sendUserMessage(
   workspaceId: string,
   threadId: string,
@@ -458,12 +721,16 @@ export async function sendUserMessage(
     effort?: string | null;
     serviceTier?: ServiceTier | null;
     accessMode?: "read-only" | "current" | "full-access";
+    attachments?: ChatAttachment[] | null;
     images?: string[];
     collaborationMode?: Record<string, unknown> | null;
     appMentions?: AppMention[];
   },
 ) {
-  const images = await normalizeImagesForRpc(options?.images);
+  const attachments = await normalizeAttachmentsForRpc(
+    options?.attachments,
+    options?.images,
+  );
   const payload: Record<string, unknown> = {
     workspaceId,
     threadId,
@@ -472,7 +739,8 @@ export async function sendUserMessage(
     effort: options?.effort ?? null,
     serviceTier: options?.serviceTier ?? null,
     accessMode: options?.accessMode ?? null,
-    images,
+    attachments,
+    images: options?.images ?? null,
   };
   if (options?.collaborationMode) {
     payload.collaborationMode = options.collaborationMode;
@@ -517,16 +785,16 @@ export async function steerTurn(
   threadId: string,
   turnId: string,
   text: string,
-  images?: string[],
+  attachments?: ChatAttachment[] | null,
   appMentions?: AppMention[],
 ) {
-  const normalizedImages = await normalizeImagesForRpc(images);
+  const normalizedAttachments = await normalizeAttachmentsForRpc(attachments);
   const payload: Record<string, unknown> = {
     workspaceId,
     threadId,
     turnId,
     text,
-    images: normalizedImages,
+    attachments: normalizedAttachments,
   };
   if (appMentions && appMentions.length > 0) {
     payload.appMentions = appMentions;

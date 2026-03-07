@@ -344,7 +344,13 @@ export const Messages = memo(function Messages({
   const handleCopyMessage = useCallback(
     async (item: Extract<ConversationItem, { kind: "message" }>) => {
       try {
-        await navigator.clipboard.writeText(item.text);
+        const payload =
+          item.attachments && item.attachments.length > 0
+            ? `${item.text}\n\nAttachments: ${item.attachments
+                .map((attachment) => attachment.name)
+                .join(", ")}`
+            : item.text;
+        await navigator.clipboard.writeText(payload.trim());
         setCopiedMessageId(item.id);
         if (copyTimeoutRef.current) {
           window.clearTimeout(copyTimeoutRef.current);

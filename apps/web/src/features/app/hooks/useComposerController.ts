@@ -1,4 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
+import { createChatImageAttachment } from "@codex-remote/shared-types";
 import type {
   AppMention,
   ComposerSendIntent,
@@ -50,7 +52,7 @@ export function useComposerController({
   ) => Promise<string | null>;
   sendUserMessage: (
     text: string,
-    images?: string[],
+    images?: ChatAttachment[],
     appMentions?: AppMention[],
     options?: { sendIntent?: ComposerSendIntent },
   ) => Promise<{ status: "sent" | "blocked" | "steer_failed" }>;
@@ -58,7 +60,7 @@ export function useComposerController({
     workspace: WorkspaceInfo,
     threadId: string,
     text: string,
-    images?: string[],
+    images?: ChatAttachment[],
   ) => Promise<void | SendMessageResult>;
   startFork: (text: string) => Promise<void>;
   startReview: (text: string) => Promise<void>;
@@ -150,7 +152,10 @@ export function useComposerController({
         return;
       }
       removeQueuedMessage(activeThreadId, item.id);
-      setImagesForThread(activeThreadId, item.images ?? []);
+      setImagesForThread(
+        activeThreadId,
+        item.attachments ?? (item.images ?? []).map((image) => createChatImageAttachment(image)),
+      );
       setPrefillDraft(item);
     },
     [activeThreadId, removeQueuedMessage, setImagesForThread],

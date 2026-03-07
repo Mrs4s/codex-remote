@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type {
   GitHubPullRequest,
   GitHubPullRequestComment,
@@ -35,7 +36,7 @@ type UsePullRequestReviewActionsOptions = {
     workspace: WorkspaceInfo,
     threadId: string,
     text: string,
-    images?: string[],
+    images?: ChatAttachment[],
   ) => Promise<void | SendMessageResult>;
 };
 
@@ -43,7 +44,7 @@ type RunPullRequestReviewOptions = {
   intent: PullRequestReviewIntent;
   question?: string;
   selection?: PullRequestSelectionRange | null;
-  images?: string[];
+  images?: ChatAttachment[];
   activateThread?: boolean;
 };
 

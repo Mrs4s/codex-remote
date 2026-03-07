@@ -1,5 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
-import { pickImageFiles } from "../../../services/tauri";
+import type { ChatAttachment } from "@codex-remote/shared-types";
+import { chatAttachmentKey } from "@codex-remote/shared-types";
+import { pickChatAttachments } from "../../../services/tauri";
 
 type UseComposerImagesArgs = {
   activeThreadId: string | null;
@@ -10,7 +12,7 @@ export function useComposerImages({
   activeThreadId,
   activeWorkspaceId,
 }: UseComposerImagesArgs) {
-  const [imagesByThread, setImagesByThread] = useState<Record<string, string[]>>({});
+  const [imagesByThread, setImagesByThread] = useState<Record<string, ChatAttachment[]>>({});
 
   const draftKey = useMemo(
     () => activeThreadId ?? `draft-${activeWorkspaceId ?? "none"}`,
@@ -20,13 +22,17 @@ export function useComposerImages({
   const activeImages = imagesByThread[draftKey] ?? [];
 
   const attachImages = useCallback(
-    (paths: string[]) => {
-      if (paths.length === 0) {
+    (attachments: ChatAttachment[]) => {
+      if (attachments.length === 0) {
         return;
       }
       setImagesByThread((prev) => {
         const existing = prev[draftKey] ?? [];
-        const merged = Array.from(new Set([...existing, ...paths]));
+        const mergedByKey = new Map<string, ChatAttachment>();
+        [...existing, ...attachments].forEach((attachment) => {
+          mergedByKey.set(chatAttachmentKey(attachment), attachment);
+        });
+        const merged = Array.from(mergedByKey.values());
         return { ...prev, [draftKey]: merged };
       });
     },
@@ -34,7 +40,7 @@ export function useComposerImages({
   );
 
   const pickImages = useCallback(async () => {
-    const picked = await pickImageFiles();
+    const picked = await pickChatAttachments();
     if (picked.length === 0) {
       return;
     }
@@ -42,10 +48,11 @@ export function useComposerImages({
   }, [attachImages]);
 
   const removeImage = useCallback(
-    (path: string) => {
+    (attachmentToRemove: ChatAttachment) => {
       setImagesByThread((prev) => {
         const existing = prev[draftKey] ?? [];
-        const next = existing.filter((entry) => entry !== path);
+        const attachmentKey = chatAttachmentKey(attachmentToRemove);
+        const next = existing.filter((entry) => chatAttachmentKey(entry) !== attachmentKey);
         if (next.length === 0) {
           const { [draftKey]: _, ...rest } = prev;
           return rest;
@@ -66,7 +73,7 @@ export function useComposerImages({
     });
   }, [draftKey]);
 
-  const setImagesForThread = useCallback((threadId: string, images: string[]) => {
+  const setImagesForThread = useCallback((threadId: string, images: ChatAttachment[]) => {
     setImagesByThread((prev) => ({ ...prev, [threadId]: images }));
   }, []);
 

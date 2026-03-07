@@ -1,4 +1,5 @@
 import { useCallback } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type {
   CollaborationModeOption,
   SendMessageResult,
@@ -17,7 +18,7 @@ type SendUserMessageToThread = (
   workspace: WorkspaceInfo,
   threadId: string,
   message: string,
-  imageIds: string[],
+  imageIds: ChatAttachment[],
   options?: SendUserMessageOptions,
 ) => Promise<void | SendMessageResult>;
 

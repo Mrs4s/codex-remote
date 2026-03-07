@@ -6,8 +6,9 @@ import type {
   RefObject,
   SyntheticEvent,
 } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type { AutocompleteItem } from "../hooks/useComposerAutocomplete";
-import ImagePlus from "lucide-react/dist/esm/icons/image-plus";
+import Paperclip from "lucide-react/dist/esm/icons/paperclip";
 import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
 import ChevronUp from "lucide-react/dist/esm/icons/chevron-up";
 import Brain from "lucide-react/dist/esm/icons/brain";
@@ -49,10 +50,10 @@ type ComposerInputProps = {
   onDismissDictationError?: () => void;
   dictationHint?: string | null;
   onDismissDictationHint?: () => void;
-  attachments?: string[];
+  attachments?: ChatAttachment[];
   onAddAttachment?: () => void;
-  onAttachImages?: (paths: string[]) => void;
-  onRemoveAttachment?: (path: string) => void;
+  onAttachImages?: (attachments: ChatAttachment[]) => void;
+  onRemoveAttachment?: (attachment: ChatAttachment) => void;
   onTextChange: (next: string, selectionStart: number | null) => void;
   onTextPaste?: (event: ClipboardEvent<HTMLTextAreaElement>) => void;
   onSelectionChange: (selectionStart: number | null) => void;
@@ -381,10 +382,10 @@ export function ComposerInput({
             className="composer-attach"
             onClick={onAddAttachment}
             disabled={disabled || !onAddAttachment}
-            aria-label="Add image"
-            title="Add image"
+            aria-label="Add attachment"
+            title="Add attachment"
           >
-            <ImagePlus size={14} aria-hidden />
+            <Paperclip size={14} aria-hidden />
           </button>
           <div
             className={`composer-mobile-menu${mobileActionsOpen ? " is-open" : ""}`}
@@ -407,9 +408,9 @@ export function ComposerInput({
                 <PopoverMenuItem
                   onClick={handleMobileAttachClick}
                   disabled={disabled || !onAddAttachment}
-                  icon={<ImagePlus size={14} />}
+                  icon={<Paperclip size={14} />}
                 >
-                  Add image
+                  Add attachment
                 </PopoverMenuItem>
                 {onToggleExpand && (
                   <PopoverMenuItem

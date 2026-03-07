@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import { pushErrorToast } from "@/services/toasts";
 import type {
@@ -87,7 +88,7 @@ type MainTab = "home" | "projects" | "codex" | "git" | "log";
 
 type SendOrQueueHandler = (
   text: string,
-  images: string[],
+  images: ChatAttachment[],
   appMentions?: AppMention[],
   submitIntent?: ComposerSendIntent,
 ) => Promise<void>;
@@ -437,7 +438,7 @@ export function useThreadUiOrchestration({
   const handleComposerSendWithDraftStart = useCallback(
     (
       text: string,
-      images: string[],
+      images: ChatAttachment[],
       appMentions?: AppMention[],
       submitIntent?: ComposerSendIntent,
     ) => {

@@ -1,11 +1,12 @@
 /** @vitest-environment jsdom */
 import React, { act } from "react";
 import { createRoot } from "react-dom/client";
+import { createChatImageAttachment } from "@codex-remote/shared-types";
 import { describe, expect, it, vi } from "vitest";
 import { useComposerImages } from "./useComposerImages";
 
 vi.mock("../../../services/tauri", () => ({
-  pickImageFiles: vi.fn().mockResolvedValue([]),
+  pickChatAttachments: vi.fn().mockResolvedValue([]),
 }));
 
 type HookResult = ReturnType<typeof useComposerImages>;
@@ -65,19 +66,28 @@ describe("useComposerImages", () => {
     });
 
     act(() => {
-      hook.result.attachImages(["/tmp/a.png", "/tmp/b.png"]);
-    });
-
-    expect(hook.result.activeImages).toEqual(["/tmp/a.png", "/tmp/b.png"]);
-
-    act(() => {
-      hook.result.attachImages(["/tmp/b.png", "/tmp/c.png"]);
+      hook.result.attachImages([
+        createChatImageAttachment("/tmp/a.png"),
+        createChatImageAttachment("/tmp/b.png"),
+      ]);
     });
 
     expect(hook.result.activeImages).toEqual([
-      "/tmp/a.png",
-      "/tmp/b.png",
-      "/tmp/c.png",
+      createChatImageAttachment("/tmp/a.png"),
+      createChatImageAttachment("/tmp/b.png"),
+    ]);
+
+    act(() => {
+      hook.result.attachImages([
+        createChatImageAttachment("/tmp/b.png"),
+        createChatImageAttachment("/tmp/c.png"),
+      ]);
+    });
+
+    expect(hook.result.activeImages).toEqual([
+      createChatImageAttachment("/tmp/a.png"),
+      createChatImageAttachment("/tmp/b.png"),
+      createChatImageAttachment("/tmp/c.png"),
     ]);
 
     hook.unmount();
@@ -90,17 +100,20 @@ describe("useComposerImages", () => {
     });
 
     act(() => {
-      hook.result.attachImages(["/tmp/a.png", "/tmp/b.png"]);
+      hook.result.attachImages([
+        createChatImageAttachment("/tmp/a.png"),
+        createChatImageAttachment("/tmp/b.png"),
+      ]);
     });
 
     act(() => {
-      hook.result.removeImage("/tmp/a.png");
+      hook.result.removeImage(createChatImageAttachment("/tmp/a.png"));
     });
 
-    expect(hook.result.activeImages).toEqual(["/tmp/b.png"]);
+    expect(hook.result.activeImages).toEqual([createChatImageAttachment("/tmp/b.png")]);
 
     act(() => {
-      hook.result.removeImage("/tmp/b.png");
+      hook.result.removeImage(createChatImageAttachment("/tmp/b.png"));
     });
 
     expect(hook.result.activeImages).toEqual([]);
@@ -115,20 +128,20 @@ describe("useComposerImages", () => {
     });
 
     act(() => {
-      hook.result.attachImages(["/tmp/a.png"]);
+      hook.result.attachImages([createChatImageAttachment("/tmp/a.png")]);
     });
-    expect(hook.result.activeImages).toEqual(["/tmp/a.png"]);
+    expect(hook.result.activeImages).toEqual([createChatImageAttachment("/tmp/a.png")]);
 
     hook.rerender({ activeThreadId: null, activeWorkspaceId: "ws-1" });
     expect(hook.result.activeImages).toEqual([]);
 
     act(() => {
-      hook.result.attachImages(["/tmp/b.png"]);
+      hook.result.attachImages([createChatImageAttachment("/tmp/b.png")]);
     });
-    expect(hook.result.activeImages).toEqual(["/tmp/b.png"]);
+    expect(hook.result.activeImages).toEqual([createChatImageAttachment("/tmp/b.png")]);
 
     hook.rerender({ activeThreadId: "thread-1", activeWorkspaceId: "ws-1" });
-    expect(hook.result.activeImages).toEqual(["/tmp/a.png"]);
+    expect(hook.result.activeImages).toEqual([createChatImageAttachment("/tmp/a.png")]);
 
     hook.unmount();
   });

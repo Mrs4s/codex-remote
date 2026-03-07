@@ -1,5 +1,6 @@
 import { useCallback } from "react";
 import type { Dispatch, MutableRefObject } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type {
   AccessMode,
   AppMention,
@@ -41,6 +42,7 @@ type SendMessageOptions = {
   serviceTier?: ServiceTier | null;
   collaborationMode?: Record<string, unknown> | null;
   accessMode?: AccessMode;
+  attachments?: ChatAttachment[];
   appMentions?: AppMention[];
   sendIntent?: ComposerSendIntent;
 };
@@ -169,11 +171,11 @@ export function useThreadMessaging({
       workspace: WorkspaceInfo,
       threadId: string,
       text: string,
-      images: string[] = [],
+      attachments: ChatAttachment[] = [],
       options?: SendMessageOptions,
     ): Promise<SendMessageResult> => {
       const messageText = text.trim();
-      if (!messageText && images.length === 0) {
+      if (!messageText && attachments.length === 0) {
         return { status: "blocked" };
       }
       let finalText = messageText;
@@ -242,7 +244,7 @@ export function useThreadMessaging({
           threadId,
           turnId: activeTurnId,
           text: finalText,
-          images,
+          attachments,
           model: resolvedModel,
           effort: resolvedEffort,
           serviceTier: resolvedServiceTier,
@@ -284,7 +286,7 @@ export function useThreadMessaging({
             serviceTier?: ServiceTier | null;
             collaborationMode?: Record<string, unknown> | null;
             accessMode?: AccessMode;
-            images?: string[];
+            attachments?: ChatAttachment[];
             appMentions?: AppMention[];
           } = {
             model: resolvedModel,
@@ -292,7 +294,7 @@ export function useThreadMessaging({
             serviceTier: resolvedServiceTier,
             collaborationMode: sanitizedCollaborationMode,
             accessMode: resolvedAccessMode,
-            images,
+            attachments,
           };
           if (appMentions.length > 0) {
             payload.appMentions = appMentions;
@@ -312,7 +314,7 @@ export function useThreadMessaging({
               threadId,
               activeTurnId ?? "",
               finalText,
-              images,
+              attachments,
               appMentions,
             )
             : steerTurnService(
@@ -320,7 +322,7 @@ export function useThreadMessaging({
               threadId,
               activeTurnId ?? "",
               finalText,
-              images,
+              attachments,
             ))) as Record<string, unknown>
           : (await startTurn()) as Record<string, unknown>;
 
@@ -426,7 +428,7 @@ export function useThreadMessaging({
   const sendUserMessage = useCallback(
     async (
       text: string,
-      images: string[] = [],
+      attachments: ChatAttachment[] = [],
       appMentions: AppMention[] = [],
       options?: { sendIntent?: ComposerSendIntent },
     ): Promise<SendMessageResult> => {
@@ -434,7 +436,7 @@ export function useThreadMessaging({
         return { status: "blocked" };
       }
       const messageText = text.trim();
-      if (!messageText && images.length === 0) {
+      if (!messageText && attachments.length === 0) {
         return { status: "blocked" };
       }
       const promptExpansion = expandCustomPromptText(messageText, customPrompts);
@@ -458,7 +460,7 @@ export function useThreadMessaging({
       if (!threadId) {
         return { status: "blocked" };
       }
-      return sendMessageToThread(activeWorkspace, threadId, finalText, images, {
+      return sendMessageToThread(activeWorkspace, threadId, finalText, attachments, {
         skipPromptExpansion: true,
         appMentions,
         sendIntent: options?.sendIntent,
@@ -481,10 +483,10 @@ export function useThreadMessaging({
       workspace: WorkspaceInfo,
       threadId: string,
       text: string,
-      images: string[] = [],
+      attachments: ChatAttachment[] = [],
       options?: SendMessageOptions,
     ): Promise<SendMessageResult> => {
-      return sendMessageToThread(workspace, threadId, text, images, options);
+      return sendMessageToThread(workspace, threadId, text, attachments, options);
     },
     [sendMessageToThread],
   );

@@ -1,4 +1,4 @@
-import type { ServiceTier } from "@codex-remote/shared-types";
+import type { ChatAttachment, ServiceTier } from "@codex-remote/shared-types";
 import type { AppSettings } from "../types/domain.js";
 import type { PromptScope, PromptService } from "../services/promptService.js";
 import type { WorkspaceService } from "../services/workspaceService.js";
@@ -622,6 +622,7 @@ export async function dispatchRpc(
         effort: (params.effort as string | null | undefined) ?? null,
         serviceTier: (params.serviceTier as ServiceTier | null | undefined) ?? null,
         accessMode: (params.accessMode as string | null | undefined) ?? null,
+        attachments: (params.attachments as ChatAttachment[] | null | undefined) ?? null,
         images: (params.images as string[] | null | undefined) ?? null,
         appMentions: (params.appMentions as unknown[] | null | undefined) ?? null,
         collaborationMode:
@@ -646,6 +647,7 @@ export async function dispatchRpc(
         threadId: requireString(params, "threadId"),
         turnId: requireString(params, "turnId"),
         text: String(params.text ?? ""),
+        attachments: (params.attachments as ChatAttachment[] | null | undefined) ?? null,
         images: (params.images as string[] | null | undefined) ?? null,
         appMentions: (params.appMentions as unknown[] | null | undefined) ?? null,
       });

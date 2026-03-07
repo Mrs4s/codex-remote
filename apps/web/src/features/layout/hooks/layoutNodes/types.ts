@@ -1,4 +1,5 @@
 import type { DragEvent, MouseEvent, ReactNode, RefObject } from "react";
+import type { ChatAttachment } from "@codex-remote/shared-types";
 import type { ReviewPromptState, ReviewPromptStep } from "../../../threads/hooks/useReviewPrompt";
 import type { WorkspaceLaunchScriptsState } from "../../../app/hooks/useWorkspaceLaunchScripts";
 import type {
@@ -328,7 +329,7 @@ export type LayoutNodesOptions = {
     intent: PullRequestReviewIntent;
     question?: string;
     selection?: PullRequestSelectionRange | null;
-    images?: string[];
+    images?: ChatAttachment[];
   }) => Promise<string | null>;
   pullRequestReviewLaunching: boolean;
   pullRequestReviewThreadId: string | null;
@@ -404,7 +405,7 @@ export type LayoutNodesOptions = {
   canRevealGeneralPrompts: boolean;
   onSend: (
     text: string,
-    images: string[],
+    images: ChatAttachment[],
     appMentions?: AppMention[],
     submitIntent?: ComposerSendIntent,
   ) => void | Promise<void>;
@@ -446,10 +447,10 @@ export type LayoutNodesOptions = {
   queuePausedReason: string | null;
   draftText: string;
   onDraftChange: (next: string) => void;
-  activeImages: string[];
+  activeImages: ChatAttachment[];
   onPickImages: () => void | Promise<void>;
-  onAttachImages: (paths: string[]) => void;
-  onRemoveImage: (path: string) => void;
+  onAttachImages: (attachments: ChatAttachment[]) => void;
+  onRemoveImage: (attachment: ChatAttachment) => void;
   prefillDraft: QueuedMessage | null;
   onPrefillHandled: (id: string) => void;
   insertText: QueuedMessage | null;

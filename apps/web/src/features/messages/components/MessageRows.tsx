@@ -1,6 +1,7 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { MouseEvent } from "react";
 import { createPortal } from "react-dom";
+import type { ChatAttachment, ChatTextAttachment } from "@codex-remote/shared-types";
 import Brain from "lucide-react/dist/esm/icons/brain";
 import Check from "lucide-react/dist/esm/icons/check";
 import Copy from "lucide-react/dist/esm/icons/copy";
@@ -14,6 +15,11 @@ import Terminal from "lucide-react/dist/esm/icons/terminal";
 import Users from "lucide-react/dist/esm/icons/users";
 import Wrench from "lucide-react/dist/esm/icons/wrench";
 import X from "lucide-react/dist/esm/icons/x";
+import {
+  chatImageAttachmentName,
+  isChatImageAttachment,
+  isChatTextAttachment,
+} from "@codex-remote/shared-types";
 import { exportMarkdownFile } from "@services/tauri";
 import { pushErrorToast } from "@services/toasts";
 import type { ConversationItem } from "../../../types";
@@ -181,6 +187,33 @@ const ImageLightbox = memo(function ImageLightbox({
       </div>
     </div>,
     document.body,
+  );
+});
+
+const MessageTextAttachmentList = memo(function MessageTextAttachmentList({
+  attachments,
+}: {
+  attachments: ChatTextAttachment[];
+}) {
+  if (attachments.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="message-attachment-list" role="list" aria-label="Attachments">
+      {attachments.map((attachment, index) => (
+        <div
+          key={`${attachment.name}-${attachment.path ?? "inline"}-${index}`}
+          className="message-attachment-chip"
+          role="listitem"
+          title={attachment.path ?? attachment.name}
+        >
+          <FileText size={14} aria-hidden />
+          <span>{attachment.name}</span>
+          {attachment.truncated ? <span className="message-attachment-meta">Truncated</span> : null}
+        </div>
+      ))}
+    </div>
   );
 });
 
@@ -378,20 +411,36 @@ export const MessageRow = memo(function MessageRow({
 }: MessageRowProps) {
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const hasText = item.text.trim().length > 0;
+  const messageAttachments = useMemo<ChatAttachment[]>(
+    () =>
+      item.attachments ??
+      (item.images ?? []).map((image) => ({
+        kind: "image" as const,
+        name: image,
+        mimeType: null,
+        source: image,
+      })),
+    [item.attachments, item.images],
+  );
   const imageItems = useMemo(() => {
-    if (!item.images || item.images.length === 0) {
+    const imageAttachments = messageAttachments.filter(isChatImageAttachment);
+    if (imageAttachments.length === 0) {
       return [];
     }
-    return item.images
-      .map((image, index) => {
-        const src = normalizeMessageImageSrc(image);
+    return imageAttachments
+      .map((attachment, index) => {
+        const src = normalizeMessageImageSrc(attachment.source);
         if (!src) {
           return null;
         }
-        return { src, label: `Image ${index + 1}` };
+        return { src, label: chatImageAttachmentName(attachment) || `Image ${index + 1}` };
       })
       .filter(Boolean) as MessageImage[];
-  }, [item.images]);
+  }, [messageAttachments]);
+  const textAttachments = useMemo(
+    () => messageAttachments.filter(isChatTextAttachment),
+    [messageAttachments],
+  );
 
   return (
     <div className={`message ${item.role}`}>
@@ -402,6 +451,9 @@ export const MessageRow = memo(function MessageRow({
             onOpen={setLightboxIndex}
             hasText={hasText}
           />
+        )}
+        {textAttachments.length > 0 && (
+          <MessageTextAttachmentList attachments={textAttachments} />
         )}
         {hasText && (
           <Markdown

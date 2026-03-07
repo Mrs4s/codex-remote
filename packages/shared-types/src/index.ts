@@ -1,5 +1,7 @@
 import { z } from "zod";
+import type { ChatAttachment } from "./chatAttachments.ts";
 export * from "./codexArgs.ts";
+export * from "./chatAttachments.ts";
 
 export const appServerEventSchema = z.object({
   workspace_id: z.string(),
@@ -471,6 +473,7 @@ export type RpcMethodMap = {
       effort?: string | null;
       serviceTier?: ServiceTier | null;
       accessMode?: string | null;
+      attachments?: ChatAttachment[] | null;
       images?: string[] | null;
       appMentions?: unknown[] | null;
       collaborationMode?: Record<string, unknown> | null;
@@ -498,6 +501,7 @@ export type RpcMethodMap = {
       threadId: string;
       turnId: string;
       text: string;
+      attachments?: ChatAttachment[] | null;
       images?: string[] | null;
       appMentions?: unknown[] | null;
     };

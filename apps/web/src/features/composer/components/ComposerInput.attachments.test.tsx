@@ -163,7 +163,7 @@ function setMockFileReader() {
 }
 
 describe("Composer attachments integration", () => {
-  it("attaches dropped image files, filters non-images, and dedupes paths", async () => {
+  it("attaches dropped image and text files, and dedupes repeated files", async () => {
     const harness = renderComposerHarness({
       activeThreadId: "thread-1",
       activeWorkspaceId: "ws-1",
@@ -179,7 +179,10 @@ describe("Composer attachments integration", () => {
       dispatchDrop(textarea, [image, nonImage]);
     });
 
-    expect(getAttachmentNames(harness.container)).toEqual(["photo.png"]);
+    expect(getAttachmentNames(harness.container)).toEqual([
+      "photo.png",
+      "notes.txt",
+    ]);
 
     const imageTwo = new File(["data"], "second.jpg", { type: "image/jpeg" });
     (imageTwo as File & { path?: string }).path = "/tmp/second.jpg";
@@ -190,6 +193,7 @@ describe("Composer attachments integration", () => {
 
     expect(getAttachmentNames(harness.container)).toEqual([
       "photo.png",
+      "notes.txt",
       "second.jpg",
     ]);
 
@@ -212,7 +216,7 @@ describe("Composer attachments integration", () => {
       dispatchPaste(textarea, [textItem, imageItem]);
     });
 
-    expect(getAttachmentNames(harness.container)).toEqual(["Pasted image"]);
+    expect(getAttachmentNames(harness.container)).toEqual(["paste.png"]);
 
     harness.unmount();
     restoreFileReader();
